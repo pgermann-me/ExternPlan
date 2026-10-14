@@ -1,8 +1,10 @@
+import {personGroupIds} from './public/organization.js';
 import { audit, instant, iso } from './domain.js';
+import {orderedFavorites} from './favorites.js';
 export const active = item => !item.deleted_at;
 export function publicState(s){
  const types=['functions','regions','groups','rules','favorites'];
- return {...s,...Object.fromEntries(types.map(t=>[t,(s[t]||[]).filter(active)])),archived_master:Object.fromEntries(types.map(t=>[t,(s[t]||[]).filter(x=>!active(x))]))};
+ return {...s,...Object.fromEntries(types.map(t=>[t,(s[t]||[]).filter(active)])),favorites:orderedFavorites(s),archived_master:Object.fromEntries(types.map(t=>[t,(s[t]||[]).filter(x=>!active(x))]))};
 }
 export function deleteMaster(s,type,key,now=Date.now()){
  if(!['functions','regions','groups','departments','rules'].includes(type))throw Error('Unbekannte Stammdaten');
@@ -11,7 +13,7 @@ export function deleteMaster(s,type,key,now=Date.now()){
  let used=false;
  if(type==='functions')used=current.some(a=>a.function_id===key);
  if(type==='regions')used=current.some(a=>a.geodependency===key||(s.functions.find(f=>f.id===a.function_id)?.covers[a.geodependency]||[]).includes(key));
- if(type==='groups'){const members=new Set(s.people.filter(p=>p.group_id===key).map(p=>p.employee_id));used=current.some(a=>members.has(a.employee_id));}
+ if(type==='groups'){const members=new Set(s.people.filter(p=>personGroupIds(p).includes(key)).map(p=>p.employee_id));used=current.some(a=>members.has(a.employee_id));}
  if(used)throw Error('Löschen nicht möglich: laufender oder zukünftiger Pikettdienst ist zugewiesen');
  if(type==='departments'&&(s.people.some(p=>p.department_id===key)||s.groups.some(g=>active(g)&&g.department_id===key)))throw Error('Abteilung wird noch verwendet');
  if(type==='departments'){for(const f of (s.favorites||[]).filter(active)){if(f.scope_type==='department'&&f.scope_id===key){const previous={...f};f.deleted_at=iso(now);audit(s,'favorite','delete',previous,{...f});}}s.departments=s.departments.filter(d=>d.id!==key);audit(s,type,'delete',record,null);return {ok:true};}

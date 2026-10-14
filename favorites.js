@@ -1,6 +1,8 @@
+import {personGroupIds,personDepartmentIds,allowedFunctionRegions,validatePlanningGroup} from './public/organization.js';
 import {DateTime} from 'luxon';
 import {id,instant,iso,validateAssignment,change,audit,zone} from './domain.js';
 const defaultColor='#2563eb';
+export function orderedFavorites(s){return (s.favorites||[]).map((f,index)=>({f,index})).filter(({f})=>!f.deleted_at).sort((a,b)=>(a.f.sort_order??a.index)-(b.f.sort_order??b.index)||a.index-b.index).map(({f})=>f);}
 const live=x=>!x.deleted_at;
 const scopeTypes={function:'functions',department:'departments',group:'groups'};
 export function validateFavorite(s,p){
@@ -15,25 +17,27 @@ export function validateFavorite(s,p){
  if(!/^#[0-9a-f]{6}$/i.test(p.color||defaultColor))throw Error('Ungültige Favoritenfarbe');
  if(!Array.isArray(p.region_ids)||new Set(p.region_ids).size!==p.region_ids.length)throw Error('Regionen dürfen nicht doppelt gewählt sein');
  if(fn.geo_ids.length){if(!p.region_ids.length||p.region_ids.some(g=>!fn.geo_ids.includes(g)||!s.regions.some(r=>r.id===g&&live(r))))throw Error('Mindestens eine gültige, der Funktion zugeordnete Region wählen');}
- else if(p.region_ids.length)throw Error('Ortsunabhängige Funktion hat keine Regionen');
+ if(p.scope_type==='group'&&p.region_ids.some(id=>!allowedFunctionRegions(fn,s.groups.find(g=>g.id===p.scope_id),s.regions).includes(id)))throw Error('Region ist der Gruppe nicht zugeordnet');
+ else if(!fn.geo_ids.length&&p.region_ids.length)throw Error('Ortsunabhängige Funktion hat keine Regionen');
 }
 export function saveFavorite(s,input){
  s.favorites??=[];const existing=input.id?s.favorites.find(f=>f.id===input.id):null;
  if(input.id&&!existing)throw Error('Favorit nicht gefunden');if(existing?.deleted_at)throw Error('Favorit wurde gelöscht');
  if(existing&&input.revision!==existing.revision)throw Error('Favorit wurde inzwischen geändert. Neu laden.');
- const p={id:existing?.id||id(),name:String(input.name??'').trim(),scope_type:input.scope_type,scope_id:input.scope_id,function_id:input.function_id,region_ids:input.region_ids,duration_minutes:input.duration_minutes,start_time:input.start_time,priority:input.priority,color:input.color||defaultColor,revision:(existing?.revision||0)+1};
+ const p={id:existing?.id||id(),name:String(input.name??'').trim(),scope_type:input.scope_type,scope_id:input.scope_id,function_id:input.function_id,region_ids:input.region_ids,duration_minutes:input.duration_minutes,start_time:input.start_time,priority:input.priority,color:input.color||defaultColor,sort_order:existing?.sort_order??(existing?s.favorites.indexOf(existing):Math.max(-1,...s.favorites.map((f,i)=>f.sort_order??i))+1),revision:(existing?.revision||0)+1};
  validateFavorite(s,p);if(existing)s.favorites[s.favorites.indexOf(existing)]=p;else s.favorites.push(p);audit(s,'favorite',existing?'update':'create',existing,p);return p;
 }
 export function removeFavorite(s,key,revision){const p=(s.favorites||[]).find(f=>f.id===key&&live(f));if(!p)throw Error('Favorit nicht gefunden');if(Number(revision)!==p.revision)throw Error('Favorit wurde inzwischen geändert');const before={...p};p.deleted_at=iso(Date.now());audit(s,'favorite','delete',before,{...p});return {ok:true};}
 export function favoriteForPerson(s,f,p){
  if(f.scope_type==='function')return true;
- if(f.scope_type==='group')return p.group_id===f.scope_id;
- const group=s.groups.find(g=>g.id===p.group_id&&live(g));return p.department_id===f.scope_id||group?.department_id===f.scope_id;
+ if(f.scope_type==='group')return personGroupIds(p).includes(f.scope_id);
+ return personDepartmentIds(p,s.groups).includes(f.scope_id);
 }
 export function previewFavorite(s,key,input,now=Date.now()){
  const f=(s.favorites||[]).find(f=>f.id===key&&live(f));if(!f)throw Error('Favorit nicht gefunden');validateFavorite(s,f);
  if(input.revision!==f.revision)throw Error('Favorit wurde inzwischen geändert. Neu laden.');
  const person=s.people.find(p=>p.employee_id===input.employee_id);if(!person||!favoriteForPerson(s,f,person))throw Error('Person gehört nicht zum Bereich dieses Favoriten');
+ validatePlanningGroup(s,{...input,function_id:f.function_id,region_ids:f.region_ids});
  const today=DateTime.fromMillis(now,{zone}).toISODate();
  const date=input.date||today;const d=DateTime.fromISO(date,{zone});
  if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||!d.isValid)throw Error('Ungültiges Dienst-Datum');if(date<today)throw Error('Favoriten können erst ab dem heutigen Schweizer Datum geplant werden');
@@ -51,4 +55,12 @@ export function applyFavorite(s,key,input,now=Date.now()){
  for(const a of result.assignments){s.assignment_styles[a.assignment_id]={favorite_id:f.id,color:f.color||defaultColor};s.assignments.push(a);change(s,'create',a);audit(s,'assignment','create',null,a);}
  audit(s,'favorite','apply',null,{name:f.name,employee_id:input.employee_id,start_on:result.assignments[0].start_on,end_on:result.assignments[0].end_on,count:result.assignments.length});
  return result;
+}
+
+export function reorderFavorites(s,ids,expected){
+ const current=orderedFavorites(s),currentIds=current.map(f=>f.id);
+ if(!Array.isArray(ids)||ids.length!==currentIds.length||new Set(ids).size!==ids.length||ids.some(id=>!currentIds.includes(id)))throw Error('Reihenfolge muss alle aktiven Favoriten genau einmal enthalten');
+ if(!Array.isArray(expected)||JSON.stringify(expected)!==JSON.stringify(currentIds))throw Error('Favoritenliste wurde inzwischen geändert. Neu laden.');
+ const before=current.map(f=>({name:f.name}));ids.forEach((id,index)=>{s.favorites.find(f=>f.id===id).sort_order=index;});
+ audit(s,'favorite','reorder',before,orderedFavorites(s).map(f=>({name:f.name})));return {ok:true};
 }

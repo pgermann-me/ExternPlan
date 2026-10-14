@@ -36,6 +36,13 @@ try{
  const rows=[{persID:employeeId,name:'Nicht überschreiben',department:'SAP-A'},{persID:'SAP-TEST',name:'SAP Testperson',department:'SAP-A'}];const mapping={employee_id:'persID',name:'name',department_id:'department'};
  const preview=await call('/import/preview','POST',{format:'json',content:JSON.stringify(rows)});assert.equal(preview.data.count,2);
  assert.deepEqual((await call('/import/commit','POST',{type:'sap',rows,mapping})).data,{imported:1,skipped:1});await call('/import/commit','POST',{type:'sap',rows,mapping});let s=(await call('/state')).data;assert.equal(s.people.filter(p=>p.employee_id==='SAP-TEST').length,1);assert.equal(s.people.find(p=>p.employee_id===employeeId).name,'Externe Testperson');
+ const regionGroup=(await call('/master/groups','POST',{id:'MULTI-HTTP',name:'Mehrfach HTTP',department_id:'demo-abteilung',geo_ids:['NORD']})).data;
+ assert.equal((await call('/master/groups','POST',{id:'BAD-REGION',name:'Ungültig',geo_ids:['unbekannt']})).status,400);
+ assert.equal((await call('/people/SAP-TEST/groups','PUT',{group_ids:['demo-gruppe',regionGroup.id]})).status,200);
+ await call('/import/commit','POST',{type:'sap',rows,mapping});assert.deepEqual((await call('/state')).data.people.find(p=>p.employee_id==='SAP-TEST').group_ids,['demo-gruppe',regionGroup.id]);
+ const restrictedDuty={employee_id:'SAP-TEST',function_id:'DEMO-KTD',planning_group_id:regionGroup.id,geodependency:'SÜD',priority:1,start_on:'2099-02-01T07:00',end_on:'2099-02-02T07:00'};
+ assert.equal((await call('/assignments','POST',restrictedDuty)).status,400);
+ const scoped=(await call('/month?month=2099-02&group_id='+regionGroup.id)).data;assert.deepEqual(scoped.rows.filter(r=>r.function_id==='DEMO-KTD').map(r=>r.geo_id),['NORD']);
  // Invalid rows roll back the entire import, including any department creation.
  assert.equal((await call('/import/commit','POST',{type:'sap',rows:[{persID:'ROLLBACK',name:'Rollback',department:'ROLLBACK'},{}],mapping})).status,400);assert.equal((await call('/state')).data.people.some(p=>p.employee_id==='ROLLBACK'),false);
  const wb=new ExcelJS.Workbook();const ws=wb.addWorksheet('Regionen');ws.addRow(['Geo_ID','Beschreibung']);ws.addRow(['UA_SG','Bereich Untersuchungsamt St. Gallen']);const file=Buffer.from(await wb.xlsx.writeBuffer()).toString('base64');const x=await call('/import/preview','POST',{format:'xlsx',content:file});assert.equal(x.data.rows[0].Geo_ID,'UA_SG');assert.equal((await call('/import/commit','POST',{type:'regions',rows:x.data.rows,mapping:{id:'Geo_ID',name:'Beschreibung'}})).status,200);
@@ -53,7 +60,8 @@ try{
  const favoriteRequest={employee_id:employeeId,date:'2099-01-01',revision:favorite.data.revision};const countBefore=(await call('/state')).data.assignments.length;
  assert.equal((await call('/favorites/'+favorite.data.id+'/preview','POST',favoriteRequest)).data.assignments.length,2);assert.equal((await call('/state')).data.assignments.length,countBefore);
  assert.equal((await call('/favorites/'+favorite.data.id+'/apply','POST',favoriteRequest)).data.assignments.length,2);assert.equal((await call('/favorites/'+favorite.data.id+'/apply','POST',favoriteRequest)).status,400);assert.equal((await call('/state')).data.assignments.length,countBefore+2);
- await stop(server.p);server=await start();assert.equal((await call('/state')).data.favorites[0].duration_minutes,90);assert.equal((await call('/state')).data.outbox.length,2);
- assert.equal((await call('/favorites/'+favorite.data.id+'?revision='+favorite.data.revision,'DELETE')).status,200);assert.equal((await call('/state')).data.favorites.length,0);assert.equal((await call('/state')).data.assignments.length,countBefore+2);
+ const secondFavorite=await call('/favorites','POST',{name:'Zweiter HTTP Favorit',scope_type:'function',scope_id:'DEMO-KTD',function_id:'DEMO-KTD',region_ids:['NORD'],duration_minutes:45,start_time:'08:00',priority:1});assert.equal(secondFavorite.status,200);const order=(await call('/state')).data.favorites.map(f=>f.id);assert.equal((await call('/favorites/order','POST',{ids:[secondFavorite.data.id,favorite.data.id],expected:order})).status,200);
+ await stop(server.p);server=await start();assert.equal((await call('/state')).data.favorites[0].id,secondFavorite.data.id);assert.equal((await call('/state')).data.favorites[1].duration_minutes,90);assert.equal((await call('/state')).data.outbox.length,2);
+ assert.equal((await call('/favorites/'+favorite.data.id+'?revision='+favorite.data.revision,'DELETE')).status,200);assert.equal((await call('/state')).data.favorites.length,1);assert.equal((await call('/state')).data.assignments.length,countBefore+2);
 
 }finally{await stop(server.p);rmSync(dir,{recursive:true,force:true});}});

@@ -25,3 +25,11 @@ test('Ortsunabhängige Funktionen und Sommer-/Winterzeit-Tagesgrenzen',()=>{
 });
 
 test('Gruppenfilter neben der Funktion begrenzt Personen und Balken',()=>{const s=demo();add(s);add(s,{employee_id:'DEMO-EXT-001',geodependency:'SÜD'});const result=personMonth(s,'2026-10','DEMO-KTD',['NORD','SÜD'],'demo-gruppe');assert.equal(result.rows.length,1);assert.equal(result.rows[0].employee_id,'DEMO-EXT-001');assert.equal(result.rows[0].bars.length,1);assert.throws(()=>personMonth(s,'2026-10','DEMO-KTD',undefined,'unbekannt'));});
+test('Alle Mitglieder der gewählten Gruppe erscheinen auch ohne passende Dienste',()=>{
+ const s=demo();s.people.push({employee_id:'OHNE-DIENST',name:'Person ohne Dienst',group_id:'demo-gruppe'});
+ const empty=personMonth(s,'2026-11','DEMO-KTD',['NORD'],'demo-gruppe');assert.equal(empty.rows.length,2);
+ for(const row of empty.rows){assert.deepEqual(row.bars,[]);assert.equal(row.lanes,1);assert.ok(row.cells.every(c=>c.assignments.length===0));}
+ add(s,{employee_id:'DEMO-EXT-001',geodependency:'SÜD'});
+ assert.equal(personMonth(s,'2026-10','DEMO-KTD',['NORD'],'demo-gruppe').rows.length,2);
+ assert.equal(personMonth(s,'2026-10','DEMO-KTD',['NORD']).rows.length,0);
+});

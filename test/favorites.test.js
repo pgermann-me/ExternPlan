@@ -41,3 +41,9 @@ test('Favorit löschen ändert keine Dienste; Stammdatenlöschung deaktiviert un
  const s=demo(),f=saveFavorite(s,template());applyFavorite(s,f.id,request(f),now);const planned=structuredClone(s.assignments);removeFavorite(s,f.id,f.revision);assert.deepEqual(s.assignments,planned);assert.equal(publicState(s).favorites.length,0);
  const clean=demo(),unused=saveFavorite(clean,template());deleteMaster(clean,'regions','NORD',now);assert.equal(publicState(clean).favorites.length,0);assert.throws(()=>applyFavorite(clean,unused.id,request(unused),now));
 });
+test('Favoritenreihenfolge bleibt gespeichert; Bearbeitung erhält Position und Dienste bleiben unverändert',async()=>{
+ const {orderedFavorites,reorderFavorites}=await import('../favorites.js');const s=demo();const a=saveFavorite(s,template({name:'A'})),b=saveFavorite(s,template({name:'B'})),c=saveFavorite(s,template({name:'C'}));
+ const original=orderedFavorites(s).map(f=>f.id);reorderFavorites(s,[c.id,a.id,b.id],original);assert.deepEqual(publicState(s).favorites.map(f=>f.name),['C','A','B']);
+ saveFavorite(s,{...s.favorites.find(f=>f.id===a.id),name:'A bearbeitet'});assert.deepEqual(publicState(s).favorites.map(f=>f.name),['C','A bearbeitet','B']);assert.deepEqual(s.assignments,[]);
+ assert.throws(()=>reorderFavorites(s,[a.id,b.id,c.id],original),/inzwischen/);assert.throws(()=>reorderFavorites(s,[c.id,c.id,b.id],[c.id,a.id,b.id]));
+});
