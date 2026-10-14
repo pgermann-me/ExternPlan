@@ -1,0 +1,54 @@
+import {DateTime} from 'luxon';
+import {id,instant,iso,validateAssignment,change,audit,zone} from './domain.js';
+const defaultColor='#2563eb';
+const live=x=>!x.deleted_at;
+const scopeTypes={function:'functions',department:'departments',group:'groups'};
+export function validateFavorite(s,p){
+ if(typeof p.name!=='string'||!p.name.trim())throw Error('Name des Favoritendienstes erforderlich');
+ const collection=scopeTypes[p.scope_type];
+ if(!collection||!s[collection].some(x=>x.id===p.scope_id&&live(x)))throw Error('Funktion, Abteilung oder Gruppe für den Favoriten wählen');
+ const fn=s.functions.find(f=>f.id===p.function_id&&live(f));if(!fn)throw Error('Pikett-Funktion fehlt oder wurde gelöscht');
+ if(p.scope_type==='function'&&p.scope_id!==p.function_id)throw Error('Ein Funktionsfavorit muss diese Funktion verwenden');
+ if(!Number.isSafeInteger(p.duration_minutes)||p.duration_minutes<=0)throw Error('Dienstdauer muss mindestens eine ganze Minute betragen');
+ if(!/^([01]\d|2[0-3]):[0-5]\d$/.test(p.start_time||''))throw Error('Beginn als HH:mm erforderlich');
+ if(!Number.isInteger(p.priority)||p.priority<1)throw Error('Zuteilungspriorität muss mindestens 1 sein');
+ if(!/^#[0-9a-f]{6}$/i.test(p.color||defaultColor))throw Error('Ungültige Favoritenfarbe');
+ if(!Array.isArray(p.region_ids)||new Set(p.region_ids).size!==p.region_ids.length)throw Error('Regionen dürfen nicht doppelt gewählt sein');
+ if(fn.geo_ids.length){if(!p.region_ids.length||p.region_ids.some(g=>!fn.geo_ids.includes(g)||!s.regions.some(r=>r.id===g&&live(r))))throw Error('Mindestens eine gültige, der Funktion zugeordnete Region wählen');}
+ else if(p.region_ids.length)throw Error('Ortsunabhängige Funktion hat keine Regionen');
+}
+export function saveFavorite(s,input){
+ s.favorites??=[];const existing=input.id?s.favorites.find(f=>f.id===input.id):null;
+ if(input.id&&!existing)throw Error('Favorit nicht gefunden');if(existing?.deleted_at)throw Error('Favorit wurde gelöscht');
+ if(existing&&input.revision!==existing.revision)throw Error('Favorit wurde inzwischen geändert. Neu laden.');
+ const p={id:existing?.id||id(),name:String(input.name??'').trim(),scope_type:input.scope_type,scope_id:input.scope_id,function_id:input.function_id,region_ids:input.region_ids,duration_minutes:input.duration_minutes,start_time:input.start_time,priority:input.priority,color:input.color||defaultColor,revision:(existing?.revision||0)+1};
+ validateFavorite(s,p);if(existing)s.favorites[s.favorites.indexOf(existing)]=p;else s.favorites.push(p);audit(s,'favorite',existing?'update':'create',existing,p);return p;
+}
+export function removeFavorite(s,key,revision){const p=(s.favorites||[]).find(f=>f.id===key&&live(f));if(!p)throw Error('Favorit nicht gefunden');if(Number(revision)!==p.revision)throw Error('Favorit wurde inzwischen geändert');const before={...p};p.deleted_at=iso(Date.now());audit(s,'favorite','delete',before,{...p});return {ok:true};}
+export function favoriteForPerson(s,f,p){
+ if(f.scope_type==='function')return true;
+ if(f.scope_type==='group')return p.group_id===f.scope_id;
+ const group=s.groups.find(g=>g.id===p.group_id&&live(g));return p.department_id===f.scope_id||group?.department_id===f.scope_id;
+}
+export function previewFavorite(s,key,input,now=Date.now()){
+ const f=(s.favorites||[]).find(f=>f.id===key&&live(f));if(!f)throw Error('Favorit nicht gefunden');validateFavorite(s,f);
+ if(input.revision!==f.revision)throw Error('Favorit wurde inzwischen geändert. Neu laden.');
+ const person=s.people.find(p=>p.employee_id===input.employee_id);if(!person||!favoriteForPerson(s,f,person))throw Error('Person gehört nicht zum Bereich dieses Favoriten');
+ const today=DateTime.fromMillis(now,{zone}).toISODate();
+ const date=input.date||today;const d=DateTime.fromISO(date,{zone});
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||!d.isValid)throw Error('Ungültiges Dienst-Datum');if(date<today)throw Error('Favoriten können erst ab dem heutigen Schweizer Datum geplant werden');
+ const time=input.start_time||f.start_time;if(!/^([01]\d|2[0-3]):[0-5]\d$/.test(time))throw Error('Beginn als HH:mm erforderlich');
+ const offset=input.start_offset||'';if(!['','+01:00','+02:00'].includes(offset))throw Error('Sommer-/Winterzeit-Auswahl ungültig');
+ const local=`${date}T${time}:00`;const start=instant(local+offset);if(iso(start).slice(0,19)!==local)throw Error('Ausgewählte Sommer-/Winterzeit passt nicht zur Schweizer Uhrzeit');
+ const end=start+f.duration_minutes*60000;const endOn=iso(end);if(!endOn)throw Error('Dienstdauer ist zu gross');
+ const regions=f.region_ids.length?f.region_ids:[null];const working={...s,assignments:[...s.assignments]};const assignments=[],warnings=[];
+ for(const geo of regions){const result=validateAssignment(working,{employee_id:person.employee_id,function_id:f.function_id,geodependency:geo,priority:f.priority,start_on:iso(start),end_on:endOn});assignments.push(result.assignment);working.assignments.push(result.assignment);warnings.push(...result.warnings);}
+ return {favorite_id:f.id,assignments,warnings:[...new Set(warnings)]};
+}
+export function applyFavorite(s,key,input,now=Date.now()){
+ const result=previewFavorite(s,key,input,now);
+ const f=s.favorites.find(f=>f.id===key);s.assignment_styles??={};
+ for(const a of result.assignments){s.assignment_styles[a.assignment_id]={favorite_id:f.id,color:f.color||defaultColor};s.assignments.push(a);change(s,'create',a);audit(s,'assignment','create',null,a);}
+ audit(s,'favorite','apply',null,{name:f.name,employee_id:input.employee_id,start_on:result.assignments[0].start_on,end_on:result.assignments[0].end_on,count:result.assignments.length});
+ return result;
+}

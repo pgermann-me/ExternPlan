@@ -1,8 +1,8 @@
 import { audit, instant, iso } from './domain.js';
 export const active = item => !item.deleted_at;
 export function publicState(s){
- const types=['functions','regions','groups','rules'];
- return {...s,...Object.fromEntries(types.map(t=>[t,s[t].filter(active)])),archived_master:Object.fromEntries(types.map(t=>[t,s[t].filter(x=>!active(x))]))};
+ const types=['functions','regions','groups','rules','favorites'];
+ return {...s,...Object.fromEntries(types.map(t=>[t,(s[t]||[]).filter(active)])),archived_master:Object.fromEntries(types.map(t=>[t,(s[t]||[]).filter(x=>!active(x))]))};
 }
 export function deleteMaster(s,type,key,now=Date.now()){
  if(!['functions','regions','groups','departments','rules'].includes(type))throw Error('Unbekannte Stammdaten');
@@ -14,11 +14,16 @@ export function deleteMaster(s,type,key,now=Date.now()){
  if(type==='groups'){const members=new Set(s.people.filter(p=>p.group_id===key).map(p=>p.employee_id));used=current.some(a=>members.has(a.employee_id));}
  if(used)throw Error('Löschen nicht möglich: laufender oder zukünftiger Pikettdienst ist zugewiesen');
  if(type==='departments'&&(s.people.some(p=>p.department_id===key)||s.groups.some(g=>active(g)&&g.department_id===key)))throw Error('Abteilung wird noch verwendet');
- if(type==='departments'){s.departments=s.departments.filter(d=>d.id!==key);audit(s,type,'delete',record,null);return {ok:true};}
+ if(type==='departments'){for(const f of (s.favorites||[]).filter(active)){if(f.scope_type==='department'&&f.scope_id===key){const previous={...f};f.deleted_at=iso(now);audit(s,'favorite','delete',previous,{...f});}}s.departments=s.departments.filter(d=>d.id!==key);audit(s,type,'delete',record,null);return {ok:true};}
  // Retain identifiers, names, geographic relations and all historical assignments.
  const before={...record};record.deleted_at=iso(now);audit(s,type,'delete',before,{...record});
  if(type==='functions'||type==='regions')for(const rule of s.rules.filter(active)){
    if(type==='functions'?rule.function_id===key:rule.geo_id===key){const previous={...rule};rule.deleted_at=iso(now);audit(s,'rules','delete',previous,{...rule});}
+ }
+ for(const f of (s.favorites||[]).filter(active)){
+   if((type==='functions'&&(f.function_id===key||f.scope_type==='function'&&f.scope_id===key))||(type==='regions'&&f.region_ids.includes(key))||(type==='groups'&&f.scope_type==='group'&&f.scope_id===key)){
+     const previous={...f};f.deleted_at=iso(now);audit(s,'favorite','delete',previous,{...f});
+   }
  }
  return {ok:true,archived:true};
 }

@@ -23,3 +23,5 @@ test('Ortsunabhängige Funktionen und Sommer-/Winterzeit-Tagesgrenzen',()=>{
  const r=personMonth(s,'2026-10','DEMO-ORT',[]);assert.equal(r.rows.length,1);assert.equal(r.rows[0].cells[23].assignments.length,1);assert.equal(r.rows[0].cells[24].assignments.length,1);assert.equal(r.rows[0].cells[25].assignments.length,0);
  assert.throws(()=>personMonth(s,'2026-10','DEMO-KTD',['UA_SG']));assert.throws(()=>personMonth(s,'2026-13','DEMO-KTD'));assert.throws(()=>personMonth(s,'2026-10','UNKNOWN'));
 });
+
+test('Gruppenfilter neben der Funktion begrenzt Personen und Balken',()=>{const s=demo();add(s);add(s,{employee_id:'DEMO-EXT-001',geodependency:'SÜD'});const result=personMonth(s,'2026-10','DEMO-KTD',['NORD','SÜD'],'demo-gruppe');assert.equal(result.rows.length,1);assert.equal(result.rows[0].employee_id,'DEMO-EXT-001');assert.equal(result.rows[0].bars.length,1);assert.throws(()=>personMonth(s,'2026-10','DEMO-KTD',undefined,'unbekannt'));});
