@@ -24,7 +24,7 @@ Create/update enthalten vollständig:
 }
 ```
 
-`assignment_id` ist dauerhafte UUID, Revision steigt bei jeder Bearbeitung und Löschung. `employee_id` ist exakt die Personenkennung/persID als String, keine automatisch neu generierte alternative Kennung. `function_id` identifiziert Stammdaten; Priorität wird nie in den Funktionsnamen eingebaut. Beginn eingeschlossen, Ende ausgeschlossen. Zeitstrings haben immer den am jeweiligen Zeitpunkt gültigen Schweizer UTC-Offset (Start und Ende können unterschiedliche Offsets haben). `geodependency: null` ausschliesslich bei ortsunabhängiger Funktion. Priorität >= 1, ganzzahlig.
+`assignment_id` ist dauerhafte UUID, Revision steigt bei jeder Bearbeitung und Löschung. `employee_id` ist exakt die Personenkennung/persID als String, für SAP-Personen keine automatisch neu generierte alternative Kennung. Neue manuelle externe Personen erhalten bei ihrer Anlage eine dauerhafte, serverseitig erzeugte `EXT-…`-Kennung. `function_id` identifiziert Stammdaten; Priorität wird nie in den Funktionsnamen eingebaut. Beginn eingeschlossen, Ende ausgeschlossen. Zeitstrings haben immer den am jeweiligen Zeitpunkt gültigen Schweizer UTC-Offset (Start und Ende können unterschiedliche Offsets haben). `geodependency: null` ausschliesslich bei ortsunabhängiger Funktion. Priorität >= 1, ganzzahlig.
 
 Delete enthält nur `action: "delete"`, `assignment_id`, `revision`. Der ELS-Simulator speichert Tombstones inklusive Revision. Eine alte create/update-Nachricht darf eine neuere Löschung nicht reaktivieren.
 

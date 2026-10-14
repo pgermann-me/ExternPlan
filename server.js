@@ -1,5 +1,6 @@
 import express from 'express';
 import { authentication } from './auth.js';
+import { manualPerson } from './people.js';
 import ExcelJS from 'exceljs';
 import { normalizeSapPerson } from './adapters/sap.js';
 import { simulatedElsAdapter } from './adapters/els.js';
@@ -19,9 +20,15 @@ app.get('/api/health',(req,res)=>res.json({status:'ok',database:!!read(),timezon
 app.post('/api/assignments',(req,res)=>res.json(mutate(s=>{const r=validateAssignment(s,req.body);s.assignments.push(r.assignment);change(s,'create',r.assignment);audit(s,'assignment','create',null,r.assignment);return r;})));
 app.put('/api/assignments/:id',(req,res)=>res.json(mutate(s=>{const index=s.assignments.findIndex(x=>x.assignment_id===req.params.id);if(index<0)throw Error('Zuteilung nicht gefunden');const before=s.assignments[index];if(req.body.revision!==before.revision)throw Error('Zuteilung wurde inzwischen geändert. Neu laden.');const r=validateAssignment(s,req.body,before);s.assignments[index]=r.assignment;change(s,'update',r.assignment);audit(s,'assignment','update',before,r.assignment);return r;})));
 app.delete('/api/assignments/:id',(req,res)=>res.json(mutate(s=>{const index=s.assignments.findIndex(x=>x.assignment_id===req.params.id);if(index<0)throw Error('Zuteilung nicht gefunden');const before=s.assignments[index];if(Number(req.query.revision)!==before.revision)throw Error('Revision stimmt nicht überein');s.assignments.splice(index,1);change(s,'delete',{...before,revision:before.revision+1});audit(s,'assignment','delete',before,null);return {ok:true};})));
-function validPerson(s,p){if(!p.employee_id||!p.name)throw Error('employee_id und Name erforderlich');if(p.department_id&&!s.departments.some(x=>x.id===p.department_id))throw Error('Abteilung unbekannt');if(p.group_id&&!s.groups.some(x=>x.id===p.group_id))throw Error('Gruppe unbekannt');if(!Array.isArray(p.contacts)||p.contacts.some(c=>!c.type||!c.value||!Number.isInteger(c.priority)||c.priority<1))throw Error('Kontakte benötigen Typ, Wert und positive Priorität');}
-app.post('/api/people',(req,res)=>res.json(mutate(s=>{const p={...req.body,employee_id:String(req.body.employee_id||''),source:'manual',external_id:req.body.external_id||null};validPerson(s,p);if(s.people.some(x=>x.employee_id===p.employee_id))throw Error('Personenkennung bereits vorhanden');s.people.push(p);audit(s,'person','create',null,p);return p;})));
-app.put('/api/people/:id',(req,res)=>res.json(mutate(s=>{const i=s.people.findIndex(p=>p.employee_id===req.params.id);if(i<0||s.people[i].source!=='manual')throw Error('Nur externe manuelle Personen sind bearbeitbar');const before=s.people[i];const p={...req.body,employee_id:before.employee_id,source:'manual'};validPerson(s,p);s.people[i]=p;audit(s,'person','update',before,p);return p;})));
+function validPerson(s,p){if(!p.employee_id||!p.name)throw Error('employee_id und Name erforderlich');if(p.department_id&&!s.departments.some(x=>x.id===p.department_id))throw Error('Abteilung unbekannt');if(p.group_id&&!s.groups.some(x=>x.id===p.group_id))throw Error('Gruppe unbekannt');if(p.group_id&&p.department_id&&s.groups.find(g=>g.id===p.group_id)?.department_id!==p.department_id)throw Error('Gruppe gehört nicht zur gewählten Abteilung');if(!Array.isArray(p.contacts)||p.contacts.some(c=>!c.type||!c.value||!Number.isInteger(c.priority)||c.priority<0))throw Error('Kontakte benötigen Typ, Wert und eine ganzzahlige Priorität ab 0');}
+app.post('/api/people',(req,res)=>res.json(mutate(s=>{
+ let employeeId;do{employeeId='EXT-'+id();}while(s.people.some(p=>p.employee_id===employeeId));
+ const p=manualPerson(req.body,null,employeeId);validPerson(s,p);s.people.push(p);audit(s,'person','create',null,p);return p;
+})));
+app.put('/api/people/:id',(req,res)=>res.json(mutate(s=>{
+ const i=s.people.findIndex(p=>p.employee_id===req.params.id);if(i<0||s.people[i].source!=='manual')throw Error('Nur externe manuelle Personen sind bearbeitbar');
+ const before=s.people[i];const p=manualPerson(req.body,before);validPerson(s,p);s.people[i]=p;audit(s,'person','update',before,p);return p;
+})));
 const allowed=['functions','regions','departments','groups','rules'];
 function validMaster(s,type,p){if(typeof p.id!=='string'||!p.id.trim()||p.id==='undefined')throw Error('ID erforderlich');if(type!=='rules'&&!p.name)throw Error('Name erforderlich');
  if(type==='groups'&&p.department_id&&!s.departments.some(d=>d.id===p.department_id))throw Error('Abteilung unbekannt');
