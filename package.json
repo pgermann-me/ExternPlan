@@ -1,0 +1,1 @@
+{"name":"externplan","version":"1.0.0","private":true,"type":"module","scripts":{"start":"node server.js","test":"node --test","test:ui":"node scripts/ui-check.js"},"dependencies":{"exceljs":"^4.4.0","express":"^5.1.0","luxon":"^3.7.2"},"overrides":{"uuid":"^11.1.0"},"devDependencies":{"@playwright/test":"^1.64.0"}}

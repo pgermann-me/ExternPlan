@@ -1,0 +1,28 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import ExcelJS from 'exceljs';
+const dir=mkdtempSync(join(tmpdir(),'externplan-test-'));
+async function start(){const p=spawn(process.execPath,['server.js'],{env:{...process.env,PORT:'0',DATA_DIR:dir},stdio:['ignore','pipe','pipe']});let log='';const port=await new Promise((resolve,reject)=>{const timer=setTimeout(()=>{p.kill();reject(Error('Startup timeout '+log));},10000);p.stdout.on('data',d=>{log+=d;const m=log.match(/Port (\d+)/);if(m){clearTimeout(timer);resolve(m[1]);}});p.stderr.on('data',d=>log+=d);p.on('exit',code=>{clearTimeout(timer);reject(Error(`Exit ${code}: ${log}`));});});return {p,base:`http://127.0.0.1:${port}`};}
+async function stop(p){await new Promise(resolve=>{p.once('exit',resolve);p.kill();});}
+test('HTTP: CRUD, revisions, SAP/JSON/XLSX imports, ELS and persistence',async()=>{let server=await start();let assignmentId;const call=async(path,method='GET',body)=>{const r=await fetch(server.base+'/api'+path,{method,headers:{'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)});return {status:r.status,data:await r.json()};};
+try{
+ assert.equal((await call('/health')).data.status,'ok');assert.match(await (await fetch(server.base)).text(),/ExternPlan/);
+ const person={employee_id:'EXT-TEST',name:'Externe Testperson',group_id:'demo-gruppe',contacts:[{type:'phone',value:'Beispiel',priority:2}]};assert.equal((await call('/people','POST',person)).status,200);
+ const rows=[{persID:'EXT-TEST',name:'Nicht überschreiben',department:'SAP-A'},{persID:'SAP-TEST',name:'SAP Testperson',department:'SAP-A'}];const mapping={employee_id:'persID',name:'name',department_id:'department'};
+ const preview=await call('/import/preview','POST',{format:'json',content:JSON.stringify(rows)});assert.equal(preview.data.count,2);
+ assert.deepEqual((await call('/import/commit','POST',{type:'sap',rows,mapping})).data,{imported:1,skipped:1});await call('/import/commit','POST',{type:'sap',rows,mapping});let s=(await call('/state')).data;assert.equal(s.people.filter(p=>p.employee_id==='SAP-TEST').length,1);assert.equal(s.people.find(p=>p.employee_id==='EXT-TEST').name,person.name);
+ // Invalid rows roll back the entire import, including any department creation.
+ assert.equal((await call('/import/commit','POST',{type:'sap',rows:[{persID:'ROLLBACK',name:'Rollback',department:'ROLLBACK'},{}],mapping})).status,400);assert.equal((await call('/state')).data.people.some(p=>p.employee_id==='ROLLBACK'),false);
+ const wb=new ExcelJS.Workbook();const ws=wb.addWorksheet('Regionen');ws.addRow(['Geo_ID','Beschreibung']);ws.addRow(['UA_SG','Bereich Untersuchungsamt St. Gallen']);const file=Buffer.from(await wb.xlsx.writeBuffer()).toString('base64');const x=await call('/import/preview','POST',{format:'xlsx',content:file});assert.equal(x.data.rows[0].Geo_ID,'UA_SG');assert.equal((await call('/import/commit','POST',{type:'regions',rows:x.data.rows,mapping:{id:'Geo_ID',name:'Beschreibung'}})).status,200);
+ const functionsImport=await call('/import/commit','POST',{type:'functions',rows:[{ID:'IMPORT-ORT',Name:'Import ortsunabhängig',Geo:''},{ID:'IMPORT-REG',Name:'Import regional',Geo:'NORD;SÜD'}],mapping:{id:'ID',name:'Name',geo_ids:'Geo'}});assert.equal(functionsImport.status,200);assert.deepEqual((await call('/state')).data.functions.find(f=>f.id==='IMPORT-ORT').geo_ids,[]);assert.deepEqual((await call('/state')).data.functions.find(f=>f.id==='IMPORT-REG').geo_ids,['NORD','SÜD']);
+ const f=await call('/master/functions','POST',{id:'ARZT',name:'Notfallarzt',geo_ids:['UA_SG'],covers:{}});assert.equal(f.status,200);assert.equal((await call('/master/functions','POST',{id:'ZAHN',name:'Notfallzahnarzt',geo_ids:['NORD'],covers:{}})).status,400);assert.equal((await call('/master/functions','POST',{id:'ZAHN',name:'Notfallzahnarzt',geo_ids:['UA_SG'],covers:{}})).status,200);
+ const a={employee_id:'EXT-TEST',function_id:'DEMO-KTD',geodependency:'NORD',start_on:'2026-10-07T07:00',end_on:'2026-10-08T07:00',priority:3};const created=await call('/assignments','POST',a);assert.equal(created.status,200);assignmentId=created.data.assignment.assignment_id;assert.equal((await call('/assignments','POST',a)).status,400);assert.equal((await call('/assignments/'+assignmentId,'PUT',{...a,priority:2,revision:99})).status,400);assert.equal((await call('/assignments/'+assignmentId,'PUT',{...a,priority:2,revision:1})).data.assignment.revision,2);
+ const month=await call('/month?month=2026-10');assert.equal(month.data.days.length,31);assert.equal(month.data.rows.find(r=>r.geo_id==='NORD'&&r.function_id==='DEMO-KTD').cells[6].status,'teilweise besetzt');
+ const exported=(await call('/exports','POST',{mode:'delta'})).data;assert.equal(exported.changes.length,2);assert.equal((await call('/exports/'+exported.export_id+'/confirm','POST',{})).data.status,'Import bestätigt');assert.equal((await call('/state')).data.outbox.length,0);
+ await stop(server.p);server=await start();assert.equal((await call('/state')).data.assignments[0].assignment_id,assignmentId);
+ assert.equal((await call(`/assignments/${assignmentId}?revision=2`,'DELETE')).status,200);const del=(await call('/exports','POST',{})).data;assert.equal(del.changes[0].action,'delete');await call('/exports/'+del.export_id+'/confirm','POST',{});const after=(await call('/state')).data;assert.equal(after.els.assignments[assignmentId].deleted,true);assert.equal(after.outbox.length,0);assert.ok(after.audit.length>=8);
+}finally{await stop(server.p);rmSync(dir,{recursive:true,force:true});}});

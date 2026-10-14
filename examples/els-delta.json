@@ -1,0 +1,46 @@
+{
+  "schema_version": "1.0",
+  "export_id": "d80d3517-a94a-4269-8322-57143f83412a",
+  "export_mode": "delta",
+  "timezone": "Europe/Zurich",
+  "changes": [
+    {
+      "action": "create",
+      "assignment_id": "a4064348-7cf9-4cd6-9156-66e2a0633beb",
+      "employee_id": "DEMO-001",
+      "function_id": "DEMO-KTD",
+      "start_on": "2026-10-07T07:00:00+02:00",
+      "end_on": "2026-10-08T07:00:00+02:00",
+      "geodependency": "NORD",
+      "priority": 1,
+      "revision": 1
+    },
+    {
+      "action": "create",
+      "assignment_id": "8ec18773-045b-4e02-aceb-444f80000579",
+      "employee_id": "DEMO-001",
+      "function_id": "DEMO-KTD",
+      "start_on": "2026-10-07T07:00:00+02:00",
+      "end_on": "2026-10-08T07:00:00+02:00",
+      "geodependency": "SÜD",
+      "priority": 3,
+      "revision": 1
+    },
+    {
+      "action": "update",
+      "assignment_id": "a4064348-7cf9-4cd6-9156-66e2a0633beb",
+      "employee_id": "DEMO-001",
+      "function_id": "DEMO-KTD",
+      "start_on": "2026-10-07T07:00:00+02:00",
+      "end_on": "2026-10-08T07:00:00+02:00",
+      "geodependency": "NORD",
+      "priority": 2,
+      "revision": 2
+    },
+    {
+      "action": "delete",
+      "assignment_id": "8ec18773-045b-4e02-aceb-444f80000579",
+      "revision": 2
+    }
+  ]
+}
