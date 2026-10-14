@@ -4,9 +4,9 @@ import { instant, overlap, zone } from './domain.js';
 export function personMonth(state, month, functionId, selectedRegions) {
  if(!/^\d{4}-\d{2}$/.test(month||''))throw Error('Monat als YYYY-MM');
  const start=DateTime.fromISO(month+'-01',{zone});if(!start.isValid)throw Error('Ungültiger Monat');
- const fn=state.functions.find(f=>f.id===functionId);if(!fn)throw Error('Funktion unbekannt');
- const regions=selectedRegions===undefined?[...fn.geo_ids]:selectedRegions;
- if(!Array.isArray(regions)||regions.some(g=>!fn.geo_ids.includes(g)))throw Error('Region ist der Funktion nicht zugeordnet');
+ const fn=state.functions.find(f=>f.id===functionId&&!f.deleted_at);if(!fn)throw Error('Funktion unbekannt');
+ const regions=selectedRegions===undefined?fn.geo_ids.filter(g=>state.regions.some(r=>r.id===g&&!r.deleted_at)):selectedRegions;
+ if(!Array.isArray(regions)||regions.some(g=>!fn.geo_ids.includes(g)||!state.regions.some(r=>r.id===g&&!r.deleted_at)))throw Error('Region ist der Funktion nicht zugeordnet');
  const days=Array.from({length:start.daysInMonth},(_,i)=>start.plus({days:i}));
  const monthInterval=[start.toMillis(),start.plus({months:1}).toMillis()];
  const assignments=state.assignments.filter(a=>a.function_id===functionId &&

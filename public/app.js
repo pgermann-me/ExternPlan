@@ -6,18 +6,26 @@ function message(text,error=false){$('#message').textContent=text;$('#message').
 const safe=fn=>async(...args)=>{try{await fn(...args);}catch(e){message(e.message,true);}};
 const options=(rows,key='id',label='name',selected='',blank=true)=>(blank?'<option value="">— wählen —</option>':'')+rows.map(x=>`<option value="${esc(x[key])}" ${x[key]===selected?'selected':''}>${esc(x[label])}</option>`).join('');
 const label=(text,html)=>`<label>${text}</label>${html}`;const input=(name,value='',type='text',required=true)=>`<input name="${name}" type="${type}" value="${esc(value)}" ${required?'required':''}>`;
+const masterRecord=(type,id)=>state[type].find(x=>x.id===id)||state.archived_master?.[type]?.find(x=>x.id===id);
+const functionName=id=>masterRecord('functions',id)?.name||id;
+const groupRecord=id=>masterRecord('groups',id);
+const groupName=id=>{const g=groupRecord(id);return g?g.name+(g.deleted_at?' (gelöscht)':''):'';};
 const name=id=>state.people.find(p=>p.employee_id===id)?.name||id;
 const cls=status=>({'vollständig besetzt':'full','teilweise besetzt':'partial','unbesetzt':'empty','kein Pikett erforderlich':'none'}[status]);
 function modal(html,handler){$('#form footer button[type=submit]').hidden=false;$('#fields').innerHTML=html;$('#dialog').showModal();$('#form').onsubmit=safe(async e=>{e.preventDefault();const data=Object.fromEntries(new FormData(e.target));await handler(data);$('#dialog').close();await refresh();});}
 $('#cancel').onclick=()=>$('#dialog').close();
-async function refresh(){state=await api('/state');if(planningGroup&&!state.groups.some(g=>g.id===planningGroup))planningGroup='';const board=$('.board'),scroll=board?{left:board.scrollLeft,top:board.scrollTop}:null;await render();if(scroll&&$('.board')){$('.board').scrollLeft=scroll.left;$('.board').scrollTop=scroll.top;}}
+async function refresh(){state=await api('/state');if(planningGroup&&!state.groups.some(g=>g.id===planningGroup))planningGroup='';if(group&&!state.groups.some(g=>g.id===group))group='';if(functionFilter&&!state.functions.some(f=>f.id===functionFilter))functionFilter='';const board=$('.board'),scroll=board?{left:board.scrollLeft,top:board.scrollTop}:null;await render();if(scroll&&$('.board')){$('.board').scrollLeft=scroll.left;$('.board').scrollTop=scroll.top;}}
 function assignmentTime(value,fallback){
  if(!value)return fallback;
  if(/[Zz]|[+-]\d{2}:\d{2}$/.test(value))return swissTime(value);
  const [date,time]=value.split('T');return swissDate(date)+' '+time.slice(0,5);
 }
 function assignmentDialog(a={},defaults={}){
- a={...defaults,...a};const f=state.functions.find(f=>f.id===a.function_id)||state.functions[0];
+ a={...defaults,...a};
+ if(a.assignment_id&&(masterRecord('functions',a.function_id)?.deleted_at||a.geodependency&&masterRecord('regions',a.geodependency)?.deleted_at)){
+   modal(`<h2>Vergangener Pikettdienst</h2><p>${esc(name(a.employee_id))} · ${esc(functionName(a.function_id))} · ${esc(a.geodependency?regionName(a.geodependency):'Ortsunabhängig')} · P${a.priority}</p><p>${swissTime(a.start_on)} → ${swissTime(a.end_on)}</p><p class="muted">Zugehörige Stammdaten wurden gelöscht. Dieser Dienst bleibt als unveränderte Historie erhalten.</p>`,async()=>{});$('#form footer button[type=submit]').hidden=true;return;
+ }
+ const f=state.functions.find(f=>f.id===a.function_id)||state.functions[0];
  const people=view==='planning'&&planningGroup?state.people.filter(p=>p.group_id===planningGroup):state.people;
  const timeField=(field,text,fallback)=>label(text,input(field,assignmentTime(a[field],fallback)))+
  label('Zeitumstellung: doppelte Uhrzeit',`<select name="${field}_offset"><option value="">Automatisch · eindeutige Schweizer Zeit</option><option value="+02:00">Sommerzeit (erste doppelte Uhrzeit)</option><option value="+01:00">Winterzeit (zweite doppelte Uhrzeit)</option></select>`);
@@ -50,8 +58,8 @@ async function render(){document.querySelectorAll('nav button').forEach(b=>b.cla
  if(view==='person-planning'){
    if(!state.functions.length){c.innerHTML='<h1>Personen-Pikettübersicht</h1><p>Zuerst eine Funktion anlegen.</p>';return;}
    const f=state.functions.find(f=>f.id===personFunction)||state.functions[0];
-   if(personFunction!==f.id||personRegions===null){personFunction=f.id;personRegions=[...f.geo_ids];}
-   personRegions=personRegions.filter(g=>f.geo_ids.includes(g));
+   if(personFunction!==f.id||personRegions===null){personFunction=f.id;personRegions=f.geo_ids.filter(g=>state.regions.some(r=>r.id===g));}
+   personRegions=personRegions.filter(g=>f.geo_ids.includes(g)&&state.regions.some(r=>r.id===g));
    const params=new URLSearchParams({month:personPlanningMonth,function_id:f.id});
    if(personRegions.length)personRegions.forEach(g=>params.append('region_id',g));else params.append('region_id','');
    const result=await api('/person-month?'+params);
@@ -66,7 +74,7 @@ async function render(){document.querySelectorAll('nav button').forEach(b=>b.cla
    $('#person-month').onchange=safe(async e=>{personPlanningMonth=e.target.value;await refresh();});
    $('#person-function').onchange=safe(async e=>{personFunction=e.target.value;personRegions=null;await refresh();});
    document.querySelectorAll('[data-person-region]').forEach(x=>x.onchange=safe(async()=>{personRegions=[...document.querySelectorAll('[data-person-region]:checked')].map(x=>x.dataset.personRegion);await refresh();$('.region-filter').open=true;}));
-   if(f.geo_ids.length){$('#all-person-regions').onclick=safe(async()=>{personRegions=[...f.geo_ids];await refresh();$('.region-filter').open=true;});$('#no-person-regions').onclick=safe(async()=>{personRegions=[];await refresh();$('.region-filter').open=true;});}
+   if(f.geo_ids.length){$('#all-person-regions').onclick=safe(async()=>{personRegions=f.geo_ids.filter(g=>state.regions.some(r=>r.id===g));await refresh();$('.region-filter').open=true;});$('#no-person-regions').onclick=safe(async()=>{personRegions=[];await refresh();$('.region-filter').open=true;});}
    document.querySelectorAll('[data-person-day]').forEach(td=>td.onclick=()=>{
      const row=result.rows.find(r=>r.employee_id===td.dataset.employee),cell=row.cells[result.days.indexOf(td.dataset.personDay)];
      modal(`<h2>${esc(row.name)} · ${swissDate(td.dataset.personDay)}</h2>${cell.assignments.map(a=>`<p><button type="button" data-person-edit="${a.assignment_id}">${esc(a.geodependency?regionName(a.geodependency):'Ortsunabhängig')} · P${a.priority}</button><br>${esc(swissTime(a.start_on))} → ${esc(swissTime(a.end_on))}</p>`).join('')||'<p>Kein Dienst an diesem Tag</p>'}<button type="button" id="new-person-duty">+ Zuteilung</button>`,async()=>{});
@@ -75,7 +83,7 @@ async function render(){document.querySelectorAll('nav button').forEach(b=>b.cla
      $('#new-person-duty').onclick=()=>open({});document.querySelectorAll('[data-person-edit]').forEach(b=>b.onclick=()=>open(state.assignments.find(a=>a.assignment_id===b.dataset.personEdit)));
    });
  }
- if(view==='people'){const people=state.people.filter(p=>(!department||p.department_id===department||state.groups.find(g=>g.id===p.group_id)?.department_id===department)&&(!group||p.group_id===group));c.innerHTML=`<h1>Organisation & Personen</h1><div class="toolbar"><select id="department">${options(state.departments,'id','name',department).replace('— wählen —','Alle Abteilungen')}</select><select id="group">${options(state.groups,'id','name',group).replace('— wählen —','Alle Gruppen')}</select><span>${people.length} Personen</span><button id="new-department" class="secondary">+ Abteilung</button><button id="new-person">+ Externe Person</button></div><div class="cards">${people.map(p=>`<article class="card"><h2>${esc(p.name)}</h2>${p.first_name||p.last_name?`<dl class="person-names"><dt>Name</dt><dd>${esc(p.last_name)}</dd><dt>Vorname</dt><dd>${esc(p.first_name)}</dd></dl>`:`<p class="small muted">Bisheriger vollständiger Name: ${esc(p.name)}</p>`}<p class="muted">${esc(p.employee_id)} · ${p.source==='SAP'?'SAP-Import (simuliert)':'Extern / manuell'}</p><p>${esc(state.departments.find(d=>d.id===p.department_id)?.name||state.groups.find(g=>g.id===p.group_id)?.name||'Keine Organisation')}</p>${p.contacts.map(x=>`<p class="small">Kontakt P${x.priority}: ${esc(contactName(x.type))} · ${esc(x.value)}</p>`).join('')}<div class="actions"><button data-add="${esc(p.employee_id)}">+ Pikett</button>${p.source==='manual'?`<button class="secondary" data-person="${esc(p.employee_id)}">Bearbeiten</button>`:''}</div>${state.assignments.filter(a=>a.employee_id===p.employee_id).map(a=>`<p><a href="#" data-assignment="${a.assignment_id}">${esc(state.functions.find(f=>f.id===a.function_id)?.name)} · ${esc(a.geodependency||'Ortsunabhängig')} · P${a.priority}</a><br><span class="small">${esc(swissTime(a.start_on))} → ${esc(swissTime(a.end_on))}</span></p>`).join('')}</article>`).join('')}</div>`;
+ if(view==='people'){const people=state.people.filter(p=>(!department||p.department_id===department||groupRecord(p.group_id)?.department_id===department)&&(!group||p.group_id===group));c.innerHTML=`<h1>Organisation & Personen</h1><div class="toolbar"><select id="department">${options(state.departments,'id','name',department).replace('— wählen —','Alle Abteilungen')}</select><select id="group">${options(state.groups,'id','name',group).replace('— wählen —','Alle Gruppen')}</select><span>${people.length} Personen</span><button id="new-department" class="secondary">+ Abteilung</button><button id="new-person">+ Externe Person</button></div><div class="cards">${people.map(p=>`<article class="card"><h2>${esc(p.name)}</h2>${p.first_name||p.last_name?`<dl class="person-names"><dt>Name</dt><dd>${esc(p.last_name)}</dd><dt>Vorname</dt><dd>${esc(p.first_name)}</dd></dl>`:`<p class="small muted">Bisheriger vollständiger Name: ${esc(p.name)}</p>`}<p class="muted">${esc(p.employee_id)} · ${p.source==='SAP'?'SAP-Import (simuliert)':'Extern / manuell'}</p><p>${esc(state.departments.find(d=>d.id===p.department_id)?.name||groupName(p.group_id)||'Keine Organisation')}</p>${p.contacts.map(x=>`<p class="small">Kontakt P${x.priority}: ${esc(contactName(x.type))} · ${esc(x.value)}</p>`).join('')}<div class="actions"><button data-add="${esc(p.employee_id)}">+ Pikett</button>${p.source==='manual'?`<button class="secondary" data-person="${esc(p.employee_id)}">Bearbeiten</button>`:''}</div>${state.assignments.filter(a=>a.employee_id===p.employee_id).map(a=>`<p><a href="#" data-assignment="${a.assignment_id}">${esc(functionName(a.function_id))} · ${esc(a.geodependency||'Ortsunabhängig')} · P${a.priority}</a><br><span class="small">${esc(swissTime(a.start_on))} → ${esc(swissTime(a.end_on))}</span></p>`).join('')}</article>`).join('')}</div>`;
  $('#department').onchange=safe(async e=>{department=e.target.value;await render();});$('#group').onchange=safe(async e=>{group=e.target.value;await render();});$('#new-department').onclick=()=>departmentDialog();$('#new-person').onclick=()=>personDialog();document.querySelectorAll('[data-person]').forEach(b=>b.onclick=()=>personDialog(state.people.find(p=>p.employee_id===b.dataset.person)));document.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>assignmentDialog({employee_id:b.dataset.add}));document.querySelectorAll('[data-assignment]').forEach(b=>b.onclick=e=>{e.preventDefault();assignmentDialog(state.assignments.find(a=>a.assignment_id===b.dataset.assignment));});
  }
  if(view==='master'){
@@ -107,8 +115,8 @@ function personDialog(p={}){
  modal('<h2>Externe Person</h2>'+ (p.employee_id?`<p class="small muted">employee_id: ${esc(p.employee_id)}</p>`:'<p class="muted">Die employee_id wird beim Speichern automatisch erzeugt.</p>')+
  (legacy?`<p class="small muted">Bisheriger vollständiger Name: ${esc(p.name)}. Für getrennte Namen beide Felder ausfüllen; andernfalls bleibt dieser Name erhalten.</p>`:'')+
  '<div class="name-fields">'+label('Name',input('last_name',p.last_name||'','text',!legacy))+label('Vorname',input('first_name',p.first_name||'','text',!legacy))+'</div>'+
- label('Abteilung',`<select name="department_id">${options(state.departments,'id','name',p.department_id||state.groups.find(g=>g.id===p.group_id)?.department_id||department)}</select>`)+
- label('Gruppe',`<select name="group_id">${options(state.groups,'id','name',p.group_id)}</select>`)+
+ label('Abteilung',`<select name="department_id">${options(state.departments,'id','name',p.department_id||groupRecord(p.group_id)?.department_id||department)}</select>`)+
+ label('Gruppe',`<select name="group_id">${options([...state.groups,...(state.archived_master?.groups||[]).filter(g=>g.id===p.group_id).map(g=>({...g,name:g.name+' (gelöscht)'}))],'id','name',p.group_id)}</select>`)+
  label('Externe Kennung',input('external_id',p.external_id||'','text',false))+
  '<h3>Kommunikation</h3><p class="small muted">Kontaktprioritäten sind unabhängig von Pikett-Zuteilungen. Standard: 0.</p>'+
  contactFields.map((f,i)=>contactRow(f.type,f.label,values[i],f.input)).join('')+
@@ -122,13 +130,13 @@ function personDialog(p={}){
    message('Person gespeichert · '+saved.employee_id);
  });
  const departmentSelect=$('[name=department_id]'),groupSelect=$('[name=group_id]');
- const updateGroups=()=>{const selected=groupSelect.value;groupSelect.innerHTML=options(state.groups.filter(g=>!departmentSelect.value||g.department_id===departmentSelect.value),'id','name',selected);};
+ const updateGroups=()=>{const selected=groupSelect.value;groupSelect.innerHTML=options([...state.groups,...(state.archived_master?.groups||[]).filter(g=>g.id===p.group_id).map(g=>({...g,name:g.name+' (gelöscht)'}))].filter(g=>!departmentSelect.value||g.department_id===departmentSelect.value),'id','name',selected);};
  updateGroups();departmentSelect.onchange=updateGroups;
  groupSelect.onchange=()=>{const selected=state.groups.find(g=>g.id===groupSelect.value);if(selected?.department_id)departmentSelect.value=selected.department_id;};
 }
 const masterTitles={functions:'Funktionen',regions:'Gebiete',departments:'Abteilungen',groups:'Gruppen',rules:'Soll-Abdeckung'};
 const weekdays=['Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag','Sonntag'];
-const regionName=id=>state.regions.find(r=>r.id===id)?.name||id;
+const regionName=id=>masterRecord('regions',id)?.name||id;
 function masterSummary(type,p){
  if(type==='functions')return `<p>${p.geo_ids.length?'Gebiete: '+p.geo_ids.map(g=>esc(regionName(g))).join(', '):'Ortsunabhängig'}</p>${Object.entries(p.covers).map(([whole,parts])=>`<p>${esc(regionName(whole))} deckt ab: ${parts.map(g=>esc(regionName(g))).join(', ')||'keine Teilgebiete'}</p>`).join('')}`;
  if(type==='groups')return esc(state.departments.find(d=>d.id===p.department_id)?.name||'Keine Abteilung');
@@ -143,13 +151,13 @@ function masterDialog(type,p){
  let fields=label(type==='regions'?'Geo_ID':'Kennung'+(p?'':' (optional, sonst automatisch)'),`<input name="id" value="${esc(current.id||'')}" ${p?'readonly':''} ${type==='regions'?'required':''}>`);
  if(type!=='rules')fields+=label(type==='regions'?'Beschreibung':'Name',input('name',current.name||''));
  if(type==='groups')fields+=label('Abteilung',`<select name="department_id">${options(state.departments,'id','name',current.department_id)}</select>`);
- if(type==='functions')fields+=`<label class="check-option"><input type="checkbox" id="independent" ${!p?.geo_ids?.length?'checked':''}>Ortsunabhängige Funktion</label><fieldset id="geo-options"><legend>Zulässige Gebiete</legend>${checkList(state.regions,p?.geo_ids||[],'geo_ids')||'<p>Zuerst Gebiete anlegen.</p>'}</fieldset><h3>Gesamtgebiet und abgedeckte Teilgebiete</h3><p class="small muted">Diese Beziehungen gelten nur für diese Funktion. Sie werden nicht aus Namen abgeleitet.</p><div id="cover-rows"></div><button type="button" id="add-cover" class="secondary">+ Gesamtgebiet-Beziehung</button>`;
+ if(type==='functions')fields+=`<label class="check-option"><input type="checkbox" id="independent" ${!p?.geo_ids?.length?'checked':''}>Ortsunabhängige Funktion</label><fieldset id="geo-options"><legend>Zulässige Gebiete</legend>${checkList([...state.regions,...(state.archived_master?.regions||[]).filter(r=>p?.geo_ids?.includes(r.id)).map(r=>({...r,name:r.name+' (gelöscht)'}))],p?.geo_ids||[],'geo_ids')||'<p>Zuerst Gebiete anlegen.</p>'}</fieldset><h3>Gesamtgebiet und abgedeckte Teilgebiete</h3><p class="small muted">Diese Beziehungen gelten nur für diese Funktion. Sie werden nicht aus Namen abgeleitet.</p><div id="cover-rows"></div><button type="button" id="add-cover" class="secondary">+ Gesamtgebiet-Beziehung</button>`;
  if(type==='rules')fields+=label('Funktion',`<select name="function_id" required>${options(state.functions,'id','name',p?.function_id||state.functions[0]?.id,false)}</select>`)+label('Gebiet / allgemeine Vorgabe','<select name="geo_id" id="rule-geo"></select>')+
  label('Abdeckung',`<select name="mode"><option value="continuous" ${p?.mode==='continuous'?'selected':''}>Durchgehend rund um die Uhr</option><option value="weekly" ${p?.mode!=='continuous'?'selected':''}>Wiederkehrende Wochenzeitfenster</option></select>`)+
  '<div id="weekly-fields"><div id="window-rows"></div><button type="button" id="add-window" class="secondary">+ Zeitfenster</button></div>'+
  label('Gültig ab · TT.MM.JJJJ (optional)',input('valid_from',swissDate(current.valid_from),'text',false))+label('Gültig bis · exklusiv · TT.MM.JJJJ (optional)',input('valid_until',swissDate(current.valid_until),'text',false))+
  '<p class="small muted">Eine gebietsspezifische Vorgabe ersetzt die allgemeine Vorgabe. Ein Zeitfenster mit gleichem Wochentag und gleicher Uhrzeit umfasst eine ganze Woche.</p>';
- modal(`<h2>${masterTitles[type]} ${p?'bearbeiten':'anlegen'}</h2>`+fields+(p?'<button type="button" id="delete-master" class="danger">Löschen</button>':''),async d=>{
+ modal(`<h2>${masterTitles[type]} ${p?'bearbeiten':'anlegen'}</h2>`+fields+(p?'<p class="small muted">Funktionen, Gebiete und Gruppen können nur ohne laufende oder zukünftige Pikettdienste gelöscht werden. Vergangene Dienste bleiben erhalten.</p><button type="button" id="delete-master" class="danger">Löschen</button>':''),async d=>{
    const next={...current,id:p?.id||d.id.trim()};
    if(type!=='rules')next.name=d.name.trim();
    if(type==='groups')next.department_id=d.department_id||null;
@@ -174,7 +182,7 @@ function masterDialog(type,p){
  }
  function readCovers(){covers=[...document.querySelectorAll('[data-cover]')].map(row=>({whole:row.querySelector('[data-whole]').value,parts:[...row.querySelectorAll('[data-part]:checked')].map(x=>x.value)}));}
  function renderCovers(){
-   const geos=$('#independent').checked?[]:[...document.querySelectorAll('[name=geo_ids]:checked')].map(x=>x.value);const regions=state.regions.filter(r=>geos.includes(r.id));
+   const geos=$('#independent').checked?[]:[...document.querySelectorAll('[name=geo_ids]:checked')].map(x=>x.value);const regions=[...state.regions,...(state.archived_master?.regions||[]).filter(r=>geos.includes(r.id)).map(r=>({...r,name:r.name+' (gelöscht)'}))].filter(r=>geos.includes(r.id));
    $('#cover-rows').innerHTML=covers.map((r,i)=>`<fieldset data-cover><legend>Beziehung ${i+1}</legend>${label('Gesamtgebiet',`<select data-whole>${options(regions,'id','name',r.whole)}</select>`)}<p>Abgedeckte Teilgebiete</p>${regions.filter(g=>g.id!==r.whole).map(g=>`<label class="check-option"><input type="checkbox" data-part value="${esc(g.id)}" ${r.parts.includes(g.id)?'checked':''}>${esc(g.name)}</label>`).join('')}<button type="button" class="secondary" data-remove-cover="${i}">Beziehung entfernen</button></fieldset>`).join('');
    document.querySelectorAll('[data-whole]').forEach(x=>x.onchange=()=>{readCovers();renderCovers();});document.querySelectorAll('[data-remove-cover]').forEach(b=>b.onclick=()=>{readCovers();covers.splice(Number(b.dataset.removeCover),1);renderCovers();});
    $('#geo-options').disabled=$('#independent').checked;$('#add-cover').disabled=$('#independent').checked||!regions.length;$('#cover-rows').hidden=$('#independent').checked;
