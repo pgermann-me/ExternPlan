@@ -1,3 +1,4 @@
+import {daySegment} from './day-segment.js';
 import {swissTime,swissDate} from './time.js';
 const $=s=>document.querySelector(s);
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -8,11 +9,16 @@ $('#calendar-month').value=localDay(new Date()).slice(0,7);
 const record=(type,id)=>state[type].find(x=>x.id===id)||state.archived_master?.[type]?.find(x=>x.id===id);
 const title=a=>`${record('functions',a.function_id)?.name||'Unbekannte Funktion'} · ${a.geodependency?(record('regions',a.geodependency)?.name||'Unbekanntes Gebiet'):'Ortsunabhängig'}`;
 const dutyColor=a=>{const color=state.assignment_styles?.[a.assignment_id]?.color;return /^#[0-9a-f]{6}$/i.test(color||'')?` style="border-left-color:${color}"`:'';};
+function listDuty(a,day){
+ const segment=daySegment(a,day);if(!segment)return '';
+ const chosen=state.assignment_styles?.[a.assignment_id]?.color,color=/^#[0-9a-f]{6}$/i.test(chosen||'')?chosen:'#2563eb';
+ return `<button class="person-calendar-duty" data-duty="${esc(a.assignment_id)}"${dutyColor(a)}><b>${esc(record('functions',a.function_id)?.name||'Unbekannte Funktion')}</b><span>${segment.start_time} → ${segment.end_time}</span><span class="daily-hours-track" aria-hidden="true"><span class="daily-hours-bar" style="left:${segment.left}%;width:${segment.width}%;background:${color}"></span></span></button>`;
+}
 function listTable(assignments,days,inDay){
  const matching=assignments.filter(a=>days.some(day=>inDay(a,day)));
  const regionName=id=>id===null?'Ortsunabhängig':record('regions',id)?.name||'Unbekanntes Gebiet';
  const regions=[...new Set(matching.map(a=>a.geodependency??null))].sort((a,b)=>regionName(a).localeCompare(regionName(b),'de-CH'));
- return `<table class="person-duty-list"><thead><tr><th scope="col">Tag</th>${regions.map(id=>`<th scope="col">${esc(regionName(id))}</th>`).join('')}</tr></thead><tbody>${days.map(day=>{const weekday=new Date(day+'T12:00:00Z').getUTCDay();return `<tr class="${weekday===0||weekday===6?'calendar-weekend':''}"><th scope="row">${swissDate(day)}<span class="muted">${new Intl.DateTimeFormat('de-CH',{weekday:'long',timeZone:'Europe/Zurich'}).format(new Date(day+'T12:00:00Z'))}</span></th>${regions.map(region=>`<td>${matching.filter(a=>(a.geodependency??null)===region&&inDay(a,day)).map(a=>`<button class="person-calendar-duty" data-duty="${esc(a.assignment_id)}"${dutyColor(a)}><b>${esc(record('functions',a.function_id)?.name||'Unbekannte Funktion')}</b><span>${esc(swissTime(a.start_on))} → ${esc(swissTime(a.end_on))}</span></button>`).join('')}</td>`).join('')}</tr>`;}).join('')}</tbody></table>`;
+ return `<table class="person-duty-list"><thead><tr><th scope="col">Tag</th>${regions.map(id=>`<th scope="col">${esc(regionName(id))}</th>`).join('')}</tr></thead><tbody>${days.map(day=>{const weekday=new Date(day+'T12:00:00Z').getUTCDay();return `<tr class="${weekday===0||weekday===6?'calendar-weekend':''}"><th scope="row">${swissDate(day)}<span class="muted">${new Intl.DateTimeFormat('de-CH',{weekday:'long',timeZone:'Europe/Zurich'}).format(new Date(day+'T12:00:00Z'))}</span></th>${regions.map(region=>`<td>${matching.filter(a=>(a.geodependency??null)===region&&inDay(a,day)).map(a=>listDuty(a,day)).join('')}</td>`).join('')}</tr>`;}).join('')}</tbody></table>`;
 }
 async function load(){
  const request=++sequence;
