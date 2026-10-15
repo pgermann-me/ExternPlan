@@ -10,10 +10,9 @@ $('#calendar-month').value=localDay(new Date()).slice(0,7);
 const record=(type,id)=>state[type].find(x=>x.id===id)||state.archived_master?.[type]?.find(x=>x.id===id);
 const title=a=>`${record('functions',a.function_id)?.name||'Unbekannte Funktion'} · ${a.geodependency?(record('regions',a.geodependency)?.name||'Unbekanntes Gebiet'):'Ortsunabhängig'}`;
 function listDuty(group){
- const colors=group.assignments.map(a=>state.assignment_styles?.[a.assignment_id]?.color||'#2563eb');
- const chosen=colors.every(color=>color===colors[0])?colors[0]:'#2563eb',color=/^#[0-9a-f]{6}$/i.test(chosen)?chosen:'#2563eb';
+ const chosen=state.assignment_styles?.[group.color_assignment_id]?.color||'#2563eb',color=/^#[0-9a-f]{6}$/i.test(chosen)?chosen:'#2563eb';
  const region=group.geodependency===null?'Ortsunabhängig':record('regions',group.geodependency)?.name||'Unbekanntes Gebiet';
- return `<button class="person-calendar-duty" data-duty="${esc(group.assignments[0].assignment_id)}" data-duty-ids="${esc(JSON.stringify(group.assignments.map(a=>a.assignment_id)))}" style="border-left-color:${color}"><b>${esc(record('functions',group.function_id)?.name||'Unbekannte Funktion')}</b><small class="duty-region">${esc(region)}</small>${group.segments.map(segment=>`<span>${segment.start_time} → ${segment.end_time}</span>`).join('')}<span class="daily-hours-track" aria-hidden="true">${group.segments.map(segment=>`<span class="daily-hours-bar" style="left:${segment.left}%;width:${segment.width}%;background:${color}"></span>`).join('')}</span></button>`;
+ return `<button class="person-calendar-duty" data-duty="${esc(group.assignments[0].assignment_id)}" data-duty-ids="${esc(JSON.stringify(group.assignments.map(a=>a.assignment_id)))}" style="border-left-color:${color};background:${color}1a"><b>${esc(record('functions',group.function_id)?.name||'Unbekannte Funktion')}</b><small class="duty-region">${esc(region)}</small>${group.segments.map(segment=>`<span>${segment.start_time} → ${segment.end_time}</span>`).join('')}<span class="daily-hours-track" aria-hidden="true">${group.segments.map(segment=>`<span class="daily-hours-bar" style="left:${segment.left}%;width:${segment.width}%;background:${color}"></span>`).join('')}</span></button>`;
 }
 function listTable(assignments,days,inDay){
  const matching=assignments.filter(a=>days.some(day=>inDay(a,day)));
@@ -27,13 +26,13 @@ async function load(){
   const month=$('#calendar-month').value;if(!/^\d{4}-\d{2}$/.test(month))throw Error('Bitte einen Monat wählen');
   const response=await fetch('/api/state');if(!response.ok)throw Error('Kalender konnte nicht geladen werden');const nextState=await response.json();if(request!==sequence)return;state=nextState;
   const person=state.people.find(p=>p.employee_id===employeeId);if(!person)throw Error('Person nicht gefunden');
-  $('#person-name').textContent='Pikettdienste: '+person.name;document.title=person.name+' · Personenkalender';
+  const viewName=listView?'Listenansicht':'Kalenderansicht';$('#person-name').textContent=viewName+': '+person.name;document.title=viewName+' · '+person.name+' · ExternPlan';
   const first=new Date(month+'-01T12:00:00Z'),year=first.getUTCFullYear(),monthIndex=first.getUTCMonth();
   const count=new Date(Date.UTC(year,monthIndex+1,0)).getUTCDate(),offset=(first.getUTCDay()+6)%7;
   const assignments=state.assignments.filter(a=>a.employee_id===employeeId).sort((a,b)=>new Date(a.start_on)-new Date(b.start_on)||a.priority-b.priority);
   const days=Array.from({length:count},(_,i)=>month+'-'+String(i+1).padStart(2,'0'));
   const inDay=(a,day)=>localDay(a.start_on)<=day&&localDay(new Date(new Date(a.end_on).getTime()-1))>=day;
-  $('#calendar-view').textContent=listView?'Listenansicht':'Kalenderansicht';$('#calendar-view').setAttribute('aria-checked',String(listView));$('#person-calendar').setAttribute('aria-label',listView?'Pikettdienste nach Tag und Region':'Pikettdienste im Monatskalender');
+  $('#calendar-view').textContent='Ansicht ändern';$('#calendar-view').setAttribute('aria-pressed',String(listView));$('#person-calendar').setAttribute('aria-label',listView?'Pikettdienste nach Tag und Region':'Pikettdienste im Monatskalender');
   $('#person-calendar').innerHTML=listView?listTable(assignments,days,inDay):'<div class="person-calendar-grid">'+['Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag','Sonntag'].map(d=>`<div class="calendar-weekday">${d}</div>`).join('')+Array.from({length:offset},()=>'<div class="calendar-outside" aria-hidden="true"></div>').join('')+days.map((day,i)=>`<section class="calendar-date ${(offset+i)%7>=5?'calendar-weekend':''}" aria-label="${swissDate(day)}"><h2>${i+1}</h2>${groupDayDuties(assignments.filter(a=>inDay(a,day)),day).map(group=>listDuty(group)).join('')}</section>`).join('')+'</div>';
   displayedMonth=month;$('#calendar-period').textContent=new Intl.DateTimeFormat('de-CH',{month:'long',year:'numeric',timeZone:'Europe/Zurich'}).format(first);$('#print-calendar').disabled=false;$('#export-ical').disabled=false;
   const matching=assignments.filter(a=>days.some(day=>inDay(a,day)));$('#calendar-message').textContent=matching.length?`${matching.length} Pikettdienste im gewählten Monat`:'Keine Pikettdienste im gewählten Monat.';
