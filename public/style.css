@@ -40,3 +40,7 @@ table.month thead th:not(:first-child){overflow:hidden;white-space:nowrap}
 .master-favorite-row{display:grid;grid-template-columns:18px minmax(180px,1fr) minmax(220px,2fr) auto;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid #e3e9ed;font-size:13px}.master-favorite-row:last-child{border-bottom:0}.master-favorite-row .color-dot{width:15px;height:15px;border:1px solid #0002}.favorite-row-name,.favorite-row-details{min-width:0;overflow-wrap:anywhere}.favorite-row-name small{display:block;margin-top:3px}.favorite-row-details p{margin:3px 0 0}.master-favorite-row button{padding:6px 10px}.master-favorite-row .actions{gap:5px;flex-wrap:wrap}dialog .master-favorite-row{grid-template-columns:18px minmax(0,1fr) auto}dialog .favorite-row-details{grid-column:2;grid-row:2}dialog .master-favorite-row .actions{grid-column:3;grid-row:1 / span 2}@media(max-width:800px){.master-favorite-row{grid-template-columns:18px minmax(0,1fr) auto}.favorite-row-details{grid-column:2;grid-row:2}.master-favorite-row .actions{grid-column:3;grid-row:1 / span 2}}
 
 .duty-bar.coarse-duty{min-width:0;border:0;box-shadow:inset -1px 0 #ffffffaa}
+/* Keep the row identity visible when working at the far end of the calendar. */
+.person-month tbody tr:is(:hover,:has(:focus-visible)) > .person-column,
+.person-month tbody tr:is(:hover,:has(:focus-visible)) > .group-column,
+table.month tbody tr:is(:hover,:has(:focus-visible)) > td:first-child{background:#e9f1f7;box-shadow:inset 3px 0 #137d69}
