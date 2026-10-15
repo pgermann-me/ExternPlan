@@ -44,3 +44,5 @@ table.month thead th:not(:first-child){overflow:hidden;white-space:nowrap}
 .person-month tbody tr:is(:hover,:has(:focus-visible)) > .person-column,
 .person-month tbody tr:is(:hover,:has(:focus-visible)) > .group-column,
 table.month tbody tr:is(:hover,:has(:focus-visible)) > td:first-child{background:#e9f1f7;box-shadow:inset 3px 0 #137d69}
+
+.person-duty-list{width:100%;font-size:13px}.person-duty-list th,.person-duty-list td{min-width:200px;border-right:1px solid #e3e9ed;padding:8px;vertical-align:top}.person-duty-list th:first-child{position:sticky;left:0;min-width:150px;width:150px;background:#f5f7f9;z-index:2}.person-duty-list thead th:first-child{z-index:4}.person-duty-list tbody th span{display:block;font-size:11px;font-weight:400;margin-top:3px}.person-duty-list .person-calendar-duty{font-size:12px;margin:0 0 5px}.person-duty-list tbody tr:hover th,.person-duty-list tbody tr:hover td{background:#e9f1f7}

@@ -3,10 +3,17 @@ const $=s=>document.querySelector(s);
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const localDay=instant=>swissTime(instant).slice(0,10).split('.').reverse().join('-');
 const employeeId=new URLSearchParams(location.search).get('employee_id');
-let state,sequence=0;
+let state,sequence=0,listView=false;try{listView=localStorage.getItem('externplan.personCalendarView')==='list';}catch{}
 $('#calendar-month').value=localDay(new Date()).slice(0,7);
 const record=(type,id)=>state[type].find(x=>x.id===id)||state.archived_master?.[type]?.find(x=>x.id===id);
 const title=a=>`${record('functions',a.function_id)?.name||'Unbekannte Funktion'} · ${a.geodependency?(record('regions',a.geodependency)?.name||'Unbekanntes Gebiet'):'Ortsunabhängig'}`;
+const dutyColor=a=>{const color=state.assignment_styles?.[a.assignment_id]?.color;return /^#[0-9a-f]{6}$/i.test(color||'')?` style="border-left-color:${color}"`:'';};
+function listTable(assignments,days,inDay){
+ const matching=assignments.filter(a=>days.some(day=>inDay(a,day)));
+ const regionName=id=>id===null?'Ortsunabhängig':record('regions',id)?.name||'Unbekanntes Gebiet';
+ const regions=[...new Set(matching.map(a=>a.geodependency??null))].sort((a,b)=>regionName(a).localeCompare(regionName(b),'de-CH'));
+ return `<table class="person-duty-list"><thead><tr><th scope="col">Tag</th>${regions.map(id=>`<th scope="col">${esc(regionName(id))}</th>`).join('')}</tr></thead><tbody>${days.map(day=>{const weekday=new Date(day+'T12:00:00Z').getUTCDay();return `<tr class="${weekday===0||weekday===6?'calendar-weekend':''}"><th scope="row">${swissDate(day)}<span class="muted">${new Intl.DateTimeFormat('de-CH',{weekday:'long',timeZone:'Europe/Zurich'}).format(new Date(day+'T12:00:00Z'))}</span></th>${regions.map(region=>`<td>${matching.filter(a=>(a.geodependency??null)===region&&inDay(a,day)).map(a=>`<button class="person-calendar-duty" data-duty="${esc(a.assignment_id)}"${dutyColor(a)}><b>${esc(record('functions',a.function_id)?.name||'Unbekannte Funktion')}</b><span>${esc(swissTime(a.start_on))} → ${esc(swissTime(a.end_on))}</span></button>`).join('')}</td>`).join('')}</tr>`;}).join('')}</tbody></table>`;
+}
 async function load(){
  const request=++sequence;
  try{
@@ -19,11 +26,13 @@ async function load(){
   const assignments=state.assignments.filter(a=>a.employee_id===employeeId).sort((a,b)=>new Date(a.start_on)-new Date(b.start_on)||a.priority-b.priority);
   const days=Array.from({length:count},(_,i)=>month+'-'+String(i+1).padStart(2,'0'));
   const inDay=(a,day)=>localDay(a.start_on)<=day&&localDay(new Date(new Date(a.end_on).getTime()-1))>=day;
-  $('#person-calendar').innerHTML='<div class="person-calendar-grid">'+['Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag','Sonntag'].map(d=>`<div class="calendar-weekday">${d}</div>`).join('')+Array.from({length:offset},()=>'<div class="calendar-outside" aria-hidden="true"></div>').join('')+days.map((day,i)=>`<section class="calendar-date ${(offset+i)%7>=5?'calendar-weekend':''}" aria-label="${swissDate(day)}"><h2>${i+1}</h2>${assignments.filter(a=>inDay(a,day)).map(a=>{const color=state.assignment_styles?.[a.assignment_id]?.color;return `<button class="person-calendar-duty" data-duty="${esc(a.assignment_id)}" ${/^#[0-9a-f]{6}$/i.test(color||'')?`style="border-left-color:${color}"`:''} title="${esc(title(a))} · ${esc(swissTime(a.start_on))} → ${esc(swissTime(a.end_on))}"><b>${esc(title(a))}</b><span>${esc(swissTime(a.start_on))} → ${esc(swissTime(a.end_on))}</span></button>`;}).join('')}</section>`).join('')+'</div>';
+  $('#calendar-view').textContent=listView?'Listenansicht':'Kalenderansicht';$('#calendar-view').setAttribute('aria-checked',String(listView));$('#person-calendar').setAttribute('aria-label',listView?'Pikettdienste nach Tag und Region':'Pikettdienste im Monatskalender');
+  $('#person-calendar').innerHTML=listView?listTable(assignments,days,inDay):'<div class="person-calendar-grid">'+['Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag','Sonntag'].map(d=>`<div class="calendar-weekday">${d}</div>`).join('')+Array.from({length:offset},()=>'<div class="calendar-outside" aria-hidden="true"></div>').join('')+days.map((day,i)=>`<section class="calendar-date ${(offset+i)%7>=5?'calendar-weekend':''}" aria-label="${swissDate(day)}"><h2>${i+1}</h2>${assignments.filter(a=>inDay(a,day)).map(a=>{const color=state.assignment_styles?.[a.assignment_id]?.color;return `<button class="person-calendar-duty" data-duty="${esc(a.assignment_id)}" ${/^#[0-9a-f]{6}$/i.test(color||'')?`style="border-left-color:${color}"`:''} title="${esc(title(a))} · ${esc(swissTime(a.start_on))} → ${esc(swissTime(a.end_on))}"><b>${esc(title(a))}</b><span>${esc(swissTime(a.start_on))} → ${esc(swissTime(a.end_on))}</span></button>`;}).join('')}</section>`).join('')+'</div>';
   const matching=assignments.filter(a=>days.some(day=>inDay(a,day)));$('#calendar-message').textContent=matching.length?`${matching.length} Pikettdienste im gewählten Monat`:'Keine Pikettdienste im gewählten Monat.';
   document.querySelectorAll('[data-duty]').forEach(button=>button.onclick=()=>{const a=assignments.find(a=>a.assignment_id===button.dataset.duty);$('#duty-content').innerHTML=`<h2>${esc(title(a))}</h2><p>${esc(person.name)}</p><p>${esc(swissTime(a.start_on))} → ${esc(swissTime(a.end_on))}</p><p>Priorität ${a.priority}</p>`;$('#duty-details').showModal();});
  }catch(error){if(request===sequence){$('#calendar-message').textContent=error.message;$('#person-calendar').replaceChildren();}}
 }
 function moveMonth(delta){const date=new Date($('#calendar-month').value+'-01T12:00:00Z');if(!Number.isFinite(date.getTime()))return;date.setUTCMonth(date.getUTCMonth()+delta);$('#calendar-month').value=date.toISOString().slice(0,7);load();}
+$('#calendar-view').onclick=()=>{listView=!listView;try{localStorage.setItem('externplan.personCalendarView',listView?'list':'calendar');}catch{}load();};
 $('#previous').onclick=()=>moveMonth(-1);$('#next').onclick=()=>moveMonth(1);$('#calendar-month').onchange=load;$('#reload').onclick=load;$('#close-details').onclick=()=>$('#duty-details').close();
 await load();
