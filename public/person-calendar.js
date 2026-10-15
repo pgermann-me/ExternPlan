@@ -1,3 +1,4 @@
+import {downloadPersonPdf} from './person-pdf.js';
 import {personIcal} from './person-ical.js';
 import {groupDayDuties} from './group-day-duties.js';
 import {swissTime,swissDate} from './time.js';
@@ -40,7 +41,11 @@ async function load(){
  }catch(error){if(request===sequence){$('#calendar-message').textContent=error.message;$('#person-calendar').replaceChildren();}}
 }
 function moveMonth(delta){const date=new Date($('#calendar-month').value+'-01T12:00:00Z');if(!Number.isFinite(date.getTime()))return;date.setUTCMonth(date.getUTCMonth()+delta);$('#calendar-month').value=date.toISOString().slice(0,7);load();}
-$('#print-calendar').onclick=()=>window.print();
+$('#print-calendar').onclick=async()=>{
+ const controls=[...document.querySelectorAll('.toolbar button,.toolbar input')].map(element=>({element,disabled:element.disabled})),message=$('#calendar-message').textContent;
+ controls.forEach(({element})=>element.disabled=true);$('#calendar-message').textContent='PDF wird erstellt …';
+ try{await downloadPersonPdf(document.querySelector('main'),`pikett-${listView?'listenansicht':'kalenderansicht'}-${displayedMonth}.pdf`);$('#calendar-message').textContent=message;}catch(error){$('#calendar-message').textContent='PDF konnte nicht erstellt werden: '+error.message;}finally{controls.forEach(({element,disabled})=>element.disabled=disabled);}
+};
 $('#export-ical').onclick=()=>{try{const file=new Blob([personIcal(state,employeeId,displayedMonth)],{type:'text/calendar;charset=utf-8'}),url=URL.createObjectURL(file),link=document.createElement('a');link.href=url;link.download=`pikett-${displayedMonth}.ics`;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);}catch(error){$('#calendar-message').textContent=error.message;}};
 $('#calendar-view').onclick=()=>{listView=!listView;try{localStorage.setItem('externplan.personCalendarView',listView?'list':'calendar');}catch{}load();};
 $('#previous').onclick=()=>moveMonth(-1);$('#next').onclick=()=>moveMonth(1);$('#calendar-month').onchange=load;$('#reload').onclick=load;$('#close-details').onclick=()=>$('#duty-details').close();

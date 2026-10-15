@@ -1,3 +1,4 @@
+import {resolve} from 'node:path';
 import {timelineBars} from './timeline.js';
 import {personGroupIds,allowedFunctionRegions,validatePlanningGroup} from './public/organization.js';
 import express from 'express';
@@ -64,6 +65,8 @@ app.post('/api/import/commit',(req,res)=>res.json(mutate(s=>{const {type,rows,ma
   else if(type==='regions'||type==='functions'){const p=type==='regions'?{id:String(get(r,'id')??'').trim(),name:String(get(r,'name')??'')}:{id:String(get(r,'id')??'').trim(),name:String(get(r,'name')??''),geo_ids:list(get(r,'geo_ids')),covers:{}};const existing=s[type].find(x=>x.id===p.id);if(existing&&!active(existing))throw Error('Import enthält eine gelöschte, für die Historie reservierte Kennung');if(type==='functions'&&existing)p.covers=existing.covers;validMaster(s,type,p);if(existing)s[type][s[type].indexOf(existing)]=p;else s[type].push(p);audit(s,type,'import',existing||null,p);imported++;}
   else throw Error('Importtyp sap, regions oder functions erforderlich');
  }return {imported,skipped};})));
+app.get('/vendor/html2canvas.js',(req,res)=>res.sendFile(resolve('node_modules/html2canvas/dist/html2canvas.min.js')));
+app.get('/vendor/jspdf.js',(req,res)=>res.sendFile(resolve('node_modules/jspdf/dist/jspdf.umd.min.js')));
 app.use(express.static('public'));
 app.use((err,req,res,next)=>res.status(400).json({error:err.message}));
 const server=app.listen(Number(process.env.PORT||3000),process.env.HOST||'127.0.0.1',()=>console.log(`ExternPlan läuft auf Port ${server.address().port}`));
