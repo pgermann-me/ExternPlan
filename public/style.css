@@ -50,3 +50,21 @@ table.month tbody tr:is(:hover,:has(:focus-visible)) > td:first-child{background
 .person-duty-list .daily-hours-track{display:block;position:relative;height:6px;background:#d9e3ee;border-radius:2px;margin-top:6px;overflow:hidden}.person-duty-list .daily-hours-bar{position:absolute;top:0;bottom:0;margin:0;background:#2563eb;border-radius:1px}
 
 .person-calendar-duty .duty-region{display:block;font-size:10px;color:#617380;margin-top:2px}.original-duty+.original-duty{border-top:1px solid #dce3e8;margin-top:12px}
+
+.person-calendar-window .daily-hours-track{display:block;position:relative;height:6px;background:#d9e3ee;border-radius:2px;margin-top:6px;overflow:hidden}.person-calendar-window .daily-hours-bar{position:absolute;top:0;bottom:0;margin:0;border-radius:1px}
+@page{size:A4 landscape;margin:10mm}
+@media print{
+ .person-calendar-window{background:white;color:#1f3345;print-color-adjust:exact;-webkit-print-color-adjust:exact}
+ .person-calendar-window .toolbar,.person-calendar-window dialog{display:none!important}
+ .person-calendar-window main{padding:0;margin:0;max-width:none}
+ .person-calendar-window h1{font-size:18px;margin:0 0 4px}.person-calendar-window #calendar-period{font-size:14px;margin:4px 0}.person-calendar-window main>p{font-size:10px;margin:4px 0}
+ .person-calendar-board{overflow:visible;border-radius:0}.person-calendar-grid{min-width:0;grid-template-columns:repeat(7,minmax(0,1fr))}
+ .person-calendar-window .calendar-date,.person-calendar-window .calendar-outside{min-height:22mm;padding:4px;break-inside:avoid}
+ .person-calendar-window .calendar-weekday{font-size:9px;padding:5px 2px}
+ .person-calendar-window .person-calendar-duty{font-size:9px;padding:4px;break-inside:avoid;cursor:default}
+ .person-calendar-window .duty-region{font-size:8px}.person-calendar-window .person-duty-list{table-layout:fixed;font-size:10px;width:100%}
+ .person-calendar-window .person-duty-list th,.person-calendar-window .person-duty-list td{min-width:0;padding:4px;overflow-wrap:anywhere}
+ .person-calendar-window .person-duty-list th:first-child{min-width:0;width:25mm;position:static}
+ .person-calendar-window .person-duty-list thead th{position:static}.person-calendar-window .person-duty-list tbody tr{break-inside:avoid}
+ .person-calendar-window .person-duty-list thead{display:table-header-group}
+}
