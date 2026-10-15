@@ -17,3 +17,11 @@ table.month td:first-child p{margin:2px 0 0;line-height:1.2}
 table.month td:first-child b{font-weight:600;line-height:1.2}
 table.month td[data-day]{height:36px;padding:7px 0 0}
 .function-duty-track{min-height:22px}
+
+/* Fit the full month while retaining a usable minimum day width on small screens. */
+.function-calendar{min-width:0}
+table.month{width:100%;min-width:calc(128px + var(--days)*18px)}
+table.month .function-label-width{width:clamp(128px,15vw,180px)}
+table.month th,table.month td{min-width:0;width:auto;padding-left:1px;padding-right:1px}
+table.month th:first-child,table.month td:first-child{min-width:0;width:auto;max-width:none}
+table.month thead th:not(:first-child){overflow:hidden;white-space:nowrap}
