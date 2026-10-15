@@ -85,3 +85,10 @@ table.month tbody tr:is(:hover,:has(:focus-visible)) > td:first-child{background
 }
 
 .person-calendar-duty .duty-mainline .duty-times{flex-shrink:1;min-width:0;white-space:normal}
+
+.person-duty-list th,.person-duty-list td{min-width:125px;width:165px;max-width:180px}
+.person-duty-list .duty-mainline{display:block}
+.person-duty-list .duty-mainline b{display:block;line-height:1.15}
+.person-duty-list .duty-mainline .duty-times{display:block;line-height:1.15;margin-top:1px}
+@media print{.person-list-mode .person-duty-list th,.person-list-mode .person-duty-list td{min-width:0;max-width:none}.person-list-mode .duty-mainline b,.person-list-mode .duty-mainline .duty-times{line-height:1.1}}
+@media print{.person-list-mode .duty-mainline b{white-space:normal;overflow:visible;text-overflow:clip}}
