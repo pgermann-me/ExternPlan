@@ -25,3 +25,5 @@ table.month .function-label-width{width:clamp(128px,15vw,180px)}
 table.month th,table.month td{min-width:0;width:auto;padding-left:1px;padding-right:1px}
 table.month th:first-child,table.month td:first-child{min-width:0;width:auto;max-width:none}
 table.month thead th:not(:first-child){overflow:hidden;white-space:nowrap}
+
+.calendar-with-favorites.favorites-hidden{grid-template-columns:minmax(0,1fr)}.favorites-hidden .timeline{--day-width:max(36px,calc((100vw - 421px)/var(--days)))}@media(max-width:900px){.favorites-hidden .timeline{--day-width:40px}}
