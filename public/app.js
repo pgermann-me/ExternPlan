@@ -49,7 +49,7 @@ function assignmentDialog(a={},defaults={}){
  const timeField=(field,text,fallback)=>label(text,input(field,assignmentTime(a[field],fallback)))+
  label('Zeitumstellung: doppelte Uhrzeit',`<select name="${field}_offset"><option value="">Automatisch · eindeutige Schweizer Zeit</option><option value="+02:00">Sommerzeit (erste doppelte Uhrzeit)</option><option value="+01:00">Winterzeit (zweite doppelte Uhrzeit)</option></select>`);
  modal(`<h2>${a.assignment_id?'Zuteilung bearbeiten':'Pikett zuteilen'}</h2>`+(a.assignment_id?label('Kennung',`<input name="assignment_id" value="${esc(a.assignment_id)}" readonly>`):'')+
- label('Person',`<select name="employee_id" required>${options(people,'employee_id','name',a.employee_id)}</select>`)+
+ label('Person',`<select name="employee_id" required>${options(people.map(p=>({...p,display_name:p.last_name&&p.first_name?`${p.last_name} ${p.first_name}`:p.name})).sort((a,b)=>a.display_name.localeCompare(b.display_name,'de-CH')),'employee_id','display_name',a.employee_id)}</select>`)+
  label('Funktion',`<select name="function_id" required>${options(state.functions,'id','name',f?.id,false)}</select>`)+`<div id="geo-field"></div>`+
  timeField('start_on','Beginn · Schweizer Zeit',swissDate(month+'-01')+' 07:00')+
  timeField('end_on','Ende · exklusiv',swissDate(month+'-02')+' 07:00')+
