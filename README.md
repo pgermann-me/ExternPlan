@@ -88,3 +88,5 @@ Im persönlichen Kalender verwenden Kalender- und Listenansicht dieselbe Tagesau
 Bei zusammengefassten Tageskästchen bestimmt der Dienst mit dem längsten tatsächlichen Zeitanteil an diesem Schweizer Tag die Farbe von Balken, Rand und dezentem Hintergrund. Bei Gleichstand wird der früher beginnende Dienst gewählt. „Ansicht ändern“ schaltet zwischen den Ansichten um; die aktuelle Ansicht steht im Titel und im PDF-Ausdruck.
 
 Personenkarten zeigen die Überschriften Abteilung, Gruppe und Funktion mit kommagetrennten Einträgen. Funktionen stammen ausschliesslich aus den vorhandenen Pikettdiensten der Person (einschliesslich historischer Dienste), ohne Duplikate. Kontakte erscheinen ohne „Kontakt“/P-Präfix; Prioritäten ungleich 0 stehen hinter Nummer oder E-Mail in Klammern.
+
+Die persönliche Listenansicht ist kompakt: Tag als „Do, 01.10.“, Funktion und Uhrzeiten auf einer Zeile, Region darunter. Listen-PDFs werden im A4-Hochformat erstellt und bei moderatem Platzbedarf auf eine Seite eingepasst; umfangreiche Listen bleiben mehrseitig lesbar. Kalender-PDFs bleiben im Querformat. Der Titel lautet beispielsweise „Listenansicht Pikettdienste: Anna Muster“.
