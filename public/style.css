@@ -109,3 +109,8 @@ table.month tbody tr:is(:hover,:has(:focus-visible)) > td:first-child{background
 
 .function-calendar .month thead th{z-index:4}
 .function-calendar .month thead th:first-child{z-index:5}
+
+.function-person-link{display:block;width:100%;padding:0;background:transparent;color:inherit;text-align:left;font:inherit;white-space:normal}
+.function-person-link .muted{display:block;margin-top:4px;font-weight:400}
+.function-person-link:focus-visible{outline:2px solid #137d69;outline-offset:2px}
+.function-calendar .month tbody td[data-open-person-function]{cursor:pointer}
