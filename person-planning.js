@@ -2,6 +2,7 @@ import {personGroupIds,allowedFunctionRegions} from './public/organization.js';
 import { DateTime } from 'luxon';
 import {timelineBars} from './timeline.js';
 import { instant, overlap, iso, zone } from './domain.js';
+const planningName=p=>p.last_name&&p.first_name?`${p.last_name} ${p.first_name}`:p.name;
 // With a group selected, include all its members; otherwise use actual assignments.
 export function personMonth(state, month, functionId, selectedRegions,groupId) {
  if(!/^\d{4}-\d{2}$/.test(month||''))throw Error('Monat als YYYY-MM');
@@ -19,8 +20,8 @@ export function personMonth(state, month, functionId, selectedRegions,groupId) {
  const dayMeta=days.map(d=>({date:d.toISODate(),weekday:d.weekday,week_number:d.weekNumber,week_year:d.weekYear,start_on:iso(d.toMillis()),end_on:iso(d.plus({days:1}).toMillis())}));
  const byPerson=new Map();
  for(const a of assignments){const list=byPerson.get(a.employee_id)||[];list.push(a);byPerson.set(a.employee_id,list);}
- const rows=state.people.filter(p=>groupId?personGroupIds(p).includes(groupId):byPerson.has(p.employee_id)).sort((a,b)=>a.name.localeCompare(b.name,'de-CH')).map(p=>({
-   employee_id:p.employee_id,name:p.name,group_id:p.group_id,group_ids:personGroupIds(p),...timelineBars(byPerson.get(p.employee_id)||[],dayMeta,state.assignment_styles||{}),
+ const rows=state.people.filter(p=>groupId?personGroupIds(p).includes(groupId):byPerson.has(p.employee_id)).sort((a,b)=>planningName(a).localeCompare(planningName(b),'de-CH')).map(p=>({
+   employee_id:p.employee_id,name:planningName(p),group_id:p.group_id,group_ids:personGroupIds(p),...timelineBars(byPerson.get(p.employee_id)||[],dayMeta,state.assignment_styles||{}),
    cells:days.map(d=>({assignments:(byPerson.get(p.employee_id)||[]).filter(a=>overlap([instant(a.start_on),instant(a.end_on)],[d.toMillis(),d.plus({days:1}).toMillis()])).sort((a,b)=>instant(a.start_on)-instant(b.start_on)||a.priority-b.priority)}))
  }));
  return {month,day_meta:dayMeta,group_id:groupId||null,function_id:functionId,region_ids:regions,days:days.map(d=>d.toISODate()),rows};
