@@ -68,3 +68,5 @@ table.month tbody tr:is(:hover,:has(:focus-visible)) > td:first-child{background
  .person-calendar-window .person-duty-list thead th{position:static}.person-calendar-window .person-duty-list tbody tr{break-inside:avoid}
  .person-calendar-window .person-duty-list thead{display:table-header-group}
 }
+
+.person-affiliations{margin:14px 0}.person-affiliations dt{font-weight:600;font-size:12px;color:#536979}.person-affiliations dd{margin:3px 0 10px;line-height:1.45}.person-contact{margin:7px 0}
