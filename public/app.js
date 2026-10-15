@@ -1,3 +1,4 @@
+import {favoriteTimeLabel} from './favorite-time.js';
 import {dayBars} from './day-bars.js';
 import {bindSplitPanel} from './split-panel.js';
 import {favoriteMatchesContext} from './favorite-context.js';
@@ -263,7 +264,6 @@ function bindFavoriteOrdering(reopen){
 const today=()=>new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Zurich',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
 const scopeCollections={function:'functions',department:'departments',group:'groups'};
 const scopeLabels={function:'Funktion',department:'Abteilung',group:'Gruppe'};
-const durationLabel=f=>`${Math.floor(f.duration_minutes/60)} Std. ${f.duration_minutes%60} Min.`;
 function favoriteScopeName(f){return scopeLabels[f.scope_type]+': '+(masterRecord(scopeCollections[f.scope_type],f.scope_id)?.name||'Gelöschter Bereich');}
 function favoritePersonMatches(f,p){
  if(f.scope_type==='function')return true;if(f.scope_type==='group')return personGroupIds(p).includes(f.scope_id);
@@ -274,7 +274,7 @@ function favoriteAvailable(f,contextGroup){
  return !!fn&&!!state[scopeCollections[f.scope_type]]?.some(x=>x.id===f.scope_id)&&
  (fn.geo_ids.length?f.region_ids.length>0&&f.region_ids.every(g=>allowedFunctionRegions(fn,contextGroup|| (f.scope_type==='group'?state.groups.find(g=>g.id===f.scope_id):null),state.regions).includes(g)):!f.region_ids.length);
 }
-function favoriteSummary(f){return `${esc(functionName(f.function_id))} · ${f.region_ids.length?f.region_ids.map(g=>esc(regionName(g))).join(', '):'Ortsunabhängig'}<br>${esc(f.start_time)} · ${durationLabel(f)} · P${f.priority}`;}
+function favoriteSummary(f){return `${esc(functionName(f.function_id))} · ${f.region_ids.length?f.region_ids.map(g=>esc(regionName(g))).join(', '):'Ortsunabhängig'}<br>${esc(favoriteTimeLabel(f))} · P${f.priority}`;}
 function favoriteMasterRow(f,list,editAttribute){
  const color=/^#[0-9a-f]{6}$/i.test(f.color||'')?f.color:'#2563eb';
  return `<article class="master-favorite-row"><span class="color-dot" style="background:${color}" role="img" aria-label="Favoritenfarbe ${color}"></span><div class="favorite-row-name"><b>${esc(f.name)}</b><small class="muted">${esc(favoriteScopeName(f))}</small></div><div class="favorite-row-details">${favoriteSummary(f).replace('<br>',' · ')}${!favoriteAvailable(f)?'<p class="small">Vorlage vor Verwendung aktualisieren.</p>':''}</div><div class="actions"><button type="button" ${editAttribute}="${f.id}">Bearbeiten</button>${favoriteOrderButtons(f,list)}</div></article>`;
@@ -296,14 +296,15 @@ function favoriteEditor(f={},defaults={}){
  '<fieldset><legend>Regionen</legend><div id="favorite-regions"></div></fieldset>'+
  '<div class="form-pair"><div>'+label('Dauer: Stunden',`<input name="duration_hours" type="number" min="0" step="1" value="${Math.floor((f.duration_minutes??1440)/60)}" required>`)+
  '</div><div>'+label('Dauer: Minuten',`<input name="duration_minutes" type="number" min="0" max="59" step="1" value="${(f.duration_minutes??1440)%60}" required>`)+
- '</div></div>'+label('Vordefinierter Beginn · HH:mm',input('start_time',f.start_time||'07:00'))+
+ '</div></div>'+label('Vordefinierter Beginn · HH:mm',input('start_time',f.start_time||'07:00'))+'<p id="favorite-time-conversion" class="small" aria-live="polite"></p>'+
  label('Pikett-Priorität',`<input name="priority" type="number" min="1" step="1" value="${f.priority||1}" required>`)+
- '<p class="small muted">Die Dauer zählt verstrichene Stunden/Minuten. Jede gewählte Region erzeugt eine eigene Zuteilung. Die Vorlage kann auch für vergangene Tage im Kalender verwendet werden.</p>'+
+ '<p class="small muted">Startzeit und Dauer werden in feste Schweizer Uhrzeiten umgerechnet: ↓ Starttag, → Folgetag. Bei Zeitumstellungen bleibt die Enduhrzeit gleich. Jede gewählte Region erzeugt eine eigene Zuteilung. Die Vorlage kann auch für vergangene Tage im Kalender verwendet werden.</p>'+
  (f.id?'<button type="button" id="delete-favorite" class="danger">Favorit löschen</button>':''),async d=>{
    const hours=Number(d.duration_hours),minutes=Number(d.duration_minutes);if(!Number.isSafeInteger(hours)||hours<0||!Number.isInteger(minutes)||minutes<0||minutes>59)throw Error('Dauer als ganze Stunden und Minuten (0–59) eingeben');
    const payload={name:d.name,color:d.color,scope_type:d.scope_type,scope_id:d.scope_id,function_id:$('#favorite-function').value,region_ids:[...document.querySelectorAll('[data-favorite-region]:checked')].map(x=>x.dataset.favoriteRegion),duration_minutes:hours*60+minutes,start_time:d.start_time,priority:Number(d.priority),...(f.id?{id:f.id,revision:f.revision}:{})};
    await api('/favorites','POST',payload);message('Favoritendienst gespeichert');
  });
+ const showTimes=()=>{try{const schedule={start_time:$('[name=start_time]').value,duration_minutes:Number($('[name=duration_hours]').value)*60+Number($('[name=duration_minutes]').value)};$('#favorite-time-conversion').textContent=favoriteTimeLabel(schedule);}catch{$('#favorite-time-conversion').textContent='Startzeit und Dauer eingeben';}};for(const field of ['start_time','duration_hours','duration_minutes'])$('[name='+field+']').oninput=showTimes;showTimes();
  const scopeType=$('#favorite-scope-type'),scope=$('#favorite-scope'),fn=$('#favorite-function');
  const renderRegions=()=>{const selected=state.functions.find(x=>x.id===fn.value);const geos=state.regions.filter(g=>selected&&allowedFunctionRegions(selected,scopeType.value==='group'?state.groups.find(g=>g.id===scope.value):null,state.regions).includes(g.id));$('#favorite-regions').innerHTML=selected?.geo_ids.length?geos.map(g=>`<label class="check-option"><input type="checkbox" data-favorite-region="${esc(g.id)}" ${selectedRegions.includes(g.id)?'checked':''}>${esc(g.name)}</label>`).join('')||'<p>Keine aktiven Regionen; Funktion zuerst konfigurieren.</p>':'Ortsunabhängig · keine Region erforderlich';};
  const renderFunction=()=>{const previous=fn.value||f.function_id;const list=scopeType.value==='function'?state.functions.filter(x=>x.id===scope.value):state.functions;fn.innerHTML=options(list,'id','name',previous,false);fn.disabled=scopeType.value==='function';renderRegions();};
@@ -322,21 +323,22 @@ function favoriteApplyDialog(defaults={}){
  label('Dienst-Datum · TT.MM.JJJJ',input('date',swissDate(chosenDay)))+
  label('Beginn · Schweizer Zeit · HH:mm',input('start_time','07:00'))+
  label('Zeitumstellung: doppelte Uhrzeit','<select name="start_offset"><option value="">Automatisch · eindeutige Schweizer Zeit</option><option value="+02:00">Sommerzeit</option><option value="+01:00">Winterzeit</option></select>')+
+ label('Zeitumstellung am Dienstende: doppelte Uhrzeit','<select name="end_offset"><option value="">Automatisch · eindeutige Schweizer Zeit</option><option value="+02:00">Sommerzeit</option><option value="+01:00">Winterzeit</option></select>')+
  '<div id="favorite-preview" class="card" aria-live="polite"></div>',async d=>{
    const f=state.favorites.find(f=>f.id===d.favorite_id);if(!f)throw Error('Favorit wählen');
-   const result=await api('/favorites/'+f.id+'/apply','POST',{planning_group_id:filteredGroup||null,employee_id:d.employee_id,date:localDate(d.date),start_time:d.start_time,start_offset:d.start_offset,revision:f.revision});
+   const result=await api('/favorites/'+f.id+'/apply','POST',{planning_group_id:filteredGroup||null,employee_id:d.employee_id,date:localDate(d.date),start_time:d.start_time,start_offset:d.start_offset,end_offset:d.end_offset,revision:f.revision});
    message(`${result.assignments.length} Pikettdienste über Favorit geplant`+(result.warnings.length?' · '+result.warnings.join(' · '):''));
  });
  const submit=$('#form button[type=submit]');submit.textContent='Favorit planen';submit.disabled=true;
  const person=$('#favorite-person'),favorite=$('#apply-favorite');let previewSequence=0,lastPreviewKey='';
- const preview=async()=>{const key=JSON.stringify([person.value,favorite.value,$('[name=date]').value,$('[name=start_time]').value,$('[name=start_offset]').value]);if(key===lastPreviewKey)return;lastPreviewKey=key;const sequence=++previewSequence;submit.disabled=true;const f=state.favorites.find(f=>f.id===favorite.value);if(!f||!person.value){$('#favorite-preview').textContent='Person und passenden Favorit wählen.';return;}
-   try{const result=await api('/favorites/'+f.id+'/preview','POST',{planning_group_id:filteredGroup||null,employee_id:person.value,date:localDate($('[name=date]').value),start_time:$('[name=start_time]').value,start_offset:$('[name=start_offset]').value,revision:f.revision});if(sequence!==previewSequence)return;
-     $('#favorite-preview').innerHTML=`<b>${esc(f.name)}</b><p>${durationLabel(f)} · ${result.assignments.length} Zuteilungen</p><p>${swissTime(result.assignments[0].start_on)} → ${swissTime(result.assignments[0].end_on)}</p><p>${f.region_ids.length?f.region_ids.map(g=>esc(regionName(g))).join(', '):'Ortsunabhängig'} · P${f.priority}</p>${result.warnings.map(w=>`<p class="small">${esc(w)}</p>`).join('')}`;submit.disabled=false;
+ const preview=async()=>{const key=JSON.stringify([person.value,favorite.value,$('[name=date]').value,$('[name=start_time]').value,$('[name=start_offset]').value,$('[name=end_offset]').value]);if(key===lastPreviewKey)return;lastPreviewKey=key;const sequence=++previewSequence;submit.disabled=true;const f=state.favorites.find(f=>f.id===favorite.value);if(!f||!person.value){$('#favorite-preview').textContent='Person und passenden Favorit wählen.';return;}
+   try{const result=await api('/favorites/'+f.id+'/preview','POST',{planning_group_id:filteredGroup||null,employee_id:person.value,date:localDate($('[name=date]').value),start_time:$('[name=start_time]').value,start_offset:$('[name=start_offset]').value,end_offset:$('[name=end_offset]').value,revision:f.revision});if(sequence!==previewSequence)return;
+     $('#favorite-preview').innerHTML=`<b>${esc(f.name)}</b><p>${esc(favoriteTimeLabel({...f,start_time:$('[name=start_time]').value}))} · ${result.assignments.length} Zuteilungen</p><p>${swissTime(result.assignments[0].start_on)} → ${swissTime(result.assignments[0].end_on)}</p><p>${f.region_ids.length?f.region_ids.map(g=>esc(regionName(g))).join(', '):'Ortsunabhängig'} · P${f.priority}</p>${result.warnings.map(w=>`<p class="small">${esc(w)}</p>`).join('')}`;submit.disabled=false;
    }catch(error){if(sequence===previewSequence)$('#favorite-preview').textContent=error.message;}
  };
  const selectFavorite=()=>{const p=state.people.find(p=>p.employee_id===person.value);const previous=favorite.value||defaults.favorite_id;const list=choices().filter(f=>!p||favoritePersonMatches(f,p));favorite.innerHTML=options(list.map(f=>({...f,label:f.name+' · '+favoriteScopeName(f)})),'id','label',previous,false);const f=state.favorites.find(f=>f.id===favorite.value);$('[name=start_time]').value=f?.start_time||'07:00';preview();};
  selectFavorite();person.onchange=selectFavorite;favorite.onchange=()=>{$('[name=start_time]').value=state.favorites.find(f=>f.id===favorite.value)?.start_time||'07:00';preview();};
- for(const field of ['date','start_time','start_offset'])$('[name='+field+']').onchange=preview;for(const field of ['date','start_time'])$('[name='+field+']').oninput=preview;
+ for(const field of ['date','start_time','start_offset','end_offset'])$('[name='+field+']').onchange=preview;for(const field of ['date','start_time'])$('[name='+field+']').oninput=preview;
 }
 
 async function planSelectedPersonFavorite(employeeId,date,functionId){
@@ -359,7 +361,7 @@ function timelineTable(result){
 function favoriteTree(functionId,filteredGroup=''){
  const group=state.groups.find(g=>g.id===filteredGroup);const favorites=state.favorites.filter(f=>(view!=='person-planning'||personFavoriteMatches(f))&&favoriteAvailable(f,group)&&(!functionId||f.function_id===functionId)&&(!group||f.scope_type==='function'||f.scope_type==='group'&&f.scope_id===group.id||f.scope_type==='department'&&f.scope_id===group.department_id));
  const folders=new Map();for(const f of favorites){const key=f.scope_type+':'+f.scope_id;if(!folders.has(key))folders.set(key,[]);folders.get(key).push(f);}
- return `<aside class="favorite-sidebar"><h2>Favoritendienste</h2><button type="button" id="clear-favorite-selection" class="secondary small">Auswahl aufheben</button><p class="small muted">Einen Favoriten auswählen und per Klick auf einen Tag direkt hinzufügen, auch bei vorhandenen Diensten. Zum Bearbeiten Auswahl aufheben. ★ öffnet die Planung mit freier Datumswahl.</p>${[...folders.entries()].map(([key,list])=>`<details class="favorite-folder" open><summary><span aria-hidden="true">📁</span> ${esc(favoriteScopeName(list[0]))}</summary>${list.map(f=>`<div class="favorite-tree-item"><label><input type="radio" name="calendar-favorite" data-favorite-choice="${f.id}" ${selectedFavoriteId===f.id?'checked':''}><span class="color-dot" style="background:${f.color||'#2563eb'}" aria-hidden="true"></span><span>${esc(f.name)}<small>${esc(f.start_time)} · ${durationLabel(f)}</small></span></label>${favoriteOrderButtons(f,list)}<button type="button" class="favorite-quick" data-quick-favorite="${f.id}" aria-label="Favorit planen: ${esc(f.name)}" title="Favorit planen">★</button></div>`).join('')}</details>`).join('')||'<p class="small muted">Noch keine passenden Favoriten. Unter Stammdaten anlegen.</p>'}</aside>`;
+ return `<aside class="favorite-sidebar"><h2>Favoritendienste</h2><button type="button" id="clear-favorite-selection" class="secondary small">Auswahl aufheben</button><p class="small muted">Einen Favoriten auswählen und per Klick auf einen Tag direkt hinzufügen, auch bei vorhandenen Diensten. Zum Bearbeiten Auswahl aufheben. ★ öffnet die Planung mit freier Datumswahl.</p>${[...folders.entries()].map(([key,list])=>`<details class="favorite-folder" open><summary><span aria-hidden="true">📁</span> ${esc(favoriteScopeName(list[0]))}</summary>${list.map(f=>`<div class="favorite-tree-item"><label><input type="radio" name="calendar-favorite" data-favorite-choice="${f.id}" ${selectedFavoriteId===f.id?'checked':''}><span class="color-dot" style="background:${f.color||'#2563eb'}" aria-hidden="true"></span><span>${esc(f.name)}<small>${esc(favoriteTimeLabel(f))}</small></span></label>${favoriteOrderButtons(f,list)}<button type="button" class="favorite-quick" data-quick-favorite="${f.id}" aria-label="Favorit planen: ${esc(f.name)}" title="Favorit planen">★</button></div>`).join('')}</details>`).join('')||'<p class="small muted">Noch keine passenden Favoriten. Unter Stammdaten anlegen.</p>'}</aside>`;
 }
 function bindFavoriteTree(functionId,filteredGroup=''){
  bindFavoriteOrdering();

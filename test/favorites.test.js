@@ -30,10 +30,12 @@ test('Ortsunabhängige Vorlagen und Planung auch an vergangenen Schweizer Daten'
  const past=applyFavorite(s,f.id,{...request(f),date:'2026-10-13'},now).assignments[0];assert.equal(past.start_on,'2026-10-13T07:00:00+02:00');assert.equal(past.end_on,'2026-10-13T07:45:00+02:00');assert.ok(s.assignments.some(a=>a.assignment_id===past.assignment_id));assert.throws(()=>previewFavorite(s,f.id,{...request(f),date:'2026-02-30'},now));assert.throws(()=>previewFavorite(s,f.id,{...request(f),revision:99},now));
  const midnight=instant('2026-10-13T22:30:00Z');assert.equal(previewFavorite(s,f.id,{...request(f),date:'2026-10-12'},midnight).assignments[0].start_on,'2026-10-12T07:00:00+02:00');
 });
-test('Dauer in Stunden/Minuten ist verstrichene Zeit, einschliesslich Sommer-/Winterwechsel',()=>{
+test('Feste Schweizer Enduhrzeit über Sommer-/Winterwechsel bei bestehenden und neuen Favoriten',()=>{
  const s=demo(),f=saveFavorite(s,template({duration_minutes:1440,region_ids:['NORD']}));
- const spring=previewFavorite(s,f.id,{...request(f),date:'2026-03-28'},instant('2026-03-01T00:00'));assert.equal(spring.assignments[0].end_on,'2026-03-29T08:00:00+02:00');
- const autumn=previewFavorite(s,f.id,{...request(f),date:'2026-10-24'},now);assert.equal(autumn.assignments[0].end_on,'2026-10-25T06:00:00+01:00');
+ const spring=previewFavorite(s,f.id,{...request(f),date:'2026-03-28'},instant('2026-03-01T00:00'));assert.equal(spring.assignments[0].end_on,'2026-03-29T07:00:00+02:00');
+ assert.equal((instant(spring.assignments[0].end_on)-instant(spring.assignments[0].start_on))/3600000,23);assert.equal(f.end_time,'07:00');assert.equal(f.end_day_offset,1);delete f.end_time;delete f.end_day_offset;
+ const autumn=previewFavorite(s,f.id,{...request(f),date:'2026-10-24'},now);assert.equal(autumn.assignments[0].end_on,'2026-10-25T07:00:00+01:00');
+ assert.equal((instant(autumn.assignments[0].end_on)-instant(autumn.assignments[0].start_on))/3600000,25);
  assert.throws(()=>previewFavorite(s,f.id,{...request(f),date:'2026-10-25',start_time:'02:30'},now),/Mehrdeutig/);
  assert.equal(previewFavorite(s,f.id,{...request(f),date:'2026-10-25',start_time:'02:30',start_offset:'+01:00'},now).assignments[0].start_on,'2026-10-25T02:30:00+01:00');
 });
@@ -46,4 +48,15 @@ test('Favoritenreihenfolge bleibt gespeichert; Bearbeitung erhält Position und 
  const original=orderedFavorites(s).map(f=>f.id);reorderFavorites(s,[c.id,a.id,b.id],original);assert.deepEqual(publicState(s).favorites.map(f=>f.name),['C','A','B']);
  saveFavorite(s,{...s.favorites.find(f=>f.id===a.id),name:'A bearbeitet'});assert.deepEqual(publicState(s).favorites.map(f=>f.name),['C','A bearbeitet','B']);assert.deepEqual(s.assignments,[]);
  assert.throws(()=>reorderFavorites(s,[a.id,b.id,c.id],original),/inzwischen/);assert.throws(()=>reorderFavorites(s,[c.id,c.id,b.id],[c.id,a.id,b.id]));
+});
+
+test('Feste Endzeiten bei Tagesdiensten, Nachtdiensten und mehrtägigen Favoriten',()=>{
+ const s=demo();for(const [start,duration,date,end] of [['07:00',720,'2026-10-24','2026-10-24T19:00:00+02:00'],['19:00',720,'2026-10-24','2026-10-25T07:00:00+01:00'],['19:00',720,'2026-03-28','2026-03-29T07:00:00+02:00'],['07:00',2880,'2026-10-24','2026-10-26T07:00:00+01:00']]){const f=saveFavorite(s,template({start_time:start,duration_minutes:duration}));assert.equal(previewFavorite(s,f.id,{...request(f),date},now).assignments[0].end_on,end);}
+});
+test('Nicht existente und doppelte Schweizer Endzeiten werden nicht still verschoben',()=>{
+ const s=demo(),f=saveFavorite(s,template({start_time:'19:00',duration_minutes:450}));
+ assert.throws(()=>previewFavorite(s,f.id,{...request(f),date:'2026-03-28'},now),/Dienstende:.*existiert/);
+ assert.throws(()=>previewFavorite(s,f.id,{...request(f),date:'2026-10-24'},now),/Dienstende:.*Mehrdeutig/);
+ for(const end_offset of ['+02:00','+01:00'])assert.equal(previewFavorite(s,f.id,{...request(f),date:'2026-10-24',end_offset},now).assignments[0].end_on,'2026-10-25T02:30:00'+end_offset);
+ assert.throws(()=>previewFavorite(s,f.id,{...request(f),date:'2026-10-26',end_offset:'+02:00'},now),/Endzeit/);
 });
