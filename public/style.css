@@ -98,3 +98,14 @@ table.month tbody tr:is(:hover,:has(:focus-visible)) > td:first-child{background
 .duty-bar{display:flex;justify-content:space-between;align-items:center;gap:1px;padding:0 1px;container-type:inline-size}.bar-hour{font-size:8px;font-weight:600;line-height:12px;pointer-events:none;white-space:nowrap}@container(max-width:20px){.bar-hour{visibility:hidden}}
 
 .duty-bar{height:18px}.bar-hour{line-height:16px}
+
+.master-tabs{display:flex;gap:.35rem;flex-wrap:wrap;margin:1rem 0}
+.master-tabs [role=tab]{background:#eef2f6;color:#233a50;border:1px solid #cbd5df}
+.master-tabs [aria-selected=true]{background:#17466c;color:white;border-color:#17466c}
+[data-master-panel][hidden]{display:none}
+.function-duty-track{overflow:visible}
+.function-calendar .month td[data-day]{border-right:0;padding-left:0;padding-right:0}
+.function-calendar .month tbody td:first-child{z-index:3}
+
+.function-calendar .month thead th{z-index:4}
+.function-calendar .month thead th:first-child{z-index:5}
