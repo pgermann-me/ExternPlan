@@ -78,3 +78,7 @@ Die Trennlinie zwischen Favoriten und Personenraster lässt sich mit der Maus zi
 Favoriten werden in den Stammdaten als kompakte, horizontale Zeilen mit einem runden Farbpunkt vor dem Namen dargestellt, einschliesslich Bereich, Funktion/Regionen, Uhrzeit/Dauer und Bearbeitungs-/Sortieraktionen.
 
 Beide Pikettübersichten bieten den Umschalter „Zeitgenaue Ansicht / Grobe Tagesansicht“. Die Grobansicht zeigt Dienste ausschliesslich am Schweizer Starttag und verteilt mehrere Dienste desselben Tages gleichmässig nebeneinander auf dessen Breite. Dienste mit Beginn vor dem dargestellten Monat erhalten dort keinen Balken. Originalzeiten, Details und die zeitgenaue Abdeckungsberechnung bleiben unverändert; die gemeinsame Ansichtseinstellung bleibt im Browser gespeichert.
+
+In der persönlichen Listenansicht werden Dienste derselben Funktion und Region pro Tag in einem Kästchen zusammengefasst. Angrenzende und überlappende Zeiten bilden einen gemeinsamen Zeitraum; zeitliche Lücken bleiben als getrennte Uhrzeiten und Balken sichtbar. Die Region steht klein im Kästchen. Ein Klick zeigt alle ursprünglichen Dienste mit ihren Zeiten und Prioritäten. Die gespeicherten Dienste bleiben unverändert.
+
+„Organisation / Personen“ enthält die Aktionen Kalender und Personen-/Gruppenbearbeitung. Dienste und Favoriten werden über die Pikettübersichten geplant.

@@ -1,4 +1,4 @@
-import {daySegment} from './day-segment.js';
+import {groupDayDuties} from './group-day-duties.js';
 import {swissTime,swissDate} from './time.js';
 const $=s=>document.querySelector(s);
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -8,17 +8,17 @@ let state,sequence=0,listView=false;try{listView=localStorage.getItem('externpla
 $('#calendar-month').value=localDay(new Date()).slice(0,7);
 const record=(type,id)=>state[type].find(x=>x.id===id)||state.archived_master?.[type]?.find(x=>x.id===id);
 const title=a=>`${record('functions',a.function_id)?.name||'Unbekannte Funktion'} · ${a.geodependency?(record('regions',a.geodependency)?.name||'Unbekanntes Gebiet'):'Ortsunabhängig'}`;
-const dutyColor=a=>{const color=state.assignment_styles?.[a.assignment_id]?.color;return /^#[0-9a-f]{6}$/i.test(color||'')?` style="border-left-color:${color}"`:'';};
-function listDuty(a,day){
- const segment=daySegment(a,day);if(!segment)return '';
- const chosen=state.assignment_styles?.[a.assignment_id]?.color,color=/^#[0-9a-f]{6}$/i.test(chosen||'')?chosen:'#2563eb';
- return `<button class="person-calendar-duty" data-duty="${esc(a.assignment_id)}"${dutyColor(a)}><b>${esc(record('functions',a.function_id)?.name||'Unbekannte Funktion')}</b><span>${segment.start_time} → ${segment.end_time}</span><span class="daily-hours-track" aria-hidden="true"><span class="daily-hours-bar" style="left:${segment.left}%;width:${segment.width}%;background:${color}"></span></span></button>`;
+function listDuty(group){
+ const colors=group.assignments.map(a=>state.assignment_styles?.[a.assignment_id]?.color||'#2563eb');
+ const chosen=colors.every(color=>color===colors[0])?colors[0]:'#2563eb',color=/^#[0-9a-f]{6}$/i.test(chosen)?chosen:'#2563eb';
+ const region=group.geodependency===null?'Ortsunabhängig':record('regions',group.geodependency)?.name||'Unbekanntes Gebiet';
+ return `<button class="person-calendar-duty" data-duty="${esc(group.assignments[0].assignment_id)}" data-duty-ids="${esc(JSON.stringify(group.assignments.map(a=>a.assignment_id)))}" style="border-left-color:${color}"><b>${esc(record('functions',group.function_id)?.name||'Unbekannte Funktion')}</b><small class="duty-region">${esc(region)}</small>${group.segments.map(segment=>`<span>${segment.start_time} → ${segment.end_time}</span>`).join('')}<span class="daily-hours-track" aria-hidden="true">${group.segments.map(segment=>`<span class="daily-hours-bar" style="left:${segment.left}%;width:${segment.width}%;background:${color}"></span>`).join('')}</span></button>`;
 }
 function listTable(assignments,days,inDay){
  const matching=assignments.filter(a=>days.some(day=>inDay(a,day)));
  const regionName=id=>id===null?'Ortsunabhängig':record('regions',id)?.name||'Unbekanntes Gebiet';
  const regions=[...new Set(matching.map(a=>a.geodependency??null))].sort((a,b)=>regionName(a).localeCompare(regionName(b),'de-CH'));
- return `<table class="person-duty-list"><thead><tr><th scope="col">Tag</th>${regions.map(id=>`<th scope="col">${esc(regionName(id))}</th>`).join('')}</tr></thead><tbody>${days.map(day=>{const weekday=new Date(day+'T12:00:00Z').getUTCDay();return `<tr class="${weekday===0||weekday===6?'calendar-weekend':''}"><th scope="row">${swissDate(day)}<span class="muted">${new Intl.DateTimeFormat('de-CH',{weekday:'long',timeZone:'Europe/Zurich'}).format(new Date(day+'T12:00:00Z'))}</span></th>${regions.map(region=>`<td>${matching.filter(a=>(a.geodependency??null)===region&&inDay(a,day)).map(a=>listDuty(a,day)).join('')}</td>`).join('')}</tr>`;}).join('')}</tbody></table>`;
+ return `<table class="person-duty-list"><thead><tr><th scope="col">Tag</th>${regions.map(id=>`<th scope="col">${esc(regionName(id))}</th>`).join('')}</tr></thead><tbody>${days.map(day=>{const weekday=new Date(day+'T12:00:00Z').getUTCDay();return `<tr class="${weekday===0||weekday===6?'calendar-weekend':''}"><th scope="row">${swissDate(day)}<span class="muted">${new Intl.DateTimeFormat('de-CH',{weekday:'long',timeZone:'Europe/Zurich'}).format(new Date(day+'T12:00:00Z'))}</span></th>${regions.map(region=>`<td>${groupDayDuties(matching.filter(a=>(a.geodependency??null)===region&&inDay(a,day)),day).map(group=>listDuty(group)).join('')}</td>`).join('')}</tr>`;}).join('')}</tbody></table>`;
 }
 async function load(){
  const request=++sequence;
@@ -35,7 +35,7 @@ async function load(){
   $('#calendar-view').textContent=listView?'Listenansicht':'Kalenderansicht';$('#calendar-view').setAttribute('aria-checked',String(listView));$('#person-calendar').setAttribute('aria-label',listView?'Pikettdienste nach Tag und Region':'Pikettdienste im Monatskalender');
   $('#person-calendar').innerHTML=listView?listTable(assignments,days,inDay):'<div class="person-calendar-grid">'+['Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag','Sonntag'].map(d=>`<div class="calendar-weekday">${d}</div>`).join('')+Array.from({length:offset},()=>'<div class="calendar-outside" aria-hidden="true"></div>').join('')+days.map((day,i)=>`<section class="calendar-date ${(offset+i)%7>=5?'calendar-weekend':''}" aria-label="${swissDate(day)}"><h2>${i+1}</h2>${assignments.filter(a=>inDay(a,day)).map(a=>{const color=state.assignment_styles?.[a.assignment_id]?.color;return `<button class="person-calendar-duty" data-duty="${esc(a.assignment_id)}" ${/^#[0-9a-f]{6}$/i.test(color||'')?`style="border-left-color:${color}"`:''} title="${esc(title(a))} · ${esc(swissTime(a.start_on))} → ${esc(swissTime(a.end_on))}"><b>${esc(title(a))}</b><span>${esc(swissTime(a.start_on))} → ${esc(swissTime(a.end_on))}</span></button>`;}).join('')}</section>`).join('')+'</div>';
   const matching=assignments.filter(a=>days.some(day=>inDay(a,day)));$('#calendar-message').textContent=matching.length?`${matching.length} Pikettdienste im gewählten Monat`:'Keine Pikettdienste im gewählten Monat.';
-  document.querySelectorAll('[data-duty]').forEach(button=>button.onclick=()=>{const a=assignments.find(a=>a.assignment_id===button.dataset.duty);$('#duty-content').innerHTML=`<h2>${esc(title(a))}</h2><p>${esc(person.name)}</p><p>${esc(swissTime(a.start_on))} → ${esc(swissTime(a.end_on))}</p><p>Priorität ${a.priority}</p>`;$('#duty-details').showModal();});
+  document.querySelectorAll('[data-duty]').forEach(button=>button.onclick=()=>{const ids=button.dataset.dutyIds?JSON.parse(button.dataset.dutyIds):[button.dataset.duty],originals=assignments.filter(a=>ids.includes(a.assignment_id));$('#duty-content').innerHTML=`<h2>${esc(title(originals[0]))}</h2><p>${esc(person.name)}</p>${originals.map(a=>`<section class="original-duty"><p>${esc(swissTime(a.start_on))} → ${esc(swissTime(a.end_on))}</p><p>Priorität ${a.priority}</p></section>`).join('')}`;$('#duty-details').showModal();});
  }catch(error){if(request===sequence){$('#calendar-message').textContent=error.message;$('#person-calendar').replaceChildren();}}
 }
 function moveMonth(delta){const date=new Date($('#calendar-month').value+'-01T12:00:00Z');if(!Number.isFinite(date.getTime()))return;date.setUTCMonth(date.getUTCMonth()+delta);$('#calendar-month').value=date.toISOString().slice(0,7);load();}
