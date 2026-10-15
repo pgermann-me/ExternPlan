@@ -40,7 +40,7 @@ export function previewFavorite(s,key,input,now=Date.now()){
  validatePlanningGroup(s,{...input,function_id:f.function_id,region_ids:f.region_ids});
  const today=DateTime.fromMillis(now,{zone}).toISODate();
  const date=input.date||today;const d=DateTime.fromISO(date,{zone});
- if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||!d.isValid)throw Error('Ungültiges Dienst-Datum');if(date<today)throw Error('Favoriten können erst ab dem heutigen Schweizer Datum geplant werden');
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||!d.isValid)throw Error('Ungültiges Dienst-Datum');
  const time=input.start_time||f.start_time;if(!/^([01]\d|2[0-3]):[0-5]\d$/.test(time))throw Error('Beginn als HH:mm erforderlich');
  const offset=input.start_offset||'';if(!['','+01:00','+02:00'].includes(offset))throw Error('Sommer-/Winterzeit-Auswahl ungültig');
  const local=`${date}T${time}:00`;const start=instant(local+offset);if(iso(start).slice(0,19)!==local)throw Error('Ausgewählte Sommer-/Winterzeit passt nicht zur Schweizer Uhrzeit');

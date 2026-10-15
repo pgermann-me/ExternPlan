@@ -25,10 +25,10 @@ test('Abteilungs- und Gruppenfavoriten berücksichtigen Organisation, nicht Qual
  assert.equal(previewFavorite(s,f.id,request(f),now).assignments.length,2);
  const d=saveFavorite(s,template({scope_type:'department',scope_id:'demo-abteilung'}));assert.equal(previewFavorite(s,d.id,request(d),now).assignments.length,2);assert.equal(previewFavorite(s,d.id,{...request(d),employee_id:'DEMO-001'},now).assignments.length,2);
 });
-test('Ortsunabhängige Vorlagen und Planung ab dem heutigen Schweizer Datum',()=>{
+test('Ortsunabhängige Vorlagen und Planung auch an vergangenen Schweizer Daten',()=>{
  const s=demo(),f=saveFavorite(s,template({scope_id:'DEMO-ORT',function_id:'DEMO-ORT',region_ids:[],duration_minutes:45}));const a=applyFavorite(s,f.id,request(f),now).assignments[0];assert.equal(a.geodependency,null);assert.equal(a.end_on,'2026-10-14T07:45:00+02:00');
- assert.throws(()=>previewFavorite(s,f.id,{...request(f),date:'2026-10-13'},now),/heutigen/);assert.throws(()=>previewFavorite(s,f.id,{...request(f),date:'2026-02-30'},now));assert.throws(()=>previewFavorite(s,f.id,{...request(f),revision:99},now));
- const midnight=instant('2026-10-13T22:30:00Z');assert.throws(()=>previewFavorite(s,f.id,{...request(f),date:'2026-10-13'},midnight),/heutigen/);
+ const past=applyFavorite(s,f.id,{...request(f),date:'2026-10-13'},now).assignments[0];assert.equal(past.start_on,'2026-10-13T07:00:00+02:00');assert.equal(past.end_on,'2026-10-13T07:45:00+02:00');assert.ok(s.assignments.some(a=>a.assignment_id===past.assignment_id));assert.throws(()=>previewFavorite(s,f.id,{...request(f),date:'2026-02-30'},now));assert.throws(()=>previewFavorite(s,f.id,{...request(f),revision:99},now));
+ const midnight=instant('2026-10-13T22:30:00Z');assert.equal(previewFavorite(s,f.id,{...request(f),date:'2026-10-12'},midnight).assignments[0].start_on,'2026-10-12T07:00:00+02:00');
 });
 test('Dauer in Stunden/Minuten ist verstrichene Zeit, einschliesslich Sommer-/Winterwechsel',()=>{
  const s=demo(),f=saveFavorite(s,template({duration_minutes:1440,region_ids:['NORD']}));
