@@ -73,7 +73,7 @@ Personen können mehreren Gruppen angehören, auch über Abteilungsgrenzen hinwe
 
 In der Planung passen Favoriten zur gewählten Funktion und müssen mit sämtlichen Regionen in der Regionsauswahl liegen. Bei gewählter Gruppe werden nur deren Gruppenfavoriten, die Favoriten ihrer Abteilung und passende Funktionsfavoriten angeboten. Ohne Gruppenfilter richten sich Gruppen-/Abteilungsfavoriten nach den angezeigten Personen. Nach einem Filterwechsel wird eine unpassende Auswahl aufgehoben. Diese Filter gelten auch im Dialog „Favorit planen“.
 
-Die Trennlinie zwischen Favoriten und Personenraster lässt sich mit der Maus ziehen; das Verhältnis wird im Browser gespeichert und bei Fenstergrössenänderungen angepasst. Beide Bereiche behalten eine Mindestbreite. Die fokussierte Trennlinie ist auch mit Links/Rechts sowie Pos1/Ende bedienbar. Auf schmalen Fenstern stehen die Bereiche untereinander.
+Das Monatsraster der Planung passt Tagesbreiten sowie Name-/Gruppenspalten an die verfügbare Tabellenbreite an, auch bei eingeblendeten Favoriten und beim Verschieben der Trennlinie. Erst wenn die Mindestbreiten für die Lesbarkeit unterschritten würden, wird horizontal gescrollt. Die Trennlinie zwischen Favoriten und Personenraster lässt sich mit der Maus ziehen; das Verhältnis wird im Browser gespeichert und bei Fenstergrössenänderungen angepasst. Beide Bereiche behalten eine Mindestbreite. Die fokussierte Trennlinie ist auch mit Links/Rechts sowie Pos1/Ende bedienbar. Auf schmalen Fenstern stehen die Bereiche untereinander.
 
 Favoriten werden in den Stammdaten als kompakte, horizontale Zeilen mit einem runden Farbpunkt vor dem Namen dargestellt, einschliesslich Bereich, Funktion/Regionen, Uhrzeit/Dauer und Bearbeitungs-/Sortieraktionen.
 
