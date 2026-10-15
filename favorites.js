@@ -37,7 +37,7 @@ export function favoriteForPerson(s,f,p){
 export function previewFavorite(s,key,input,now=Date.now()){
  const f=(s.favorites||[]).find(f=>f.id===key&&live(f));if(!f)throw Error('Favorit nicht gefunden');validateFavorite(s,f);
  if(input.revision!==f.revision)throw Error('Favorit wurde inzwischen geändert. Neu laden.');
- const person=s.people.find(p=>p.employee_id===input.employee_id);if(!person||!favoriteForPerson(s,f,person))throw Error('Person gehört nicht zum Bereich dieses Favoriten');
+ const person=s.people.find(p=>p.employee_id===input.employee_id&&!p.deleted_at);if(!person||!favoriteForPerson(s,f,person))throw Error('Person gehört nicht zum Bereich dieses Favoriten');
  validatePlanningGroup(s,{...input,function_id:f.function_id,region_ids:f.region_ids});
  const today=DateTime.fromMillis(now,{zone}).toISODate();
  const date=input.date||today;const d=DateTime.fromISO(date,{zone});

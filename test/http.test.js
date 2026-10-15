@@ -64,4 +64,15 @@ try{
  await stop(server.p);server=await start();assert.equal((await call('/state')).data.favorites[0].id,secondFavorite.data.id);assert.equal((await call('/state')).data.favorites[1].duration_minutes,90);assert.equal((await call('/state')).data.outbox.length,2);
  assert.equal((await call('/favorites/'+favorite.data.id+'?revision='+favorite.data.revision,'DELETE')).status,200);assert.equal((await call('/state')).data.favorites.length,1);assert.equal((await call('/state')).data.assignments.length,countBefore+2);
 
+ // Person deletion is guarded on the server, survives restart, and retains historical duties.
+ assert.equal((await call('/people/'+employeeId,'DELETE')).status,400);
+ const removable=(await call('/people','POST',{first_name:'Vergangen',last_name:'Person',contacts:[]})).data;
+ const historical=(await call('/assignments','POST',{employee_id:removable.employee_id,function_id:'DEMO-KTD',geodependency:'NORD',priority:1,start_on:'2000-01-01T07:00',end_on:'2000-01-02T07:00'})).data.assignment;
+ assert.equal((await call('/people/'+removable.employee_id,'DELETE')).status,200);
+ const removedState=(await call('/state')).data;assert.equal(removedState.people.some(p=>p.employee_id===removable.employee_id),false);assert.equal(removedState.archived_people.find(p=>p.employee_id===removable.employee_id).name,'Vergangen Person');assert.ok(removedState.assignments.some(a=>a.assignment_id===historical.assignment_id));
+ assert.equal((await call('/people/'+removable.employee_id,'PUT',{first_name:'Neu',last_name:'Name'})).status,400);assert.equal((await call('/people/'+removable.employee_id+'/groups','PUT',{group_ids:[]})).status,400);
+ assert.equal((await call('/assignments','POST',{...historical,start_on:'2099-03-01T07:00',end_on:'2099-03-02T07:00'})).status,400);
+ await stop(server.p);server=await start();assert.equal((await call('/state')).data.archived_people.some(p=>p.employee_id===removable.employee_id),true);
+ assert.ok((await call('/person-month?month=2000-01&function_id=DEMO-KTD&region_id=NORD')).data.rows.some(p=>p.employee_id===removable.employee_id));
+
 }finally{await stop(server.p);rmSync(dir,{recursive:true,force:true});}});

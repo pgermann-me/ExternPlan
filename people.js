@@ -1,3 +1,4 @@
+import {audit,instant,iso} from './domain.js';
 import {personGroupIds} from './public/organization.js';
 // Existing combined names are retained verbatim; they are never guessed into components.
 export function manualPerson(input, previous, employeeId) {
@@ -20,4 +21,12 @@ export function manualPerson(input, previous, employeeId) {
     group_ids,group_id:group_ids[0]||null,
     contacts:(input.contacts??previous?.contacts??[]).map(c=>({...c,priority:c.priority??0}))
   };
+}
+
+export function deletePerson(s,employeeId,now=Date.now()){
+ const person=s.people.find(p=>p.employee_id===employeeId&&!p.deleted_at);
+ if(!person)throw Error('Person nicht gefunden');
+ if(s.assignments.some(a=>a.employee_id===employeeId&&instant(a.end_on)>now))throw Error('Löschen nicht möglich: Die Person hat laufende oder zukünftige Pikettdienste');
+ const before={...person};person.deleted_at=iso(now);audit(s,'person','delete',before,{...person});
+ return {ok:true,archived:true};
 }

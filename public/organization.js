@@ -4,7 +4,7 @@ export const allowedFunctionRegions=(fn,group,regions)=>fn.geo_ids.filter(id=>re
 export function validatePlanningGroup(s,input){
  if(!input.planning_group_id)return;
  const group=s.groups.find(g=>g.id===input.planning_group_id&&!g.deleted_at);
- const person=s.people.find(p=>p.employee_id===input.employee_id);
+ const person=s.people.find(p=>p.employee_id===input.employee_id&&!p.deleted_at);
  if(!group||!person||!personGroupIds(person).includes(group.id))throw Error('Person gehört nicht zur gewählten Gruppe');
  const fn=s.functions.find(f=>f.id===input.function_id&&!f.deleted_at);
  const regions=input.region_ids??(input.geodependency?[input.geodependency]:[]);

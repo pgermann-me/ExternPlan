@@ -26,7 +26,7 @@ async function load(){
  try{
   const month=$('#calendar-month').value;if(!/^\d{4}-\d{2}$/.test(month))throw Error('Bitte einen Monat wählen');
   const response=await fetch('/api/state');if(!response.ok)throw Error('Kalender konnte nicht geladen werden');const nextState=await response.json();if(request!==sequence)return;state=nextState;
-  const person=state.people.find(p=>p.employee_id===employeeId);if(!person)throw Error('Person nicht gefunden');
+  const person=[...state.people,...(state.archived_people||[])].find(p=>p.employee_id===employeeId);if(!person)throw Error('Person nicht gefunden');
   const viewName=listView?'Listenansicht':'Kalenderansicht';$('#person-name').textContent=viewName+' Pikettdienste: '+person.name;document.title=viewName+' Pikettdienste: '+person.name+' · ExternPlan';document.querySelector('main').dataset.view=listView?'list':'calendar';document.body.classList.toggle('person-list-mode',listView);let printPage=$('#print-page');if(!printPage){printPage=document.createElement('style');printPage.id='print-page';document.head.append(printPage);}printPage.textContent='@page{size:A4 '+(listView?'portrait':'landscape')+';margin:8mm}';
   const first=new Date(month+'-01T12:00:00Z'),year=first.getUTCFullYear(),monthIndex=first.getUTCMonth();
   const count=new Date(Date.UTC(year,monthIndex+1,0)).getUTCDate(),offset=(first.getUTCDay()+6)%7;

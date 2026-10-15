@@ -56,7 +56,7 @@ export function coverage(s,function_id,geo,a,b) {
   return {status:!total?'kein Pikett erforderlich':!open?'vollständig besetzt':open===total?'unbesetzt':'teilweise besetzt',gaps:missing.map(([a,b])=>({start_on:iso(a),end_on:iso(b)})),assignments};
 }
 export function validateAssignment(s,input,previous) {
-  const person=s.people.find(p=>p.employee_id===input.employee_id);const f=s.functions.find(f=>f.id===input.function_id&&!f.deleted_at);
+  const person=s.people.find(p=>p.employee_id===input.employee_id&&!p.deleted_at);const f=s.functions.find(f=>f.id===input.function_id&&!f.deleted_at);
   if(!person||!f)throw Error('Person oder Funktion fehlt');
   const geo=input.geodependency??null;if(geo!==null&&!s.regions.some(r=>r.id===geo&&!r.deleted_at))throw Error('Gebiet wurde gelöscht oder ist unbekannt');
   if(f.geo_ids.length?!f.geo_ids.includes(geo):geo!==null)throw Error(f.geo_ids.length?'Ein zugeordnetes Pflichtgebiet wählen':'Ortsunabhängige Funktion benötigt geodependency: null');

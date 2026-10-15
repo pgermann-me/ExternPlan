@@ -20,7 +20,7 @@ export function personMonth(state, month, functionId, selectedRegions,groupId) {
  const dayMeta=days.map(d=>({date:d.toISODate(),weekday:d.weekday,week_number:d.weekNumber,week_year:d.weekYear,start_on:iso(d.toMillis()),end_on:iso(d.plus({days:1}).toMillis())}));
  const byPerson=new Map();
  for(const a of assignments){const list=byPerson.get(a.employee_id)||[];list.push(a);byPerson.set(a.employee_id,list);}
- const rows=state.people.filter(p=>groupId?personGroupIds(p).includes(groupId):byPerson.has(p.employee_id)).sort((a,b)=>planningName(a).localeCompare(planningName(b),'de-CH')).map(p=>({
+ const rows=state.people.filter(p=>groupId?!p.deleted_at&&personGroupIds(p).includes(groupId):byPerson.has(p.employee_id)).sort((a,b)=>planningName(a).localeCompare(planningName(b),'de-CH')).map(p=>({
    employee_id:p.employee_id,name:planningName(p),group_id:p.group_id,group_ids:personGroupIds(p),...timelineBars(byPerson.get(p.employee_id)||[],dayMeta,state.assignment_styles||{}),
    cells:days.map(d=>({assignments:(byPerson.get(p.employee_id)||[]).filter(a=>overlap([instant(a.start_on),instant(a.end_on)],[d.toMillis(),d.plus({days:1}).toMillis()])).sort((a,b)=>instant(a.start_on)-instant(b.start_on)||a.priority-b.priority)}))
  }));

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {manualPerson} from '../people.js';
+import {manualPerson,deletePerson} from '../people.js';
 import {normalizeSapPerson} from '../adapters/sap.js';
 test('Getrennte Namen, Kontaktstandard 0 und unveränderliche Kennung bei Bearbeitung',()=>{
  const p=manualPerson({first_name:' Anna ',last_name:' Muster ',contacts:[{type:'email',value:'anna@example.test'}]},null,'EXT-generated');
@@ -20,4 +20,11 @@ test('SAP nimmt getrennte Namen explizit entgegen und lässt persID unverändert
  assert.equal(p.employee_id,'SAP-123');assert.equal(p.name,'Anna Muster');assert.equal(p.first_name,'Anna');assert.equal(p.last_name,'Muster');assert.equal(p.contacts[0].priority,0);
  const legacy=normalizeSapPerson({persID:'SAP-456',name:'Unaufgeteilter Name',department:'A'},{employee_id:'persID',name:'name',department_id:'department'});
  assert.equal(legacy.name,'Unaufgeteilter Name');assert.equal(legacy.first_name,undefined);
+});
+
+test('Personenlöschung schützt laufende und zukünftige Dienste und erhält die Historie am exakten Dienstende',()=>{
+ const now=Date.parse('2026-10-15T12:00:00Z');
+ for(const end of [now+1,now+86400000]){const s={people:[{employee_id:'P'}],assignments:[{employee_id:'P',end_on:new Date(end).toISOString()}],audit:[]};assert.throws(()=>deletePerson(s,'P',now),/laufende oder zukünftige/);assert.equal(s.people[0].deleted_at,undefined);assert.equal(s.audit.length,0);}
+ const duty={employee_id:'P',end_on:new Date(now).toISOString()};const s={people:[{employee_id:'P',name:'Name'}],assignments:[duty],audit:[]};assert.equal(deletePerson(s,'P',now).archived,true);assert.equal(s.people[0].deleted_at,'2026-10-15T14:00:00+02:00');assert.deepEqual(s.assignments,[duty]);assert.equal(s.audit[0].action,'delete');assert.throws(()=>deletePerson(s,'P',now),/nicht gefunden/);
+ const idle={people:[{employee_id:'SAP',source:'SAP'}],assignments:[],audit:[]};assert.equal(deletePerson(idle,'SAP',now).ok,true);
 });

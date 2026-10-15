@@ -4,7 +4,7 @@ import {timelineBars} from './timeline.js';
 import {personGroupIds,allowedFunctionRegions,validatePlanningGroup} from './public/organization.js';
 import express from 'express';
 import { authentication } from './auth.js';
-import { manualPerson } from './people.js';
+import { manualPerson,deletePerson } from './people.js';
 import { personMonth } from './person-planning.js';
 import {active,publicState,deleteMaster} from './master-data.js';
 import {saveFavorite,removeFavorite,previewFavorite,applyFavorite,reorderFavorites} from './favorites.js';
@@ -38,11 +38,12 @@ app.post('/api/people',(req,res)=>res.json(mutate(s=>{
  let employeeId;do{employeeId='EXT-'+id();}while(s.people.some(p=>p.employee_id===employeeId));
  const p=manualPerson(req.body,null,employeeId);validPerson(s,p);s.people.push(p);audit(s,'person','create',null,p);return p;
 })));
+app.delete('/api/people/:id',(req,res)=>res.json(mutate(s=>deletePerson(s,req.params.id))));
 app.put('/api/people/:id',(req,res)=>res.json(mutate(s=>{
- const i=s.people.findIndex(p=>p.employee_id===req.params.id);if(i<0||s.people[i].source!=='manual')throw Error('Nur externe manuelle Personen sind bearbeitbar');
+ const i=s.people.findIndex(p=>p.employee_id===req.params.id&&!p.deleted_at);if(i<0||s.people[i].source!=='manual')throw Error('Nur externe manuelle Personen sind bearbeitbar');
  const before=s.people[i];const p=manualPerson(req.body,before);validPerson(s,p,before);s.people[i]=p;audit(s,'person','update',before,p);return p;
 })));
-app.put('/api/people/:id/groups',(req,res)=>res.json(mutate(s=>{const before=s.people.find(p=>p.employee_id===req.params.id);if(!before)throw Error('Person unbekannt');const ids=req.body.group_ids;if(!Array.isArray(ids)||new Set(ids).size!==ids.length)throw Error('Eindeutige Gruppen wählen');const p={...before,group_ids:ids,group_id:ids[0]||null};validPerson(s,p,before);s.people[s.people.indexOf(before)]=p;audit(s,'person','update',before,p);return p;})));
+app.put('/api/people/:id/groups',(req,res)=>res.json(mutate(s=>{const before=s.people.find(p=>p.employee_id===req.params.id&&!p.deleted_at);if(!before)throw Error('Person unbekannt');const ids=req.body.group_ids;if(!Array.isArray(ids)||new Set(ids).size!==ids.length)throw Error('Eindeutige Gruppen wählen');const p={...before,group_ids:ids,group_id:ids[0]||null};validPerson(s,p,before);s.people[s.people.indexOf(before)]=p;audit(s,'person','update',before,p);return p;})));
 const allowed=['functions','regions','departments','groups','rules'];
 function validMaster(s,type,p){if(typeof p.id!=='string'||!p.id.trim()||p.id==='undefined')throw Error('ID erforderlich');if(type!=='rules'&&!p.name)throw Error('Name erforderlich');
  if(type==='groups'&&p.department_id&&!s.departments.some(d=>d.id===p.department_id))throw Error('Abteilung unbekannt');
@@ -68,7 +69,7 @@ app.post('/api/import/preview',async(req,res)=>{const {format,content}=req.body;
 app.post('/api/import/commit',(req,res)=>res.json(mutate(s=>{const {type,rows,mapping}=req.body;if(!Array.isArray(rows)||rows.length>10000)throw Error('Import erwartet maximal 10 000 Datensätze');let imported=0,skipped=0;
  const get=(r,k)=>r[mapping[k]];const list=v=>Array.isArray(v)?v.map(String):String(v??'').split(/[,;]+/).map(x=>x.trim()).filter(Boolean);
  for(const r of rows){
-  if(type==='sap'){const p=normalizeSapPerson(r,mapping);const existing=s.people.find(x=>x.employee_id===p.employee_id);if(existing?.source==='manual'){skipped++;continue;}if(!s.departments.some(d=>d.id===p.department_id)){const d={id:p.department_id,name:p.department_id};s.departments.push(d);audit(s,'departments','create',null,d);}if(existing){p.group_ids=personGroupIds(existing);p.group_id=p.group_ids[0]||null;}validPerson(s,p,existing);if(existing)s.people[s.people.indexOf(existing)]=p;else s.people.push(p);audit(s,'person','import',existing||null,p);imported++;}
+  if(type==='sap'){const p=normalizeSapPerson(r,mapping);const existing=s.people.find(x=>x.employee_id===p.employee_id);if(existing?.deleted_at||existing?.source==='manual'){skipped++;continue;}if(!s.departments.some(d=>d.id===p.department_id)){const d={id:p.department_id,name:p.department_id};s.departments.push(d);audit(s,'departments','create',null,d);}if(existing){p.group_ids=personGroupIds(existing);p.group_id=p.group_ids[0]||null;}validPerson(s,p,existing);if(existing)s.people[s.people.indexOf(existing)]=p;else s.people.push(p);audit(s,'person','import',existing||null,p);imported++;}
   else if(type==='regions'||type==='functions'){const p=type==='regions'?{id:String(get(r,'id')??'').trim(),name:String(get(r,'name')??'')}:{id:String(get(r,'id')??'').trim(),name:String(get(r,'name')??''),geo_ids:list(get(r,'geo_ids')),covers:{}};const existing=s[type].find(x=>x.id===p.id);if(existing&&!active(existing))throw Error('Import enthält eine gelöschte, für die Historie reservierte Kennung');if(type==='functions'&&existing)p.covers=existing.covers;validMaster(s,type,p);if(existing)s[type][s[type].indexOf(existing)]=p;else s[type].push(p);audit(s,type,'import',existing||null,p);imported++;}
   else throw Error('Importtyp sap, regions oder functions erforderlich');
  }return {imported,skipped};})));

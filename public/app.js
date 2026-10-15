@@ -24,7 +24,7 @@ const masterRecord=(type,id)=>state[type].find(x=>x.id===id)||state.archived_mas
 const functionName=id=>masterRecord('functions',id)?.name||id;
 const groupRecord=id=>masterRecord('groups',id);
 const groupName=id=>{const g=groupRecord(id);return g?g.name+(g.deleted_at?' (gelöscht)':''):'';};
-const name=id=>state.people.find(p=>p.employee_id===id)?.name||id;
+const name=id=>[...state.people,...(state.archived_people||[])].find(p=>p.employee_id===id)?.name||id;
 const normalizedName=value=>String(value??'').normalize('NFD').replace(/\p{M}/gu,'').toLocaleLowerCase('de-CH').replace(/ß/g,'ss');
 const matchesPersonSearch=p=>normalizedName(personSearch).trim().split(/\s+/).filter(Boolean).every(part=>normalizedName([p.name,p.first_name,p.last_name].filter(Boolean).join(' ')).includes(part));
 const cls=status=>({'vollständig besetzt':'full','teilweise besetzt':'partial','unbesetzt':'empty','kein Pikett erforderlich':'none'}[status]);
@@ -43,8 +43,8 @@ function assignmentTime(value,fallback){
 }
 function assignmentDialog(a={},defaults={}){
  a={...defaults,...a};
- if(a.assignment_id&&(masterRecord('functions',a.function_id)?.deleted_at||a.geodependency&&masterRecord('regions',a.geodependency)?.deleted_at)){
-   modal(`<h2>Vergangener Pikettdienst</h2><p>${esc(name(a.employee_id))} · ${esc(functionName(a.function_id))} · ${esc(a.geodependency?regionName(a.geodependency):'Ortsunabhängig')} · P${a.priority}</p><p>${swissTime(a.start_on)} → ${swissTime(a.end_on)}</p><p class="muted">Zugehörige Stammdaten wurden gelöscht. Dieser Dienst bleibt als unveränderte Historie erhalten.</p>`,async()=>{});$('#form footer button[type=submit]').hidden=true;return;
+ if(a.assignment_id&&((state.archived_people||[]).some(p=>p.employee_id===a.employee_id)||masterRecord('functions',a.function_id)?.deleted_at||a.geodependency&&masterRecord('regions',a.geodependency)?.deleted_at)){
+   modal(`<h2>Vergangener Pikettdienst</h2><p>${esc(name(a.employee_id))} · ${esc(functionName(a.function_id))} · ${esc(a.geodependency?regionName(a.geodependency):'Ortsunabhängig')} · P${a.priority}</p><p>${swissTime(a.start_on)} → ${swissTime(a.end_on)}</p><p class="muted">Zugehörige Personen oder Stammdaten wurden gelöscht. Dieser Dienst bleibt als unveränderte Historie erhalten.</p>`,async()=>{});$('#form footer button[type=submit]').hidden=true;return;
  }
  const f=state.functions.find(f=>f.id===a.function_id)||state.functions[0];
  const filteredGroup=view==='planning'?planningGroup:view==='person-planning'?personGroup:'';const people=filteredGroup?state.people.filter(p=>personGroupIds(p).includes(filteredGroup)):state.people;
@@ -182,7 +182,7 @@ function personDialog(p={}){
  '<h3>Kommunikation</h3><p class="small muted">Kontaktprioritäten sind unabhängig von Pikett-Zuteilungen. Standard: 0.</p>'+
  contactFields.map((f,i)=>contactRow(f.type,f.label,values[i],f.input)).join('')+
  (remaining.length?'<h3>Weitere bestehende Kontakte</h3>'+remaining.map((c,i)=>contactRow('extra_'+i,c.type,c,'text')).join(''):'')+
- '',async d=>{
+ (p.employee_id?personDeleteButton():''),async d=>{
    const contacts=[];
    for(const f of contactFields){const value=d[f.type].trim();if(value)contacts.push({type:f.type,value,priority:Number(d[f.type+'_priority'])});}
    remaining.forEach((c,i)=>{const value=d['extra_'+i].trim();if(value)contacts.push({...c,value,priority:Number(d['extra_'+i+'_priority'])});});
@@ -190,11 +190,13 @@ function personDialog(p={}){
    const saved=await api('/people'+(p.employee_id?'/'+encodeURIComponent(p.employee_id):''),p.employee_id?'PUT':'POST',person);
    message('Person gespeichert');
  });
-
+ if(p.employee_id)bindPersonDelete(p);
 }
 function groupFields(p){return '<fieldset><legend>Gruppen (Mehrfachauswahl)</legend>'+[...state.groups,...(state.archived_master?.groups||[]).filter(g=>personGroupIds(p).includes(g.id))].map(g=>`<label class="check-option"><input type="checkbox" name="group_ids" value="${esc(g.id)}" ${personGroupIds(p).includes(g.id)?'checked':''}>${esc(g.name)}${g.deleted_at?' (gelöscht)':''}</label>`).join('')+'</fieldset>'; }
 const selectedGroups=()=>[...document.querySelectorAll('#fields [name=group_ids]:checked')].map(x=>x.value);
-function personGroupsDialog(p){modal(`<h2>Gruppen: ${esc(p.name)}</h2><p class="small muted">employee_id: ${esc(p.employee_id)}</p>`+groupFields(p),async()=>{await api('/people/'+encodeURIComponent(p.employee_id)+'/groups','PUT',{group_ids:selectedGroups()});message('Gruppen gespeichert');});}
+function personDeleteButton(){return '<p class="small muted">Löschen ist nur ohne laufende oder zukünftige Dienste möglich. Vergangene Dienste bleiben erhalten.</p><button type="button" id="delete-person" class="danger">Löschen</button>';}
+function bindPersonDelete(p){$('#delete-person').onclick=safe(async()=>{await api('/people/'+encodeURIComponent(p.employee_id),'DELETE');$('#dialog').close();message('Person gelöscht; vergangene Dienste bleiben erhalten');await refresh();});}
+function personGroupsDialog(p){modal(`<h2>Gruppen: ${esc(p.name)}</h2><p class="small muted">employee_id: ${esc(p.employee_id)}</p>`+groupFields(p)+personDeleteButton(),async()=>{await api('/people/'+encodeURIComponent(p.employee_id)+'/groups','PUT',{group_ids:selectedGroups()});message('Gruppen gespeichert');});bindPersonDelete(p);}
 const masterTitles={functions:'Funktionen',regions:'Gebiete',departments:'Abteilungen',groups:'Gruppen',rules:'Soll-Abdeckung'};
 const weekdays=['Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag','Sonntag'];
 const regionName=id=>masterRecord('regions',id)?.name||id;
