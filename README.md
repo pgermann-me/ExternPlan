@@ -76,3 +76,5 @@ In der Personen-Pikettübersicht passen Favoriten zur gewählten Funktion und m�
 Die Trennlinie zwischen Favoriten und Personenraster lässt sich mit der Maus ziehen; das Verhältnis wird im Browser gespeichert und bei Fenstergrössenänderungen angepasst. Beide Bereiche behalten eine Mindestbreite. Die fokussierte Trennlinie ist auch mit Links/Rechts sowie Pos1/Ende bedienbar. Auf schmalen Fenstern stehen die Bereiche untereinander.
 
 Favoriten werden in den Stammdaten als kompakte, horizontale Zeilen mit einem runden Farbpunkt vor dem Namen dargestellt, einschliesslich Bereich, Funktion/Regionen, Uhrzeit/Dauer und Bearbeitungs-/Sortieraktionen.
+
+Beide Pikettübersichten bieten den Umschalter „Zeitgenaue Ansicht / Grobe Tagesansicht“. Die Grobansicht zeigt Dienste ausschliesslich am Schweizer Starttag und verteilt mehrere Dienste desselben Tages gleichmässig nebeneinander auf dessen Breite. Dienste mit Beginn vor dem dargestellten Monat erhalten dort keinen Balken. Originalzeiten, Details und die zeitgenaue Abdeckungsberechnung bleiben unverändert; die gemeinsame Ansichtseinstellung bleibt im Browser gespeichert.
