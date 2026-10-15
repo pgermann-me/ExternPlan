@@ -118,3 +118,16 @@ table.month tbody tr:is(:hover,:has(:focus-visible)) > td:first-child{background
 .timeline .day-heading th{padding:4px 0;font-size:clamp(9px,calc(var(--day-width)*.45),12px)}
 /* Short duties retain their actual width as the month contracts. */
 .timeline .duty-bar:not(.coarse-duty){min-width:0;border:0;padding:0;box-shadow:inset 0 0 0 1px #0002}
+
+.people-view-toggle{display:flex;gap:4px}
+.toolbar .people-view-toggle button{margin-left:0}
+.people-view-toggle [aria-pressed=true]{background:var(--green);color:white}
+.people-list-wrapper{overflow:auto;max-height:70vh;border:1px solid #d3dee5;border-radius:6px;background:white}
+.people-list{min-width:1050px;font-size:12px}
+.people-list th,.people-list td{padding:8px 10px;vertical-align:top}
+.people-list tbody th{font-weight:600;min-width:120px}
+.people-list tbody th small{display:block;font-weight:400;margin-top:4px}
+.people-list .person-contact{margin:0 0 4px;overflow-wrap:anywhere}
+.people-list .actions{flex-wrap:wrap;gap:5px}
+.people-list .actions button{padding:6px 9px;font-size:12px}
+.people-list tbody tr:hover{background:#f3f8fb}
