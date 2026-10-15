@@ -28,3 +28,11 @@ table.month thead th:not(:first-child){overflow:hidden;white-space:nowrap}
 
 .calendar-with-favorites.favorites-hidden{grid-template-columns:minmax(0,1fr)}.favorites-hidden .timeline{--day-width:max(36px,calc((100vw - 421px)/var(--days)))}@media(max-width:900px){.favorites-hidden .timeline{--day-width:40px}}
 .person-calendar-window main{max-width:1600px;margin:auto}.person-calendar-board{overflow:auto;border:1px solid #d3dee5;border-radius:6px;background:white}.person-calendar-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));min-width:700px}.calendar-weekday{padding:10px 5px;text-align:center;background:#eef3f6;font-weight:600;font-size:12px}.calendar-date,.calendar-outside{min-height:125px;padding:6px;border-top:1px solid #dce3e8;border-right:1px solid #dce3e8}.calendar-date h2{font-size:13px;margin:0 0 8px}.calendar-weekend,.calendar-outside{background:#f4f5f6}.person-calendar-duty{display:block;width:100%;text-align:left;background:#edf3fa;color:#1f3345;border-left:4px solid #2563eb;padding:6px;margin:5px 0;font-size:11px;overflow-wrap:anywhere}.person-calendar-duty b,.person-calendar-duty span{display:block}.person-calendar-duty span{margin-top:4px}.cards .actions{flex-wrap:wrap}
+
+.resizable-calendar:not(.favorites-hidden){grid-template-columns:var(--favorites-width,250px) 12px minmax(0,1fr);gap:0;align-items:stretch}
+.resizable-calendar #person-favorites{min-width:0}.resizable-calendar .favorite-tree-item label{overflow-wrap:anywhere}
+.favorites-splitter{position:relative;cursor:col-resize;touch-action:none;min-height:100px;outline-offset:-2px}
+.favorites-splitter::after{content:"";position:absolute;top:0;bottom:0;left:5px;width:2px;border-radius:2px;background:#cad5dd}
+.favorites-splitter:hover::after,.favorites-splitter:focus-visible::after,.resizing .favorites-splitter::after{background:#137d69;width:4px;left:4px}
+.resizing,.resizing *{cursor:col-resize!important;user-select:none}
+@media(max-width:900px){.resizable-calendar:not(.favorites-hidden){grid-template-columns:minmax(0,1fr);gap:14px}.favorites-splitter{display:none}}
