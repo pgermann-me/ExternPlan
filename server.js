@@ -1,3 +1,4 @@
+import {emptyState,cleanupNeeded,removeKtdAndExamplePeople} from './data-cleanup.js';
 import {resolve} from 'node:path';
 import {timelineBars} from './timeline.js';
 import {personGroupIds,allowedFunctionRegions,validatePlanningGroup} from './public/organization.js';
@@ -11,14 +12,20 @@ import ExcelJS from 'exceljs';
 import { normalizeSapPerson } from './adapters/sap.js';
 import { simulatedElsAdapter } from './adapters/els.js';
 import { DatabaseSync } from 'node:sqlite';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync,writeFileSync } from 'node:fs';
 import { DateTime } from 'luxon';
 import {demo,id,audit,change,validateAssignment,coverage,makeExport,confirmExport,zone} from './domain.js';
 const dataDir=process.env.DATA_DIR||'data';mkdirSync(dataDir,{recursive:true});
 const db=new DatabaseSync(`${dataDir}/externplan.sqlite`);db.exec('PRAGMA journal_mode=WAL; CREATE TABLE IF NOT EXISTS state (id INTEGER PRIMARY KEY CHECK(id=1), data TEXT NOT NULL)');
-if(!db.prepare('SELECT id FROM state').get())db.prepare('INSERT INTO state VALUES(1,?)').run(JSON.stringify(demo()));
+const testFixtures=process.env.NODE_ENV==='test'&&process.env.EXTERNPLAN_TEST_FIXTURES==='1';
+if(!db.prepare('SELECT id FROM state').get())db.prepare('INSERT INTO state VALUES(1,?)').run(JSON.stringify(testFixtures?demo():emptyState()));
 const read=()=>JSON.parse(db.prepare('SELECT data FROM state WHERE id=1').get().data);
 function mutate(fn){db.exec('BEGIN IMMEDIATE');try{const s=read();const result=fn(s);db.prepare('UPDATE state SET data=? WHERE id=1').run(JSON.stringify(s));db.exec('COMMIT');return result;}catch(e){db.exec('ROLLBACK');throw e;}}
+if(!testFixtures&&cleanupNeeded(read()))mutate(s=>{
+ if(!cleanupNeeded(s))return null;
+ const backup=resolve(dataDir,'backup-before-ktd-cleanup-'+id()+'.json');writeFileSync(backup,JSON.stringify(s),{mode:0o600,flag:'wx'});
+ const result=removeKtdAndExamplePeople(s);console.log('KTD-/Beispielbereinigung abgeschlossen; Sicherung: '+backup);return result;
+});
 const app=express();if(process.env.TRUST_PROXY==='1')app.set('trust proxy',1);app.disable('x-powered-by');app.use(authentication());app.use(express.json({limit:'10mb'}));
 app.use((req,res,next)=>{res.setHeader('X-Content-Type-Options','nosniff');if(!['GET','HEAD'].includes(req.method)&&req.headers.origin&&req.headers.origin!==`${req.protocol}://${req.headers.host}`)return res.status(403).json({error:'Fremder Ursprung nicht zugelassen'});next();});
 app.get('/api/state',(req,res)=>res.json(publicState(read())));
