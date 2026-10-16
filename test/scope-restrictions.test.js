@@ -1,3 +1,4 @@
+import {personMonth} from '../person-planning.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {demo,validateAssignment} from '../domain.js';
@@ -24,4 +25,12 @@ test('Selected restrictions are validated and must use groups from selected depa
 test('Multi-group people must match a selected group and its department together',()=>{
  const s=setup(),p=s.people[1];p.group_ids=['demo-gruppe','G2'];
  assert.equal(personScopeAllows(s,{department_ids:['D2'],group_ids:['demo-gruppe']},p,'DEMO-KTD'),false);assert.equal(personScopeAllows(s,{department_ids:['D2'],group_ids:['G2']},p,'DEMO-KTD'),true);
+});
+
+test('Planungsraster wendet Abteilung, Gruppe, Funktion und Gebiet gemeinsam auf Personen an, auch ohne Dienste',()=>{
+ const s=setup();s.groups.push({id:'SAME-DEPT',name:'Weitere Gruppe',department_id:'demo-abteilung'});s.people.push({employee_id:'IDLE',name:'Ohne Dienst',department_id:'demo-abteilung',group_ids:['demo-gruppe']},{employee_id:'OTHER',name:'Andere Abteilung',department_id:'D2',group_ids:['G2']},{employee_id:'OTHER-GROUP',name:'Andere Gruppe',department_id:'demo-abteilung',group_ids:['SAME-DEPT']});
+ Object.assign(s.functions[0],{department_ids:['demo-abteilung'],group_ids:['demo-gruppe','SAME-DEPT']});Object.assign(s.regions[0],{department_ids:['demo-abteilung'],group_ids:['demo-gruppe'],function_ids:['DEMO-KTD']});
+ const rows=personMonth(s,'2026-10','DEMO-KTD',['NORD']).rows;assert.deepEqual(new Set(rows.map(p=>p.employee_id)),new Set(['DEMO-EXT-001','IDLE']));assert.ok(rows.every(p=>!p.bars.length));
+ assert.deepEqual(new Set(personMonth(s,'2026-10','DEMO-KTD',['NORD'],'demo-gruppe','demo-abteilung').rows.map(p=>p.employee_id)),new Set(['DEMO-EXT-001','IDLE']));
+ assert.ok(personMonth(s,'2026-10','DEMO-KTD',['SÜD']).rows.some(p=>p.employee_id==='OTHER-GROUP'));assert.equal(personMonth(s,'2026-10','DEMO-KTD',['SÜD'],'G2','D2').rows.length,0);
 });

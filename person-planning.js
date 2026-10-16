@@ -1,4 +1,4 @@
-import {personGroupIds,allowedFunctionRegions,planningPeople} from './public/organization.js';
+import {personGroupIds,allowedFunctionRegions,planningPeople,personScopeAllows} from './public/organization.js';
 import { DateTime } from 'luxon';
 import {timelineBars} from './timeline.js';
 import { instant, overlap, iso, zone } from './domain.js';
@@ -9,10 +9,11 @@ export function personMonth(state, month, functionId, selectedRegions,groupId,de
  const start=DateTime.fromISO(month+'-01',{zone});if(!start.isValid)throw Error('Ungültiger Monat');
  const fn=state.functions.find(f=>f.id===functionId&&!f.deleted_at);if(!fn)throw Error('Funktion unbekannt');
  const group=state.groups.find(g=>g.id===groupId&&!g.deleted_at);if(groupId&&!group)throw Error('Gruppe unbekannt');
- const scopedPeople=planningPeople(state,groupId,departmentId);
+ const organizationPeople=planningPeople(state,groupId,departmentId);
  const allowed=allowedFunctionRegions(fn,group,state.regions,departmentId,state.groups);
  const regions=selectedRegions===undefined?allowed:selectedRegions;
  if(!Array.isArray(regions)||regions.some(g=>!allowed.includes(g)||!state.regions.some(r=>r.id===g&&!r.deleted_at)))throw Error('Region ist für Funktion und Gruppe nicht zulässig');
+ const scopedPeople=organizationPeople.filter(p=>personScopeAllows(state,fn,p,fn.id)&&(!regions.length||regions.some(id=>personScopeAllows(state,state.regions.find(r=>r.id===id),p,fn.id))));
  const days=Array.from({length:start.daysInMonth},(_,i)=>start.plus({days:i}));
  const monthInterval=[start.toMillis(),start.plus({months:1}).toMillis()];
  const assignments=state.assignments.filter(a=>a.function_id===functionId &&
