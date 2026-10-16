@@ -71,7 +71,14 @@ export function previewFavorite(s,key,input,now=Date.now()){
  if(iso(end).slice(0,19)!==endLocal)throw Error('Ausgewählte Sommer-/Winterzeit passt nicht zur Schweizer Endzeit');
  if(end<=start)throw Error('Ende muss nach Beginn liegen');
  overallStart=Math.min(overallStart,start);overallEnd=Math.max(overallEnd,end);
- for(let from=start;from<end;from+=86400000){if(segments.length>=366)throw Error('Ein Favorit darf höchstens 366 Teilstücke pro Region erzeugen');segments.push({start_on:iso(from),end_on:iso(Math.min(from+86400000,end))});}
+ for(let from=start;from<end;){
+  // Continuous favorites reset at each Swiss midnight. The 25h autumn day
+  // gets its extra piece locally; subsequent days keep their midnight boundary.
+  const dayEnd=f.schedule_mode==='continuous'?DateTime.fromMillis(from,{zone}).startOf('day').plus({days:1}).toMillis():end;
+  const to=Math.min(from+86400000,dayEnd,end);
+  if(segments.length>=(f.schedule_mode==='continuous'?368:366))throw Error('Zu viele Teilstücke pro Region');
+  segments.push({start_on:iso(from),end_on:iso(to)});from=to;
+ }
  }
  const regions=f.region_ids.length?f.region_ids:[null];const working={...s,assignments:[...s.assignments]};const assignments=[],warnings=[];let already_planned=0;
  for(const geo of regions)for(const segment of segments){if(['weekly','continuous'].includes(f.schedule_mode)&&s.assignments.some(a=>a.employee_id===person.employee_id&&a.function_id===f.function_id&&a.geodependency===geo&&a.priority===f.priority&&instant(a.start_on)===instant(segment.start_on)&&instant(a.end_on)===instant(segment.end_on))){already_planned++;continue;}const result=validateAssignment(working,{employee_id:person.employee_id,function_id:f.function_id,geodependency:geo,priority:f.priority,...segment});assignments.push(result.assignment);working.assignments.push(result.assignment);warnings.push(...result.warnings);}

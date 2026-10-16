@@ -105,7 +105,7 @@ test('Immer plant den festen Zeitraum inklusive Enddatum lückenlos in höchsten
  const s=demo(),f=saveFavorite(s,template({schedule_mode:'continuous',start_date:'2026-10-24',end_date:'2026-10-26',start_time:'07:00',duration_minutes:undefined,region_ids:['NORD','SÜD']}));
  assert.equal(f.start_time,'00:00');assert.equal(f.duration_minutes,4319);assert.equal(f.end_time,'23:59');
  const r=applyFavorite(s,f.id,{...request(f),date:'2020-01-01',start_time:'12:00'},now);assert.equal(r.start_on,'2026-10-24T00:00:00+02:00');assert.equal(r.end_on,'2026-10-26T23:59:00+01:00');assert.equal(r.assignments.length,8);
- for(const geo of ['NORD','SÜD']){const parts=r.assignments.filter(a=>a.geodependency===geo);assert.deepEqual(parts.map(a=>(instant(a.end_on)-instant(a.start_on))/60000),[1440,1440,1440,59]);assert.equal(parts[0].end_on,parts[1].start_on);assert.equal(parts[1].end_on,parts[2].start_on);}
+ for(const geo of ['NORD','SÜD']){const parts=r.assignments.filter(a=>a.geodependency===geo);assert.deepEqual(parts.map(a=>(instant(a.end_on)-instant(a.start_on))/60000),[1440,1440,60,1439]);assert.equal(parts[0].end_on,parts[1].start_on);assert.equal(parts[1].end_on,parts[2].start_on);}
  const repeat=applyFavorite(s,f.id,{...request(f),date:'2030-01-01'},now);assert.equal(repeat.assignments.length,0);assert.equal(repeat.already_planned,8);assert.equal(makeExport(s,'snapshot').changes.length,8);
 });
 test('Immer validiert beide Daten und Reihenfolge und setzt die Startzeit fest auf Mitternacht',()=>{
@@ -117,4 +117,17 @@ test('Immer validiert beide Daten und Reihenfolge und setzt die Startzeit fest a
 test('Favoriten benötigen nur die Funktion; bestehende Immer-Vorlagen werden ohne Datenänderung ganztägig interpretiert',()=>{
  const s=demo(),f=saveFavorite(s,{...template({schedule_mode:'continuous',start_date:'2026-10-24',end_date:'2026-10-26'}),scope_type:undefined,scope_id:undefined});assert.equal(f.scope_type,'function');assert.equal(f.scope_id,f.function_id);
  Object.assign(f,{start_time:'07:00',duration_minutes:3900,end_day_offset:3,end_time:'00:00'});const saved=structuredClone(s);const r=previewFavorite(s,f.id,request(f),now);assert.equal(r.start_on,'2026-10-24T00:00:00+02:00');assert.equal(r.end_on,'2026-10-26T23:59:00+01:00');assert.deepEqual(s,saved);
+});
+
+test('Immer korrigiert Winterzeit am 25. Oktober und beginnt danach jeden Tag wieder um Mitternacht',()=>{
+ const s=demo(),f=saveFavorite(s,template({schedule_mode:'continuous',start_date:'2026-10-01',end_date:'2026-10-31',region_ids:['NORD']}));
+ const r=previewFavorite(s,f.id,request(f),now),parts=r.assignments;assert.equal(parts.length,32);
+ assert.deepEqual(parts.filter(a=>a.start_on.startsWith('2026-10-25')).map(a=>[a.start_on,a.end_on]),[['2026-10-25T00:00:00+02:00','2026-10-25T23:00:00+01:00'],['2026-10-25T23:00:00+01:00','2026-10-26T00:00:00+01:00']]);
+ for(const a of parts.filter(a=>a.start_on.slice(0,10)>'2026-10-25'))assert.match(a.start_on,/T00:00:00/);
+ assert.equal(parts.at(-1).start_on,'2026-10-31T00:00:00+01:00');assert.equal(parts.at(-1).end_on,'2026-10-31T23:59:00+01:00');
+ for(let i=0;i<parts.length;i++){assert.ok(instant(parts[i].end_on)-instant(parts[i].start_on)<=86400000);if(i)assert.equal(parts[i-1].end_on,parts[i].start_on);}
+});
+test('Immer verkürzt den Sommerzeit-Tag lokal auf 23h und hält anschliessend die Mitternachtsgrenze',()=>{
+ const s=demo(),f=saveFavorite(s,template({schedule_mode:'continuous',start_date:'2026-03-28',end_date:'2026-03-31',region_ids:['NORD']}));
+ const r=applyFavorite(s,f.id,request(f),now);assert.deepEqual(r.assignments.map(a=>(instant(a.end_on)-instant(a.start_on))/60000),[1440,1380,1440,1439]);assert.equal(r.assignments[2].start_on,'2026-03-30T00:00:00+02:00');assert.equal(makeExport(s,'snapshot').changes[2].start_on,'2026-03-30T00:00:00+02:00');
 });
