@@ -1,0 +1,162 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ExternPlan ELS 1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "export_id",
+    "export_mode",
+    "timezone",
+    "changes"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "export_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "export_mode": {
+      "enum": [
+        "delta",
+        "snapshot"
+      ]
+    },
+    "timezone": {
+      "const": "Europe/Zurich"
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "replacement",
+        "description"
+      ],
+      "properties": {
+        "type": {
+          "const": "all_assignments"
+        },
+        "replacement": {
+          "const": false
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "changes": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "action",
+              "assignment_id",
+              "revision",
+              "employee_id",
+              "function_id",
+              "start_on",
+              "end_on",
+              "geodependency",
+              "priority"
+            ],
+            "properties": {
+              "action": {
+                "enum": [
+                  "create",
+                  "update"
+                ]
+              },
+              "assignment_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "employee_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "function_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "start_on": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "[+-][0-9]{2}:[0-9]{2}$"
+              },
+              "end_on": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "[+-][0-9]{2}:[0-9]{2}$"
+              },
+              "geodependency": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "priority": {
+                "type": "integer",
+                "minimum": 1
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "action",
+              "assignment_id",
+              "revision"
+            ],
+            "properties": {
+              "action": {
+                "const": "delete"
+              },
+              "assignment_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": 1
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "export_mode": {
+            "const": "snapshot"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "scope"
+        ]
+      },
+      "else": {
+        "not": {
+          "required": [
+            "scope"
+          ]
+        }
+      }
+    }
+  ]
+}

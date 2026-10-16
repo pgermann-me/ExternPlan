@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: externplan
+    runtime: docker
+    plan: starter
+    region: frankfurt
+    autoDeploy: false
+    healthCheckPath: /api/health
+    disk:
+      name: externplan-data
+      mountPath: /app/data
+      sizeGB: 1
+    envVars:
+      - key: HOST
+        value: 0.0.0.0
+      - key: PORT
+        value: 3000
+      - key: DATA_DIR
+        value: /app/data
+      - key: TRUST_PROXY
+        value: "1"
+      - key: REQUIRE_AUTH
+        value: "true"
+      - key: APP_USERNAME
+        value: planer
+      - key: APP_PASSWORD
+        generateValue: true
