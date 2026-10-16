@@ -1,5 +1,5 @@
 import {masterReferences} from './master-references.js';
-import {favoriteTimeLabel} from './favorite-time.js';
+import {favoriteTimeLabel,favoriteSchedule,favoriteDurationFromEnd} from './favorite-time.js';
 import {dayBars} from './day-bars.js';
 import {bindSplitPanel} from './split-panel.js';
 import {favoriteMatchesContext} from './favorite-context.js';
@@ -307,7 +307,7 @@ function favoriteMasterRow(f,list,editAttribute){
  return `<article class="master-favorite-row"><span class="color-dot" style="background:${color}" role="img" aria-label="Favoritenfarbe ${color}"></span><div class="favorite-row-name"><b>${esc(f.name)}</b><small class="muted">${esc(favoriteScopeName(f))}</small></div><div class="favorite-row-details">${favoriteSummary(f).replace('<br>',' · ')}${!favoriteAvailable(f)?'<p class="small">Vorlage vor Verwendung aktualisieren.</p>':''}</div><div class="actions"><button type="button" ${editAttribute}="${f.id}">Bearbeiten</button>${favoriteOrderButtons(f,list)}</div></article>`;
 }
 function favoriteEditor(f={},defaults={}){
- f={...defaults,...f};let selectedRegions=[...(f.region_ids||[])];
+ f={...defaults,...f};let selectedRegions=[...(f.region_ids||[])];const initialSchedule=favoriteSchedule({start_time:f.start_time||'07:00',duration_minutes:f.duration_minutes??1440});
  modal(`<h2>Favoritendienst ${f.id?'bearbeiten':'anlegen'}</h2>`+(f.id?label('Kennung',`<input name="id" value="${esc(f.id)}" readonly>`):'')+
  label('Name',input('name',f.name||''))+label('Farbe',input('color',f.color||'#2563eb','color'))+
  label('Favorit für',`<select name="scope_type" id="favorite-scope-type">${options(Object.entries(scopeLabels).map(([id,name])=>({id,name})),'id','name',f.scope_type||'function',false)}</select>`)+
@@ -315,18 +315,27 @@ function favoriteEditor(f={},defaults={}){
  label('Pikett-Funktion','<select name="function_id" id="favorite-function" required></select>')+
  '<fieldset><legend>Regionen</legend><div id="favorite-regions"></div></fieldset>'+
  label('Starttag',`<select name="start_weekday"><option value="">Beliebiger Wochentag</option>${['Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag','Sonntag'].map((day,i)=>`<option value="${i+1}" ${f.start_weekday===i+1?'selected':''}>${day}</option>`).join('')}</select>`)+
- label('Dauer: Tage',`<input name="duration_days" type="number" min="0" step="1" value="${Math.floor((f.duration_minutes??0)/1440)}" required>`)+
- '<div class="form-pair"><div>'+label('Dauer: Stunden',`<input name="duration_hours" type="number" min="0" step="1" value="${f.duration_minutes==null?24:Math.floor(f.duration_minutes%1440/60)}" required>`)+
+ label('Dauer: Tage',`<input name="duration_days" type="number" min="0" step="1" value="${Math.floor((f.duration_minutes??1440)/1440)}" required>`)+
+ '<div class="form-pair"><div>'+label('Dauer: Stunden',`<input name="duration_hours" type="number" min="0" step="1" value="${Math.floor((f.duration_minutes??1440)%1440/60)}" required>`)+
  '</div><div>'+label('Dauer: Minuten',`<input name="duration_minutes" type="number" min="0" max="59" step="1" value="${(f.duration_minutes??1440)%60}" required>`)+
  '</div></div>'+label('Vordefinierter Beginn · HH:mm',input('start_time',f.start_time||'07:00'))+'<p id="favorite-time-conversion" class="small" aria-live="polite"></p>'+
+ '<div class="form-pair"><div>'+label('Endtag · Tage nach Starttag',`<input name="end_day_offset" type="number" min="0" step="1" value="${initialSchedule.end_day_offset}" required>`)+
+ '</div><div>'+label('Vordefiniertes Ende · HH:mm',input('end_time',initialSchedule.end_time))+'</div></div>'+
  label('Pikett-Priorität',`<input name="priority" type="number" min="1" step="1" value="${f.priority||1}" required>`)+
- '<p class="small muted">Startzeit und Dauer werden in feste Schweizer Uhrzeiten umgerechnet: ↓ Starttag, → Folgetag. Bei Zeitumstellungen bleibt die Enduhrzeit gleich. Mehrtägige Dienste werden je Region in Teilstücke von höchstens 24 Stunden aufgeteilt, auch für ELS. Ein festgelegter Starttag gilt beim Planen per Klick. Sonntag 24:00 entspricht Montag 00:00. Die Vorlage kann auch für vergangene Tage im Kalender verwendet werden.</p>'+
+ '<p class="small muted">Startzeit und Dauer werden in feste Schweizer Uhrzeiten umgerechnet: ↓ Starttag, → Folgetag. Bei Zeitumstellungen bleibt die Enduhrzeit gleich. Mehrtägige Dienste werden je Region in Teilstücke von höchstens 24 Stunden aufgeteilt, auch für ELS. Ein festgelegter Starttag gilt beim Planen per Klick. Endzeit oder Dauer können angepasst werden; die jeweils anderen Felder werden nachgeführt. Endtag 0 ist der Starttag. Sonntag 24:00 entspricht Montag 00:00. Die Vorlage kann auch für vergangene Tage im Kalender verwendet werden.</p>'+
  (f.id?'<button type="button" id="delete-favorite" class="danger">Favorit löschen</button>':''),async d=>{
    const days=Number(d.duration_days),hours=Number(d.duration_hours),minutes=Number(d.duration_minutes);if(!Number.isSafeInteger(days)||days<0||!Number.isSafeInteger(hours)||hours<0||!Number.isInteger(minutes)||minutes<0||minutes>59)throw Error('Dauer als ganze Tage, Stunden und Minuten (0–59) eingeben');
-   const payload={name:d.name,color:d.color,scope_type:d.scope_type,scope_id:d.scope_id,function_id:$('#favorite-function').value,region_ids:[...document.querySelectorAll('[data-favorite-region]:checked')].map(x=>x.dataset.favoriteRegion),duration_minutes:days*1440+hours*60+minutes,start_time:d.start_time,start_weekday:d.start_weekday?Number(d.start_weekday):null,priority:Number(d.priority),...(f.id?{id:f.id,revision:f.revision}:{})};
+   const duration=days*1440+hours*60+minutes;if(favoriteDurationFromEnd(d.start_time,d.end_time,Number(d.end_day_offset))!==duration)throw Error('Dauer und Endzeit passen nicht zusammen');
+   const payload={name:d.name,color:d.color,scope_type:d.scope_type,scope_id:d.scope_id,function_id:$('#favorite-function').value,region_ids:[...document.querySelectorAll('[data-favorite-region]:checked')].map(x=>x.dataset.favoriteRegion),duration_minutes:duration,start_time:d.start_time,start_weekday:d.start_weekday?Number(d.start_weekday):null,priority:Number(d.priority),...(f.id?{id:f.id,revision:f.revision}:{})};
    await api('/favorites','POST',payload);message('Favoritendienst gespeichert');
  });
- const showTimes=()=>{try{const schedule={start_time:$('[name=start_time]').value,start_weekday:Number($('[name=start_weekday]').value)||null,duration_minutes:Number($('[name=duration_days]').value)*1440+Number($('[name=duration_hours]').value)*60+Number($('[name=duration_minutes]').value)};$('#favorite-time-conversion').textContent=favoriteTimeLabel(schedule);}catch{$('#favorite-time-conversion').textContent='Startzeit und Dauer eingeben';}};for(const field of ['start_time','start_weekday','duration_days','duration_hours','duration_minutes'])$('[name='+field+']').oninput=showTimes;showTimes();
+ const readSchedule=()=>({start_time:$('[name=start_time]').value,start_weekday:Number($('[name=start_weekday]').value)||null,duration_minutes:Number($('[name=duration_days]').value)*1440+Number($('[name=duration_hours]').value)*60+Number($('[name=duration_minutes]').value)});
+ const showTimes=()=>{$('#favorite-time-conversion').textContent=favoriteTimeLabel(readSchedule());};
+ const syncDuration=()=>{try{const schedule=favoriteSchedule(readSchedule());$('[name=end_time]').value=schedule.end_time;$('[name=end_day_offset]').value=schedule.end_day_offset;showTimes();}catch(error){$('#favorite-time-conversion').textContent=error.message;}};
+ const syncEnd=()=>{try{const duration=favoriteDurationFromEnd($('[name=start_time]').value,$('[name=end_time]').value,Number($('[name=end_day_offset]').value));$('[name=duration_days]').value=Math.floor(duration/1440);$('[name=duration_hours]').value=Math.floor(duration%1440/60);$('[name=duration_minutes]').value=duration%60;showTimes();}catch(error){$('#favorite-time-conversion').textContent=error.message;}};
+ for(const field of ['start_time','duration_days','duration_hours','duration_minutes'])$('[name='+field+']').oninput=syncDuration;
+ for(const field of ['end_time','end_day_offset'])$('[name='+field+']').oninput=syncEnd;
+ $('[name=start_weekday]').oninput=()=>{try{showTimes();}catch(error){$('#favorite-time-conversion').textContent=error.message;}};syncDuration();
  const scopeType=$('#favorite-scope-type'),scope=$('#favorite-scope'),fn=$('#favorite-function');
  const renderRegions=()=>{const selected=state.functions.find(x=>x.id===fn.value);const geos=state.regions.filter(g=>selected&&allowedFunctionRegions(selected,scopeType.value==='group'?state.groups.find(g=>g.id===scope.value):null,state.regions).includes(g.id));$('#favorite-regions').innerHTML=selected?.geo_ids.length?geos.map(g=>`<label class="check-option"><input type="checkbox" data-favorite-region="${esc(g.id)}" ${selectedRegions.includes(g.id)?'checked':''}>${esc(g.name)}</label>`).join('')||'<p>Keine aktiven Regionen; Funktion zuerst konfigurieren.</p>':'Ortsunabhängig · keine Region erforderlich';};
  const renderFunction=()=>{const previous=fn.value||f.function_id;const list=scopeType.value==='function'?state.functions.filter(x=>x.id===scope.value):state.functions;fn.innerHTML=options(list,'id','name',previous,false);fn.disabled=scopeType.value==='function';renderRegions();};
