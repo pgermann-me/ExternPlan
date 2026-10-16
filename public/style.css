@@ -133,3 +133,10 @@ table.month tbody tr:is(:hover,:has(:focus-visible)) > td:first-child{background
 .people-list tbody tr:hover{background:#f3f8fb}
 
 #person-search{width:240px;max-width:100%}
+
+.weekly-days{display:flex;gap:10px;flex-wrap:wrap}
+.weekly-days label{display:flex;gap:4px;align-items:center;margin:0}
+.weekly-days input{width:auto}
+.favorite-window-times{display:grid;grid-template-columns:1fr 1fr 80px auto;gap:8px;align-items:end}
+.favorite-window-times label{min-width:0}.favorite-window-times input{margin-top:5px}
+@media(max-width:550px){.favorite-window-times{grid-template-columns:1fr 1fr}.favorite-window-times button{align-self:end}}
