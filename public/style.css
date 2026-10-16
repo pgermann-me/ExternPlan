@@ -140,3 +140,7 @@ table.month tbody tr:is(:hover,:has(:focus-visible)) > td:first-child{background
 .favorite-window-times{display:grid;grid-template-columns:1fr 1fr 80px auto;gap:8px;align-items:end}
 .favorite-window-times label{min-width:0}.favorite-window-times input{margin-top:5px}
 @media(max-width:550px){.favorite-window-times{grid-template-columns:1fr 1fr}.favorite-window-times button{align-self:end}}
+
+/* Keep the main view tabs accessible while the page scrolls. */
+body > nav{position:sticky;top:0;z-index:20;box-shadow:0 2px 5px #17384914}
+#undo-planning:disabled{cursor:default}

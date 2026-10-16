@@ -6,7 +6,7 @@ COPY package.json package-lock.json ./
 RUN --mount=type=secret,id=cloud_ca \
     if [ -f /run/secrets/cloud_ca ]; then export NODE_EXTRA_CA_CERTS=/run/secrets/cloud_ca; fi; \
     npm ci --omit=dev --fetch-retries=0 --fetch-timeout=30000 && npm cache clean --force
-COPY --chown=node:node server.js domain.js auth.js people.js person-planning.js master-data.js favorites.js timeline.js data-cleanup.js ./
+COPY --chown=node:node server.js planning-undo.js domain.js auth.js people.js person-planning.js master-data.js favorites.js timeline.js data-cleanup.js ./
 COPY --chown=node:node adapters ./adapters
 COPY --chown=node:node public ./public
 RUN mkdir -p /app/data && chown node:node /app/data

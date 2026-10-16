@@ -1,3 +1,4 @@
+import {planningChange,undoPlanning} from './planning-undo.js';
 import {emptyState,cleanupNeeded,removeKtdAndExamplePeople} from './data-cleanup.js';
 import {resolve} from 'node:path';
 import {timelineBars} from './timeline.js';
@@ -28,11 +29,12 @@ if(!testFixtures&&cleanupNeeded(read()))mutate(s=>{
 });
 const app=express();if(process.env.TRUST_PROXY==='1')app.set('trust proxy',1);app.disable('x-powered-by');app.use(authentication());app.use(express.json({limit:'10mb'}));
 app.use((req,res,next)=>{res.setHeader('X-Content-Type-Options','nosniff');if(!['GET','HEAD'].includes(req.method)&&req.headers.origin&&req.headers.origin!==`${req.protocol}://${req.headers.host}`)return res.status(403).json({error:'Fremder Ursprung nicht zugelassen'});next();});
+app.post('/api/planning/undo',(req,res)=>res.json(mutate(s=>undoPlanning(s,req.body.token))));
 app.get('/api/state',(req,res)=>res.json(publicState(read())));
 app.get('/api/health',(req,res)=>res.json({status:'ok',database:!!read(),timezone:zone}));
-app.post('/api/assignments',(req,res)=>res.json(mutate(s=>{validatePlanningGroup(s,req.body);const r=validateAssignment(s,req.body);s.assignments.push(r.assignment);change(s,'create',r.assignment);audit(s,'assignment','create',null,r.assignment);return r;})));
-app.put('/api/assignments/:id',(req,res)=>res.json(mutate(s=>{const index=s.assignments.findIndex(x=>x.assignment_id===req.params.id);if(index<0)throw Error('Zuteilung nicht gefunden');const before=s.assignments[index];if(req.body.revision!==before.revision)throw Error('Zuteilung wurde inzwischen geändert. Neu laden.');validatePlanningGroup(s,req.body);const r=validateAssignment(s,req.body,before);s.assignments[index]=r.assignment;change(s,'update',r.assignment);audit(s,'assignment','update',before,r.assignment);return r;})));
-app.delete('/api/assignments/:id',(req,res)=>res.json(mutate(s=>{const index=s.assignments.findIndex(x=>x.assignment_id===req.params.id);if(index<0)throw Error('Zuteilung nicht gefunden');const before=s.assignments[index];if(Number(req.query.revision)!==before.revision)throw Error('Revision stimmt nicht überein');s.assignments.splice(index,1);change(s,'delete',{...before,revision:before.revision+1});audit(s,'assignment','delete',before,null);return {ok:true};})));
+app.post('/api/assignments',(req,res)=>res.json(mutate(s=>planningChange(s,()=>{validatePlanningGroup(s,req.body);const r=validateAssignment(s,req.body);s.assignments.push(r.assignment);change(s,'create',r.assignment);audit(s,'assignment','create',null,r.assignment);return r;}))));
+app.put('/api/assignments/:id',(req,res)=>res.json(mutate(s=>planningChange(s,()=>{const index=s.assignments.findIndex(x=>x.assignment_id===req.params.id);if(index<0)throw Error('Zuteilung nicht gefunden');const before=s.assignments[index];if(req.body.revision!==before.revision)throw Error('Zuteilung wurde inzwischen geändert. Neu laden.');validatePlanningGroup(s,req.body);const r=validateAssignment(s,req.body,before);s.assignments[index]=r.assignment;change(s,'update',r.assignment);audit(s,'assignment','update',before,r.assignment);return r;}))));
+app.delete('/api/assignments/:id',(req,res)=>res.json(mutate(s=>planningChange(s,()=>{const index=s.assignments.findIndex(x=>x.assignment_id===req.params.id);if(index<0)throw Error('Zuteilung nicht gefunden');const before=s.assignments[index];if(Number(req.query.revision)!==before.revision)throw Error('Revision stimmt nicht überein');s.assignments.splice(index,1);change(s,'delete',{...before,revision:before.revision+1});audit(s,'assignment','delete',before,null);return {ok:true};}))));
 function validPerson(s,p,previous){if(!p.employee_id||!p.name)throw Error('employee_id und Name erforderlich');if(p.department_id&&!s.departments.some(x=>x.id===p.department_id))throw Error('Abteilung unbekannt');if(personGroupIds(p).some(g=>!s.groups.some(x=>x.id===g&&(active(x)||personGroupIds(previous).includes(g)))))throw Error('Gruppe unbekannt');if(!Array.isArray(p.contacts)||p.contacts.some(c=>!c.type||!c.value||!Number.isInteger(c.priority)||c.priority<0))throw Error('Kontakte benötigen Typ, Wert und eine ganzzahlige Priorität ab 0');}
 app.post('/api/people',(req,res)=>res.json(mutate(s=>{
  let employeeId;do{employeeId='EXT-'+id();}while(s.people.some(p=>p.employee_id===employeeId));
@@ -59,7 +61,7 @@ app.post('/api/favorites/order',(req,res)=>res.json(mutate(s=>reorderFavorites(s
 app.post('/api/favorites',(req,res)=>res.json(mutate(s=>saveFavorite(s,req.body))));
 app.delete('/api/favorites/:id',(req,res)=>res.json(mutate(s=>removeFavorite(s,req.params.id,req.query.revision))));
 app.post('/api/favorites/:id/preview',(req,res)=>res.json(previewFavorite(read(),req.params.id,req.body)));
-app.post('/api/favorites/:id/apply',(req,res)=>res.json(mutate(s=>applyFavorite(s,req.params.id,req.body))));
+app.post('/api/favorites/:id/apply',(req,res)=>res.json(mutate(s=>planningChange(s,()=>applyFavorite(s,req.params.id,req.body)))));
 app.post('/api/exports',(req,res)=>res.json(mutate(s=>makeExport(s,req.body.mode||'delta'))));
 app.post('/api/exports/:id/confirm',(req,res)=>res.json(mutate(s=>confirmExport(s,req.params.id))));
 app.post('/api/els/people',(req,res)=>res.json(mutate(s=>{for(const p of s.people)simulatedElsAdapter.syncPerson(s.els,p);return {confirmed:s.people.length};})));

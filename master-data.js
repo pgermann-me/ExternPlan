@@ -3,8 +3,9 @@ import { audit, instant, iso } from './domain.js';
 import {orderedFavorites} from './favorites.js';
 export const active = item => !item.deleted_at;
 export function publicState(s){
+ const {planning_undo,...visible}=s;
  const types=['functions','regions','groups','rules','favorites'];
- return {...s,people:s.people.filter(active),archived_people:s.people.filter(p=>!active(p)),...Object.fromEntries(types.map(t=>[t,(s[t]||[]).filter(active)])),favorites:orderedFavorites(s),archived_master:Object.fromEntries(types.map(t=>[t,(s[t]||[]).filter(x=>!active(x))]))};
+ return {...visible,people:s.people.filter(active),archived_people:s.people.filter(p=>!active(p)),...Object.fromEntries(types.map(t=>[t,(s[t]||[]).filter(active)])),favorites:orderedFavorites(s),archived_master:Object.fromEntries(types.map(t=>[t,(s[t]||[]).filter(x=>!active(x))]))};
 }
 export function deleteMaster(s,type,key,now=Date.now()){
  if(!['functions','regions','groups','departments','rules'].includes(type))throw Error('Unbekannte Stammdaten');
