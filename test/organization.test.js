@@ -5,7 +5,7 @@ import {manualPerson} from '../people.js';
 import {personMonth} from '../person-planning.js';
 import {deleteMaster} from '../master-data.js';
 import {favoriteForPerson,validateFavorite} from '../favorites.js';
-import {personGroupIds,allowedFunctionRegions,validatePlanningGroup,planningPeople} from '../public/organization.js';
+import {personGroupIds,allowedFunctionRegions,validatePlanningGroup,planningPeople,controlFunctions} from '../public/organization.js';
 test('Mehrere Gruppen erhalten alte Zuordnungen und erscheinen in jedem Gruppenraster',()=>{
  const s=demo();s.groups.push({id:'zweite',name:'Zweite Gruppe',department_id:'andere',geo_ids:['NORD']});
  const old=s.people[1];assert.deepEqual(personGroupIds(old),['demo-gruppe']);
@@ -39,4 +39,13 @@ test('Abteilungsfilter berücksichtigt Hauptabteilung und Mehrfachgruppen und le
  for(const employee_id of ['DEMO-001','DEMO-EXT-001'])s.assignments.push(validateAssignment(s,{employee_id,function_id:'DEMO-KTD',geodependency:'NORD',priority:1,start_on:'2026-10-01T07:00',end_on:'2026-10-02T07:00'}).assignment);
  const r=personMonth(s,'2026-10','DEMO-KTD',['NORD'],null,'D2');assert.deepEqual(r.rows.map(p=>p.employee_id),['DEMO-EXT-001']);assert.equal(r.department_id,'D2');assert.equal(r.rows[0].bars.length,1);
  assert.throws(()=>personMonth(s,'2026-10','DEMO-KTD',undefined,'demo-gruppe','D2'),/Gruppe gehört nicht/);
+});
+
+test('Kontrollansicht zeigt nur Funktionen aus Diensten der gefilterten Mitglieder, unabhängig vom angezeigten Monat',()=>{
+ const s=demo();s.departments.push({id:'OTHER',name:'Andere Abteilung'});s.groups.push({id:'OTHER-GROUP',name:'Andere Gruppe',department_id:'OTHER'});s.people.push({employee_id:'OTHER',name:'Andere Person',department_id:'OTHER',group_ids:['OTHER-GROUP']});
+ const duty=(employee_id,function_id,geodependency,start_on='2020-01-01T07:00',end_on='2020-01-02T07:00')=>s.assignments.push(validateAssignment(s,{employee_id,function_id,geodependency,start_on,end_on,priority:1}).assignment);
+ duty('DEMO-EXT-001','DEMO-KTD','NORD');duty('OTHER','DEMO-ORT',null,'2099-01-01T07:00','2099-01-02T07:00');
+ assert.deepEqual(controlFunctions(s,'demo-gruppe','demo-abteilung').map(f=>f.id),['DEMO-KTD']);assert.deepEqual(controlFunctions(s,null,'OTHER').map(f=>f.id),['DEMO-ORT']);assert.equal(controlFunctions(s).length,2);
+ s.people[2].group_ids.push('demo-gruppe');assert.equal(controlFunctions(s,'demo-gruppe','demo-abteilung').length,2);s.people[2].deleted_at='2026-01-01';assert.deepEqual(controlFunctions(s,'demo-gruppe','demo-abteilung').map(f=>f.id),['DEMO-KTD']);
+ s.functions[0].deleted_at='2026-01-01';assert.deepEqual(controlFunctions(s,'demo-gruppe','demo-abteilung'),[]);
 });

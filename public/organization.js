@@ -8,6 +8,14 @@ export function planningPeople(s,groupId,departmentId){
  if(group&&departmentId&&group.department_id!==departmentId)throw Error('Gruppe gehört nicht zur gewählten Abteilung');
  return s.people.filter(p=>(!groupId&&!departmentId||!p.deleted_at)&&(!groupId||personGroupIds(p).includes(groupId))&&(!departmentId||personDepartmentIds(p,s.groups).includes(departmentId)));
 }
+// Function affiliations come from duties across all months, as on person records.
+export function controlFunctions(s,groupId,departmentId){
+ const active=s.functions.filter(f=>!f.deleted_at);
+ if(!groupId&&!departmentId)return active;
+ const members=new Set(planningPeople(s,groupId,departmentId).map(p=>p.employee_id));
+ const functions=new Set(s.assignments.filter(a=>members.has(a.employee_id)).map(a=>a.function_id));
+ return active.filter(f=>functions.has(f.id));
+}
 export function validatePlanningGroup(s,input){
  if(input.planning_department_id&&!planningPeople(s,input.planning_group_id,input.planning_department_id).some(p=>p.employee_id===input.employee_id))throw Error('Person gehört nicht zur gewählten Abteilung');
  if(!input.planning_group_id)return;
