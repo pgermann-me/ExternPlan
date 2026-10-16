@@ -11,7 +11,7 @@ function continuousDuration(p){
  if(dates[1]<dates[0])throw Error('Enddatum muss am oder nach dem Startdatum liegen');
  const days=dates[1].diff(dates[0],'days').days+1;
  if(days>366)throw Error('Immer darf höchstens 366 Kalendertage umfassen');
- const [h,m]=String(p.start_time).split(':').map(Number);return days*1440-h*60-m;
+ return days*1440-1;
 }
 export function validateFavorite(s,p){
  if(typeof p.name!=='string'||!p.name.trim())throw Error('Name des Favoritendienstes erforderlich');
@@ -38,9 +38,9 @@ export function saveFavorite(s,input){
  s.favorites??=[];const existing=input.id?s.favorites.find(f=>f.id===input.id):null;
  if(input.id&&!existing)throw Error('Favorit nicht gefunden');if(existing?.deleted_at)throw Error('Favorit wurde gelöscht');
  if(existing&&input.revision!==existing.revision)throw Error('Favorit wurde inzwischen geändert. Neu laden.');
- const p={id:existing?.id||id(),name:String(input.name??'').trim(),scope_type:input.scope_type,scope_id:input.scope_id,function_id:input.function_id,region_ids:input.region_ids,schedule_mode:input.schedule_mode||'single',start_date:input.schedule_mode==='continuous'?input.start_date:null,end_date:input.schedule_mode==='continuous'?input.end_date:null,weekly_windows:input.schedule_mode==='weekly'?favoriteWeeklyWindows(input.weekly_windows):[],duration_minutes:input.duration_minutes,start_time:input.start_time,start_weekday:input.start_weekday??null,priority:input.priority,color:input.color||defaultColor,sort_order:existing?.sort_order??(existing?s.favorites.indexOf(existing):Math.max(-1,...s.favorites.map((f,i)=>f.sort_order??i))+1),revision:(existing?.revision||0)+1};
+ const p={id:existing?.id||id(),name:String(input.name??'').trim(),scope_type:input.scope_type||'function',scope_id:input.scope_id||input.function_id,function_id:input.function_id,region_ids:input.region_ids,schedule_mode:input.schedule_mode||'single',start_date:input.schedule_mode==='continuous'?input.start_date:null,end_date:input.schedule_mode==='continuous'?input.end_date:null,weekly_windows:input.schedule_mode==='weekly'?favoriteWeeklyWindows(input.weekly_windows):[],duration_minutes:input.duration_minutes,start_time:input.start_time,start_weekday:input.start_weekday??null,priority:input.priority,color:input.color||defaultColor,sort_order:existing?.sort_order??(existing?s.favorites.indexOf(existing):Math.max(-1,...s.favorites.map((f,i)=>f.sort_order??i))+1),revision:(existing?.revision||0)+1};
  if(p.schedule_mode==='weekly')Object.assign(p,{start_time:p.weekly_windows[0].start_time,duration_minutes:p.weekly_windows[0].duration_minutes,start_weekday:null});
- if(p.schedule_mode==='continuous')Object.assign(p,{duration_minutes:continuousDuration(p),start_weekday:null});
+ if(p.schedule_mode==='continuous')Object.assign(p,{duration_minutes:continuousDuration(p),start_time:'00:00',start_weekday:null});
  validateFavorite(s,p);Object.assign(p,favoriteSchedule(p));if(existing)s.favorites[s.favorites.indexOf(existing)]=p;else s.favorites.push(p);audit(s,'favorite',existing?'update':'create',existing,p);return p;
 }
 export function removeFavorite(s,key,revision){const p=(s.favorites||[]).find(f=>f.id===key&&live(f));if(!p)throw Error('Favorit nicht gefunden');if(Number(revision)!==p.revision)throw Error('Favorit wurde inzwischen geändert');const before={...p};p.deleted_at=iso(Date.now());audit(s,'favorite','delete',before,{...p});return {ok:true};}
@@ -50,7 +50,7 @@ export function favoriteForPerson(s,f,p){
  return personDepartmentIds(p,s.groups).includes(f.scope_id);
 }
 export function previewFavorite(s,key,input,now=Date.now()){
- const f=(s.favorites||[]).find(f=>f.id===key&&live(f));if(!f)throw Error('Favorit nicht gefunden');validateFavorite(s,f);
+ let f=(s.favorites||[]).find(f=>f.id===key&&live(f));if(!f)throw Error('Favorit nicht gefunden');if(f.schedule_mode==='continuous')f={...f,start_time:'00:00',duration_minutes:continuousDuration(f),start_weekday:null};validateFavorite(s,f);
  if(input.revision!==f.revision)throw Error('Favorit wurde inzwischen geändert. Neu laden.');
  const person=s.people.find(p=>p.employee_id===input.employee_id&&!p.deleted_at);if(!person||!favoriteForPerson(s,f,person))throw Error('Person gehört nicht zum Bereich dieses Favoriten');
  validatePlanningGroup(s,{...input,function_id:f.function_id,region_ids:f.region_ids});
