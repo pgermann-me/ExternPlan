@@ -64,6 +64,11 @@ try{
  await stop(server.p);server=await start();assert.equal((await call('/state')).data.favorites[0].id,secondFavorite.data.id);assert.equal((await call('/state')).data.favorites[1].duration_minutes,90);assert.equal((await call('/state')).data.outbox.length,2);
  assert.equal((await call('/favorites/'+favorite.data.id+'?revision='+favorite.data.revision,'DELETE')).status,200);assert.equal((await call('/state')).data.favorites.length,1);assert.equal((await call('/state')).data.assignments.length,countBefore+2);
 
+ const deptMonth=(await call('/month?month=2099-01&department_id='+department.data.id)).data;
+ assert.ok(deptMonth.rows.some(row=>row.bars.some(a=>a.employee_id===employeeId)));assert.ok(deptMonth.rows.every(row=>row.bars.every(a=>a.employee_id===employeeId)));
+ assert.equal((await call('/month?month=2099-01&department_id=UNKNOWN')).status,400);assert.equal((await call('/month?month=2099-01&department_id='+department.data.id+'&group_id=demo-gruppe')).status,400);
+ const filteredPeople=(await call('/person-month?month=2099-01&function_id=DEMO-KTD&department_id='+department.data.id)).data.rows;assert.deepEqual(filteredPeople.map(p=>p.employee_id),[employeeId]);
+ assert.equal((await call('/person-month?month=2099-01&function_id=DEMO-KTD&department_id=UNKNOWN')).status,400);
  // Person deletion is guarded on the server, survives restart, and retains historical duties.
  assert.equal((await call('/people/'+employeeId,'DELETE')).status,400);
  const removable=(await call('/people','POST',{first_name:'Vergangen',last_name:'Person',contacts:[]})).data;

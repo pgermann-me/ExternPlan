@@ -24,5 +24,6 @@ test('Gruppen- und Abteilungsfavoriten bleiben auf ausgewählte Organisation bes
  assert.equal(matches(s,favorite({scope_type:'group',scope_id:'andere-gruppe'}),noGroup),true);
  assert.equal(matches(s,favorite({scope_type:'department',scope_id:'andere'}),noGroup),true);
  assert.equal(matches(s,favorite({scope_type:'group',scope_id:'andere-gruppe'}),context({group_id:'',employee_ids:['DEMO-001']})),false);
+ assert.equal(matches(s,favorite({scope_type:'group',scope_id:'andere-gruppe'}),{...noGroup,department_id:'demo-abteilung'}),false);assert.equal(matches(s,favorite({scope_type:'department',scope_id:'andere'}),{...noGroup,department_id:'demo-abteilung'}),false);assert.equal(matches(s,favorite({scope_type:'department',scope_id:'andere'}),{...noGroup,department_id:'andere'}),true);
  s.groups[1].deleted_at='2026-10-15';assert.equal(matches(s,favorite({scope_type:'group',scope_id:'andere-gruppe'}),noGroup),false);
 });
