@@ -169,5 +169,14 @@ try{
  await page.reload();await page.locator('.month').waitFor();await page.getByRole('button',{name:'Organisation / Personen',exact:true}).click();await page.locator('[data-person="'+removable.employee_id+'"]').click();await page.locator('#delete-person').click();await page.waitForFunction(()=>!document.querySelector('dialog').open);assert.equal(await page.locator('[data-person="'+removable.employee_id+'"]').count(),0);
  const afterPersonDelete=await (await page.request.get('http://127.0.0.1:3109/api/state')).json();assert.ok(afterPersonDelete.archived_people.some(p=>p.employee_id===removable.employee_id));assert.ok(afterPersonDelete.assignments.some(a=>a.assignment_id===removableDuty.assignment_id));
  await page.locator('[data-person-groups="DEMO-001"]').click();await page.locator('#delete-person').click();await page.waitForFunction(()=>document.querySelector('#message').textContent.includes('laufende oder zukünftige'));assert.equal(await page.locator('#dialog').evaluate(e=>e.open),true);await page.locator('#cancel').click();
+ // Organization group choices follow the selected department in both displays.
+ const browserGroup=(await (await page.request.get('http://127.0.0.1:3109/api/state')).json()).groups.find(g=>g.name==='Browser Gruppe');assert.ok(browserGroup);
+ for(const mode of ['cards','list']){
+  await page.locator('[data-people-view='+mode+']').click();await page.locator('#department').selectOption('');await page.locator('#group').selectOption('demo-gruppe');await page.locator('#department').selectOption(selectedDepartment);
+  assert.equal(await page.locator('#group').inputValue(),'');assert.deepEqual(await page.locator('#group option').allTextContents(),['Alle Gruppen','Browser Gruppe']);await page.locator('#group').selectOption(browserGroup.id);
+  await page.locator('[data-people-view='+(mode==='cards'?'list':'cards')+']').click();assert.equal(await page.locator('#group').inputValue(),browserGroup.id);
+  await page.locator('#department').selectOption('');assert.equal(await page.locator('#group').inputValue(),browserGroup.id);assert.ok(await page.locator('#group option[value="demo-gruppe"]').count());
+  await page.locator('#department').selectOption('demo-abteilung');assert.equal(await page.locator('#group').inputValue(),'');assert.equal(await page.locator('#group option[value="'+browserGroup.id+'"]').count(),0);
+ }
  assert.deepEqual(errors,[]);console.log('Browserprüfung bestanden: Planung, Zellenbearbeitung, Scroll-/Filtererhalt, Personenanlage, ELS-Bestätigung, Abdeckungsvorgaben.');
 }finally{if(browser)await browser.close();await new Promise(r=>{server.on('exit',r);server.kill();});rmSync(dir,{recursive:true,force:true});}
