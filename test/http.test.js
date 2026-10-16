@@ -80,4 +80,12 @@ try{
  await stop(server.p);server=await start();assert.equal((await call('/state')).data.archived_people.some(p=>p.employee_id===removable.employee_id),true);
  assert.ok((await call('/person-month?month=2000-01&function_id=DEMO-KTD&region_id=NORD')).data.rows.some(p=>p.employee_id===removable.employee_id));
 
+ // Batch deletion validates every revision before any write, and undo restores the entire batch.
+ const batch=[];for(let day=1;day<=8;day++){const r=await call('/assignments','POST',{employee_id:'DEMO-001',function_id:'DEMO-ORT',geodependency:null,priority:1,color:'#123abc',start_on:`2098-11-${String(day).padStart(2,'0')}T07:00`,end_on:`2098-11-${String(day).padStart(2,'0')}T19:00`});assert.equal(r.status,200);batch.push(r.data.assignment);}
+ const entries=batch.map(a=>({assignment_id:a.assignment_id,revision:a.revision})),beforeBatch=(await call('/state')).data;
+ for(const bad of [[],[entries[0],entries[0]],[entries[0],{...entries[1],revision:99}],[entries[0],{assignment_id:'missing',revision:1}],null]){assert.equal((await call('/assignments/delete-many','POST',{assignments:bad})).status,400);assert.deepEqual((await call('/state')).data,beforeBatch);}
+ const removedBatch=await call('/assignments/delete-many','POST',{assignments:entries});assert.equal(removedBatch.status,200);assert.equal(removedBatch.data.deleted,8);assert.ok(removedBatch.data.undo_token);
+ const afterBatch=(await call('/state')).data;assert.ok(batch.every(a=>!afterBatch.assignments.some(x=>x.assignment_id===a.assignment_id)));assert.equal(afterBatch.outbox.length,beforeBatch.outbox.length+8);assert.ok(afterBatch.outbox.slice(-8).every(a=>a.action==='delete'&&a.revision===2));
+ assert.equal((await call('/planning/undo','POST',{token:removedBatch.data.undo_token})).status,200);const restoredBatch=(await call('/state')).data;for(const a of batch){assert.equal(restoredBatch.assignments.find(x=>x.assignment_id===a.assignment_id).revision,3);assert.equal(restoredBatch.assignment_styles[a.assignment_id].color,'#123abc');}
+
 }finally{await stop(server.p);rmSync(dir,{recursive:true,force:true});}});

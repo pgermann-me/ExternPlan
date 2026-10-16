@@ -33,6 +33,13 @@ app.post('/api/planning/undo',(req,res)=>res.json(mutate(s=>undoPlanning(s,req.b
 app.get('/api/state',(req,res)=>res.json(publicState(read())));
 app.get('/api/health',(req,res)=>res.json({status:'ok',database:!!read(),timezone:zone}));
 function assignmentStyle(s,a,input){if(input.color===undefined)return;if(!/^#[0-9a-f]{6}$/i.test(input.color))throw Error('Ungültige Dienstfarbe');s.assignment_styles??={};s.assignment_styles[a.assignment_id]={...s.assignment_styles[a.assignment_id],color:input.color};}
+app.post('/api/assignments/delete-many',(req,res)=>res.json(mutate(s=>planningChange(s,()=>{
+ const entries=req.body.assignments;if(!Array.isArray(entries)||!entries.length||entries.length>1000||new Set(entries.map(e=>e?.assignment_id)).size!==entries.length)throw Error('1 bis 1000 eindeutige Dienste auswählen');
+ const removed=entries.map(e=>{const a=s.assignments.find(a=>a.assignment_id===e?.assignment_id);if(!a||a.revision!==e.revision)throw Error('Ein ausgewählter Dienst wurde inzwischen geändert oder gelöscht. Neu laden und erneut auswählen.');return a;});
+ const ids=new Set(removed.map(a=>a.assignment_id));s.assignments=s.assignments.filter(a=>!ids.has(a.assignment_id));
+ for(const a of removed){change(s,'delete',{...a,revision:a.revision+1});audit(s,'assignment','delete',a,null);}
+ return {deleted:removed.length};
+}))));
 app.post('/api/assignments',(req,res)=>res.json(mutate(s=>planningChange(s,()=>{validatePlanningGroup(s,req.body);const r=validateAssignment(s,req.body);s.assignments.push(r.assignment);assignmentStyle(s,r.assignment,req.body);change(s,'create',r.assignment);audit(s,'assignment','create',null,r.assignment);return r;}))));
 app.put('/api/assignments/:id',(req,res)=>res.json(mutate(s=>planningChange(s,()=>{const index=s.assignments.findIndex(x=>x.assignment_id===req.params.id);if(index<0)throw Error('Zuteilung nicht gefunden');const before=s.assignments[index];if(req.body.revision!==before.revision)throw Error('Zuteilung wurde inzwischen geändert. Neu laden.');validatePlanningGroup(s,req.body);const r=validateAssignment(s,req.body,before);s.assignments[index]=r.assignment;assignmentStyle(s,r.assignment,req.body);change(s,'update',r.assignment);audit(s,'assignment','update',before,r.assignment);return r;}))));
 app.delete('/api/assignments/:id',(req,res)=>res.json(mutate(s=>planningChange(s,()=>{const index=s.assignments.findIndex(x=>x.assignment_id===req.params.id);if(index<0)throw Error('Zuteilung nicht gefunden');const before=s.assignments[index];if(Number(req.query.revision)!==before.revision)throw Error('Revision stimmt nicht überein');s.assignments.splice(index,1);change(s,'delete',{...before,revision:before.revision+1});audit(s,'assignment','delete',before,null);return {ok:true};}))));
