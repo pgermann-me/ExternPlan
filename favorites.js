@@ -47,14 +47,13 @@ export function previewFavorite(s,key,input,now=Date.now()){
  const date=input.date||today;const d=DateTime.fromISO(date,{zone});
  if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||!d.isValid)throw Error('Ungültiges Dienst-Datum');
  if(f.schedule_mode!=='weekly'&&f.start_weekday!=null&&d.weekday!==f.start_weekday)throw Error('Dieser Favorit beginnt am '+['Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag','Sonntag'][f.start_weekday-1]);
- const windows=f.schedule_mode==='weekly'?favoriteWeeklyWindows(f.weekly_windows).filter(w=>w.weekdays.includes(d.weekday)):[f];
- if(!windows.length)throw Error('Für diesen Wochentag ist kein Zeitfenster definiert');
+ const windows=f.schedule_mode==='weekly'?favoriteWeeklyWindows(f.weekly_windows).flatMap(w=>w.weekdays.map(day=>({...w,date:d.startOf('week').plus({days:day-1})}))):[{...f,date:d}];
  const segments=[];let overallStart=Infinity,overallEnd=-Infinity;
  for(const window of windows){
  const time=(f.schedule_mode!=='weekly'&&input.start_time)||window.start_time;if(!/^([01]\d|2[0-3]):[0-5]\d$/.test(time))throw Error('Beginn als HH:mm erforderlich');
  const offset=input.start_offset||'';if(!['','+01:00','+02:00'].includes(offset))throw Error('Sommer-/Winterzeit-Auswahl ungültig');
- const local=`${date}T${time}:00`;const start=instant(local+offset);if(iso(start).slice(0,19)!==local)throw Error('Ausgewählte Sommer-/Winterzeit passt nicht zur Schweizer Uhrzeit');
- const schedule=favoriteSchedule(window,time),endDate=d.plus({days:schedule.end_day_offset}).toISODate();if(!endDate)throw Error('Dienstdauer ist zu gross');
+ const local=`${window.date.toISODate()}T${time}:00`;const start=instant(local+offset);if(iso(start).slice(0,19)!==local)throw Error('Ausgewählte Sommer-/Winterzeit passt nicht zur Schweizer Uhrzeit');
+ const schedule=favoriteSchedule(window,time),endDate=window.date.plus({days:schedule.end_day_offset}).toISODate();if(!endDate)throw Error('Dienstdauer ist zu gross');
  const endOffset=input.end_offset||'';if(!['','+01:00','+02:00'].includes(endOffset))throw Error('Sommer-/Winterzeit-Auswahl für Ende ungültig');
  const endLocal=`${endDate}T${schedule.end_time}:00`;let end;
  try{end=instant(endLocal+endOffset);}catch(error){throw Error('Dienstende: '+error.message);}
@@ -63,15 +62,16 @@ export function previewFavorite(s,key,input,now=Date.now()){
  overallStart=Math.min(overallStart,start);overallEnd=Math.max(overallEnd,end);
  for(let from=start;from<end;from+=86400000){if(segments.length>=366)throw Error('Ein Favorit darf höchstens 366 Teilstücke pro Region erzeugen');segments.push({start_on:iso(from),end_on:iso(Math.min(from+86400000,end))});}
  }
- const regions=f.region_ids.length?f.region_ids:[null];const working={...s,assignments:[...s.assignments]};const assignments=[],warnings=[];
- for(const geo of regions)for(const segment of segments){const result=validateAssignment(working,{employee_id:person.employee_id,function_id:f.function_id,geodependency:geo,priority:f.priority,...segment});assignments.push(result.assignment);working.assignments.push(result.assignment);warnings.push(...result.warnings);}
- return {favorite_id:f.id,start_on:iso(overallStart),end_on:iso(overallEnd),segments_per_region:segments.length,assignments,warnings:[...new Set(warnings)]};
+ const regions=f.region_ids.length?f.region_ids:[null];const working={...s,assignments:[...s.assignments]};const assignments=[],warnings=[];let already_planned=0;
+ for(const geo of regions)for(const segment of segments){if(f.schedule_mode==='weekly'&&s.assignments.some(a=>a.employee_id===person.employee_id&&a.function_id===f.function_id&&a.geodependency===geo&&a.priority===f.priority&&instant(a.start_on)===instant(segment.start_on)&&instant(a.end_on)===instant(segment.end_on))){already_planned++;continue;}const result=validateAssignment(working,{employee_id:person.employee_id,function_id:f.function_id,geodependency:geo,priority:f.priority,...segment});assignments.push(result.assignment);working.assignments.push(result.assignment);warnings.push(...result.warnings);}
+ return {favorite_id:f.id,start_on:iso(overallStart),end_on:iso(overallEnd),segments_per_region:segments.length,already_planned,assignments,warnings:[...new Set(warnings)]};
 }
 export function applyFavorite(s,key,input,now=Date.now()){
  const result=previewFavorite(s,key,input,now);
+ if(!result.assignments.length)return result;
  const f=s.favorites.find(f=>f.id===key);s.assignment_styles??={};
  for(const a of result.assignments){s.assignment_styles[a.assignment_id]={favorite_id:f.id,color:f.color||defaultColor};s.assignments.push(a);change(s,'create',a);audit(s,'assignment','create',null,a);}
- audit(s,'favorite','apply',null,{name:f.name,employee_id:input.employee_id,start_on:result.start_on,end_on:result.end_on,count:result.assignments.length});
+ audit(s,'favorite','apply',null,{name:f.name,employee_id:input.employee_id,start_on:result.start_on,end_on:result.end_on,count:result.assignments.length,already_planned:result.already_planned});
  return result;
 }
 
