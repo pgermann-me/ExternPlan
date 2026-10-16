@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {demo,instant} from '../domain.js';
+import {demo,instant,makeExport} from '../domain.js';
 import {saveFavorite,previewFavorite,applyFavorite,removeFavorite} from '../favorites.js';
 import {deleteMaster,publicState} from '../master-data.js';
 const now=instant('2026-10-14T12:00+02:00');
@@ -12,8 +12,8 @@ test('Bestehende Daten benötigen keine Migration; Favoritendienste werden valid
  for(const bad of [{duration_minutes:0},{duration_minutes:1.5},{start_time:'24:00'},{priority:0},{region_ids:[]},{region_ids:['NORD','NORD']},{region_ids:['UA_SG']},{scope_id:'unbekannt'}])assert.throws(()=>saveFavorite(s,template(bad)));
 });
 test('Mehrregionen-Vorschau schreibt nichts; Anwendung erzeugt getrennte Zuteilungen, Audit und ELS-Änderungen',()=>{
- const s=demo(),f=saveFavorite(s,template());const before=structuredClone(s);const preview=previewFavorite(s,f.id,request(f),now);assert.equal(preview.assignments.length,2);assert.deepEqual(s,before);
- const result=applyFavorite(s,f.id,request(f),now);assert.deepEqual(result.assignments.map(a=>a.geodependency),['NORD','SÜD']);assert.equal(s.assignments.length,2);assert.equal(s.outbox.length,2);assert.equal(result.assignments[0].priority,2);assert.notEqual(result.assignments[0].assignment_id,result.assignments[1].assignment_id);assert.equal(result.assignments[0].end_on,'2026-10-15T08:00:00+02:00');
+ const s=demo(),f=saveFavorite(s,template());const before=structuredClone(s);const preview=previewFavorite(s,f.id,request(f),now);assert.equal(preview.assignments.length,4);assert.deepEqual(s,before);
+ const result=applyFavorite(s,f.id,request(f),now);assert.deepEqual(result.assignments.map(a=>a.geodependency),['NORD','NORD','SÜD','SÜD']);assert.equal(s.assignments.length,4);assert.equal(s.outbox.length,4);assert.equal(result.assignments[0].priority,2);assert.notEqual(result.assignments[0].assignment_id,result.assignments[1].assignment_id);assert.equal(result.assignments[0].end_on,'2026-10-15T07:00:00+02:00');assert.equal(result.assignments[1].end_on,'2026-10-15T08:00:00+02:00');
  const applied=structuredClone(s);assert.throws(()=>applyFavorite(s,f.id,request(f),now),/Doppel/);assert.deepEqual(s,applied);
 });
 test('Wenn nur eine Region doppelt ist, wird kein Teil des Favoriten geplant',()=>{
@@ -22,8 +22,8 @@ test('Wenn nur eine Region doppelt ist, wird kein Teil des Favoriten geplant',()
 });
 test('Abteilungs- und Gruppenfavoriten berücksichtigen Organisation, nicht Qualifikationen',()=>{
  const s=demo();const f=saveFavorite(s,template({scope_type:'group',scope_id:'demo-gruppe'}));assert.throws(()=>applyFavorite(s,f.id,{...request(f),employee_id:'DEMO-001'},now),/Bereich/);
- assert.equal(previewFavorite(s,f.id,request(f),now).assignments.length,2);
- const d=saveFavorite(s,template({scope_type:'department',scope_id:'demo-abteilung'}));assert.equal(previewFavorite(s,d.id,request(d),now).assignments.length,2);assert.equal(previewFavorite(s,d.id,{...request(d),employee_id:'DEMO-001'},now).assignments.length,2);
+ assert.equal(previewFavorite(s,f.id,request(f),now).assignments.length,4);
+ const d=saveFavorite(s,template({scope_type:'department',scope_id:'demo-abteilung'}));assert.equal(previewFavorite(s,d.id,request(d),now).assignments.length,4);assert.equal(previewFavorite(s,d.id,{...request(d),employee_id:'DEMO-001'},now).assignments.length,4);
 });
 test('Ortsunabhängige Vorlagen und Planung auch an vergangenen Schweizer Daten',()=>{
  const s=demo(),f=saveFavorite(s,template({scope_id:'DEMO-ORT',function_id:'DEMO-ORT',region_ids:[],duration_minutes:45}));const a=applyFavorite(s,f.id,request(f),now).assignments[0];assert.equal(a.geodependency,null);assert.equal(a.end_on,'2026-10-14T07:45:00+02:00');
@@ -34,8 +34,8 @@ test('Feste Schweizer Enduhrzeit über Sommer-/Winterwechsel bei bestehenden und
  const s=demo(),f=saveFavorite(s,template({duration_minutes:1440,region_ids:['NORD']}));
  const spring=previewFavorite(s,f.id,{...request(f),date:'2026-03-28'},instant('2026-03-01T00:00'));assert.equal(spring.assignments[0].end_on,'2026-03-29T07:00:00+02:00');
  assert.equal((instant(spring.assignments[0].end_on)-instant(spring.assignments[0].start_on))/3600000,23);assert.equal(f.end_time,'07:00');assert.equal(f.end_day_offset,1);delete f.end_time;delete f.end_day_offset;
- const autumn=previewFavorite(s,f.id,{...request(f),date:'2026-10-24'},now);assert.equal(autumn.assignments[0].end_on,'2026-10-25T07:00:00+01:00');
- assert.equal((instant(autumn.assignments[0].end_on)-instant(autumn.assignments[0].start_on))/3600000,25);
+ const autumn=previewFavorite(s,f.id,{...request(f),date:'2026-10-24'},now);assert.equal(autumn.end_on,'2026-10-25T07:00:00+01:00');assert.equal(autumn.assignments.length,2);assert.equal(autumn.assignments[0].end_on,autumn.assignments[1].start_on);
+ assert.deepEqual(autumn.assignments.map(a=>(instant(a.end_on)-instant(a.start_on))/3600000),[24,1]);
  assert.throws(()=>previewFavorite(s,f.id,{...request(f),date:'2026-10-25',start_time:'02:30'},now),/Mehrdeutig/);
  assert.equal(previewFavorite(s,f.id,{...request(f),date:'2026-10-25',start_time:'02:30',start_offset:'+01:00'},now).assignments[0].start_on,'2026-10-25T02:30:00+01:00');
 });
@@ -51,7 +51,7 @@ test('Favoritenreihenfolge bleibt gespeichert; Bearbeitung erhält Position und 
 });
 
 test('Feste Endzeiten bei Tagesdiensten, Nachtdiensten und mehrtägigen Favoriten',()=>{
- const s=demo();for(const [start,duration,date,end] of [['07:00',720,'2026-10-24','2026-10-24T19:00:00+02:00'],['19:00',720,'2026-10-24','2026-10-25T07:00:00+01:00'],['19:00',720,'2026-03-28','2026-03-29T07:00:00+02:00'],['07:00',2880,'2026-10-24','2026-10-26T07:00:00+01:00']]){const f=saveFavorite(s,template({start_time:start,duration_minutes:duration}));assert.equal(previewFavorite(s,f.id,{...request(f),date},now).assignments[0].end_on,end);}
+ const s=demo();for(const [start,duration,date,end] of [['07:00',720,'2026-10-24','2026-10-24T19:00:00+02:00'],['19:00',720,'2026-10-24','2026-10-25T07:00:00+01:00'],['19:00',720,'2026-03-28','2026-03-29T07:00:00+02:00'],['07:00',2880,'2026-10-24','2026-10-26T07:00:00+01:00']]){const f=saveFavorite(s,template({start_time:start,duration_minutes:duration}));assert.equal(previewFavorite(s,f.id,{...request(f),date},now).end_on,end);}
 });
 test('Nicht existente und doppelte Schweizer Endzeiten werden nicht still verschoben',()=>{
  const s=demo(),f=saveFavorite(s,template({start_time:'19:00',duration_minutes:450}));
@@ -59,4 +59,20 @@ test('Nicht existente und doppelte Schweizer Endzeiten werden nicht still versch
  assert.throws(()=>previewFavorite(s,f.id,{...request(f),date:'2026-10-24'},now),/Dienstende:.*Mehrdeutig/);
  for(const end_offset of ['+02:00','+01:00'])assert.equal(previewFavorite(s,f.id,{...request(f),date:'2026-10-24',end_offset},now).assignments[0].end_on,'2026-10-25T02:30:00'+end_offset);
  assert.throws(()=>previewFavorite(s,f.id,{...request(f),date:'2026-10-26',end_offset:'+02:00'},now),/Endzeit/);
+});
+
+test('Wildhüter Freitag 16:00 bis Sonntag 24:00 wird atomar in 24/24/8 Stunden pro Region geplant und exportiert',()=>{
+ const s=demo(),f=saveFavorite(s,template({name:'Wildhüter Wochenende',start_weekday:5,start_time:'16:00',duration_minutes:56*60,color:'#a4470c'}));const input={...request(f),date:'2026-10-16'};
+ const before=structuredClone(s),preview=previewFavorite(s,f.id,input,now);assert.deepEqual(s,before);assert.equal(preview.segments_per_region,3);assert.equal(preview.assignments.length,6);assert.equal(preview.end_on,'2026-10-19T00:00:00+02:00');
+ const result=applyFavorite(s,f.id,input,now),north=result.assignments.filter(a=>a.geodependency==='NORD');assert.deepEqual(north.map(a=>[a.start_on,a.end_on]),[['2026-10-16T16:00:00+02:00','2026-10-17T16:00:00+02:00'],['2026-10-17T16:00:00+02:00','2026-10-18T16:00:00+02:00'],['2026-10-18T16:00:00+02:00','2026-10-19T00:00:00+02:00']]);
+ for(const a of result.assignments){assert.ok(instant(a.end_on)-instant(a.start_on)<=86400000);assert.equal(s.assignment_styles[a.assignment_id].color,'#a4470c');}
+ assert.equal(new Set(result.assignments.map(a=>a.assignment_id)).size,6);
+ for(const mode of ['delta','snapshot']){const exported=makeExport(s,mode);assert.equal(exported.changes.length,6);assert.deepEqual(exported.changes.map(a=>a.assignment_id),result.assignments.map(a=>a.assignment_id));assert.ok(exported.changes.every(a=>instant(a.end_on)-instant(a.start_on)<=86400000));}
+ assert.equal(s.audit.findLast(a=>a.entity==='favorite'&&a.action==='apply').after.end_on,'2026-10-19T00:00:00+02:00');
+ const applied=structuredClone(s);assert.throws(()=>applyFavorite(s,f.id,input,now),/Doppel/);assert.deepEqual(s,applied);assert.throws(()=>previewFavorite(s,f.id,{...input,date:'2026-10-17'},now),/Freitag/);
+});
+test('Mehrtagessplitting deckt Zeitumstellungen lückenlos ab und verwirft alle Teilstücke bei einem Konflikt',()=>{
+ const s=demo(),f=saveFavorite(s,template({region_ids:['NORD'],start_time:'16:00',duration_minutes:56*60}));
+ for(const date of ['2026-03-27','2026-10-23']){const r=previewFavorite(s,f.id,{...request(f),date},now);assert.equal(r.assignments.length,3);assert.ok(r.assignments.every(a=>instant(a.end_on)-instant(a.start_on)<=86400000));assert.equal(r.assignments[0].start_on,r.start_on);assert.equal(r.assignments.at(-1).end_on,r.end_on);for(let i=1;i<r.assignments.length;i++)assert.equal(r.assignments[i-1].end_on,r.assignments[i].start_on);}
+ const conflict=saveFavorite(s,template({region_ids:['NORD'],start_time:'16:00',duration_minutes:1440}));applyFavorite(s,conflict.id,{...request(conflict),date:'2026-10-17'},now);const before=structuredClone(s);assert.throws(()=>applyFavorite(s,f.id,{...request(f),date:'2026-10-16'},now),/Doppel/);assert.deepEqual(s,before);
 });
