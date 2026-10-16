@@ -101,3 +101,15 @@ test('Fester Favoriten-Starttag wird bei jedem Klicktag der ISO-Woche gewählt, 
   const r=previewFavorite(s,f.id,{...request(f),date},now);assert.equal(r.start_on,'2027-01-01T16:00:00+01:00');assert.equal(r.end_on,'2027-01-01T18:00:00+01:00');
  }
 });
+test('Immer plant den festen Zeitraum inklusive Enddatum lückenlos in höchstens 24h, unabhängig vom Klicktag',()=>{
+ const s=demo(),f=saveFavorite(s,template({schedule_mode:'continuous',start_date:'2026-10-24',end_date:'2026-10-26',start_time:'07:00',duration_minutes:undefined,region_ids:['NORD','SÜD']}));
+ assert.equal(f.duration_minutes,3900);assert.equal(f.end_time,'00:00');
+ const r=applyFavorite(s,f.id,{...request(f),date:'2020-01-01',start_time:'12:00'},now);assert.equal(r.start_on,'2026-10-24T07:00:00+02:00');assert.equal(r.end_on,'2026-10-27T00:00:00+01:00');assert.equal(r.assignments.length,6);
+ for(const geo of ['NORD','SÜD']){const parts=r.assignments.filter(a=>a.geodependency===geo);assert.deepEqual(parts.map(a=>(instant(a.end_on)-instant(a.start_on))/3600000),[24,24,18]);assert.equal(parts[0].end_on,parts[1].start_on);assert.equal(parts[1].end_on,parts[2].start_on);}
+ const repeat=applyFavorite(s,f.id,{...request(f),date:'2030-01-01'},now);assert.equal(repeat.assignments.length,0);assert.equal(repeat.already_planned,6);assert.equal(makeExport(s,'snapshot').changes.length,6);
+});
+test('Immer validiert beide Daten, Reihenfolge und Startzeit; ein einzelner Tag ist möglich',()=>{
+ const s=demo(),base=template({schedule_mode:'continuous',start_date:'2026-03-29',end_date:'2026-03-29',start_time:'07:00'});
+ const f=saveFavorite(s,base);assert.equal(f.duration_minutes,1020);const r=previewFavorite(s,f.id,request(f),now);assert.equal(r.end_on,'2026-03-30T00:00:00+02:00');
+ for(const bad of [{start_date:null},{end_date:null},{start_date:'2026-02-30'},{end_date:'2026-03-28'},{start_time:'24:00'},{end_date:'2030-01-01'}])assert.throws(()=>saveFavorite(s,{...base,...bad}));
+});

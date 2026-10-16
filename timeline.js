@@ -1,5 +1,5 @@
 import {instant} from './domain.js';
-const palette=['#a4470c','#2563eb','#0891b2','#7c3aed','#d97706','#9d174d'];
+import {dutyColor} from './public/duty-color.js';
 export function timelineBars(assignments,days,styles={}){
  const bounds=days.map(d=>[instant(d.start_on),instant(d.end_on)]);if(!bounds.length)return {bars:[],lanes:1};
  const min=bounds[0][0],max=bounds.at(-1)[1];
@@ -8,8 +8,7 @@ export function timelineBars(assignments,days,styles={}){
  for(const a of [...assignments].sort((a,b)=>instant(a.start_on)-instant(b.start_on)||instant(a.end_on)-instant(b.end_on))){
    const start=Math.max(min,instant(a.start_on)),end=Math.min(max,instant(a.end_on));if(start>=end)continue;
    let lane=ends.findIndex(ms=>ms<=start);if(lane<0)lane=ends.length;ends[lane]=end;
-   const hash=[...String(a.geodependency||a.function_id)].reduce((n,c)=>(n*31+c.charCodeAt(0))>>>0,0);
-   const chosen=styles[a.assignment_id]?.color;const color=/^#[0-9a-f]{6}$/i.test(chosen||'')?chosen:palette[hash%palette.length];
+   const color=dutyColor(a,styles);
    bars.push({...a,left:position(start),width:position(end)-position(start),lane,color});
  }
  return {bars,lanes:Math.max(1,ends.length)};

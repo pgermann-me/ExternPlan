@@ -13,6 +13,8 @@ export function favoriteDurationFromEnd(startTime,endTime,endDayOffset){
  return duration;
 }
 export function favoriteTimeLabel(f){
+ if(f.schedule_mode==='continuous'){const date=d=>String(d||'').split('-').reverse().join('.');return `Immer: ${date(f.start_date)} ${f.start_time} – ${date(f.end_date)} 24:00`;}
+
  if(f.schedule_mode==='weekly')return favoriteWeeklyWindows(f.weekly_windows).map(w=>{const days=['Mo','Di','Mi','Do','Fr','Sa','So'],d=w.weekdays;const label=d.length>1&&d.at(-1)-d[0]===d.length-1?days[d[0]-1]+'–'+days[d.at(-1)-1]:d.map(n=>days[n-1]).join(', ');return label+': '+favoriteTimeLabel(w);}).join('; ');
  const t=favoriteSchedule(f),days=['Mo','Di','Mi','Do','Fr','Sa','So'];
  const endDay=f.start_weekday?' '+days[(f.start_weekday-1+t.end_day_offset)%7]:'';

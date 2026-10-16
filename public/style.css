@@ -146,3 +146,9 @@ body > nav{position:sticky;top:0;z-index:20;box-shadow:0 2px 5px #17384914}
 #undo-planning:disabled{cursor:default}
 
 .next-day-arrow{font-size:1.3em;font-weight:900;line-height:1;display:inline-block;color:#153d55}
+
+/* Clear day boundaries without cutting continuous duty bars at midnight. */
+.function-calendar .month td[data-day]{box-shadow:inset -1px 0 #a8b6c1}
+.function-calendar .month thead th{border-right-color:#a8b6c1}
+.function-calendar .month thead th.control-weekend{background:#d4dce2;color:#4d2730}
+.function-calendar .month thead th.control-weekend .muted{color:#4d2730}
