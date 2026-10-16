@@ -144,3 +144,5 @@ table.month tbody tr:is(:hover,:has(:focus-visible)) > td:first-child{background
 /* Keep the main view tabs accessible while the page scrolls. */
 body > nav{position:sticky;top:0;z-index:20;box-shadow:0 2px 5px #17384914}
 #undo-planning:disabled{cursor:default}
+
+.next-day-arrow{font-size:1.3em;font-weight:900;line-height:1;display:inline-block;color:#153d55}

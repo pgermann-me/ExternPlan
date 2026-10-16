@@ -16,8 +16,8 @@ export function favoriteTimeLabel(f){
  if(f.schedule_mode==='weekly')return favoriteWeeklyWindows(f.weekly_windows).map(w=>{const days=['Mo','Di','Mi','Do','Fr','Sa','So'],d=w.weekdays;const label=d.length>1&&d.at(-1)-d[0]===d.length-1?days[d[0]-1]+'–'+days[d.at(-1)-1]:d.map(n=>days[n-1]).join(', ');return label+': '+favoriteTimeLabel(w);}).join('; ');
  const t=favoriteSchedule(f),days=['Mo','Di','Mi','Do','Fr','Sa','So'];
  const endDay=f.start_weekday?' '+days[(f.start_weekday-1+t.end_day_offset)%7]:'';
- const end=t.end_day_offset===0?'↓'+endDay:t.end_day_offset===1?'→'+endDay:`→${endDay} (+${t.end_day_offset} Tage)`;
- return `${f.start_weekday?days[f.start_weekday-1]+' ':''}↓ ${t.start_time} – ${end} ${t.end_time}`;
+ const end=t.end_day_offset===0?endDay.trim():t.end_day_offset===1?'⇒'+endDay:`⇒${endDay} (+${t.end_day_offset} Tage)`;
+ return `${f.start_weekday?days[f.start_weekday-1]+' ':''}${t.start_time} – ${end?end+' ':''}${t.end_time}`;
 }
 
 export function favoriteWeeklyWindows(windows){

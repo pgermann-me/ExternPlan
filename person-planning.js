@@ -10,7 +10,7 @@ export function personMonth(state, month, functionId, selectedRegions,groupId,de
  const fn=state.functions.find(f=>f.id===functionId&&!f.deleted_at);if(!fn)throw Error('Funktion unbekannt');
  const group=state.groups.find(g=>g.id===groupId&&!g.deleted_at);if(groupId&&!group)throw Error('Gruppe unbekannt');
  const scopedPeople=planningPeople(state,groupId,departmentId);
- const allowed=allowedFunctionRegions(fn,group,state.regions);
+ const allowed=allowedFunctionRegions(fn,group,state.regions,departmentId,state.groups);
  const regions=selectedRegions===undefined?allowed:selectedRegions;
  if(!Array.isArray(regions)||regions.some(g=>!allowed.includes(g)||!state.regions.some(r=>r.id===g&&!r.deleted_at)))throw Error('Region ist für Funktion und Gruppe nicht zulässig');
  const days=Array.from({length:start.daysInMonth},(_,i)=>start.plus({days:i}));

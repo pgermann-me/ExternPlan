@@ -1,5 +1,5 @@
 import {favoriteSchedule,favoriteWeeklyWindows} from './public/favorite-time.js';
-import {personGroupIds,personDepartmentIds,allowedFunctionRegions,validatePlanningGroup} from './public/organization.js';
+import {personGroupIds,personDepartmentIds,allowedFunctionRegions,validatePlanningGroup,scopeAllows} from './public/organization.js';
 import {DateTime} from 'luxon';
 import {id,instant,iso,validateAssignment,change,audit,zone} from './domain.js';
 const defaultColor='#2563eb';
@@ -11,6 +11,8 @@ export function validateFavorite(s,p){
  const collection=scopeTypes[p.scope_type];
  if(!collection||!s[collection].some(x=>x.id===p.scope_id&&live(x)))throw Error('Funktion, Abteilung oder Gruppe für den Favoriten wählen');
  const fn=s.functions.find(f=>f.id===p.function_id&&live(f));if(!fn)throw Error('Pikett-Funktion fehlt oder wurde gelöscht');
+ const context={group_id:p.scope_type==='group'?p.scope_id:null,department_id:p.scope_type==='department'?p.scope_id:null,function_id:fn.id};
+ if(!scopeAllows(fn,context,s.groups)||p.region_ids?.some(id=>{const r=s.regions.find(r=>r.id===id);return r&&!scopeAllows(r,context,s.groups);}))throw Error('Favorit passt nicht zu den Einschränkungen der Funktion oder Gebiete');
  if(p.scope_type==='function'&&p.scope_id!==p.function_id)throw Error('Ein Funktionsfavorit muss diese Funktion verwenden');
  if(p.schedule_mode&&!['single','weekly'].includes(p.schedule_mode))throw Error('Unbekanntes Zeitmodell');
  if(p.schedule_mode==='weekly')favoriteWeeklyWindows(p.weekly_windows);
@@ -46,8 +48,8 @@ export function previewFavorite(s,key,input,now=Date.now()){
  const today=DateTime.fromMillis(now,{zone}).toISODate();
  const date=input.date||today;const d=DateTime.fromISO(date,{zone});
  if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||!d.isValid)throw Error('Ungültiges Dienst-Datum');
- if(f.schedule_mode!=='weekly'&&f.start_weekday!=null&&d.weekday!==f.start_weekday)throw Error('Dieser Favorit beginnt am '+['Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag','Sonntag'][f.start_weekday-1]);
- const windows=f.schedule_mode==='weekly'?favoriteWeeklyWindows(f.weekly_windows).flatMap(w=>w.weekdays.map(day=>({...w,date:d.startOf('week').plus({days:day-1})}))):[{...f,date:d}];
+
+ const windows=f.schedule_mode==='weekly'?favoriteWeeklyWindows(f.weekly_windows).flatMap(w=>w.weekdays.map(day=>({...w,date:d.startOf('week').plus({days:day-1})}))):[{...f,date:f.start_weekday?d.startOf('week').plus({days:f.start_weekday-1}):d}];
  const segments=[];let overallStart=Infinity,overallEnd=-Infinity;
  for(const window of windows){
  const time=(f.schedule_mode!=='weekly'&&input.start_time)||window.start_time;if(!/^([01]\d|2[0-3]):[0-5]\d$/.test(time))throw Error('Beginn als HH:mm erforderlich');

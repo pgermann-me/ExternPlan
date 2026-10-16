@@ -69,7 +69,7 @@ test('Wildhüter Freitag 16:00 bis Sonntag 24:00 wird atomar in 24/24/8 Stunden 
  assert.equal(new Set(result.assignments.map(a=>a.assignment_id)).size,6);
  for(const mode of ['delta','snapshot']){const exported=makeExport(s,mode);assert.equal(exported.changes.length,6);assert.deepEqual(exported.changes.map(a=>a.assignment_id),result.assignments.map(a=>a.assignment_id));assert.ok(exported.changes.every(a=>instant(a.end_on)-instant(a.start_on)<=86400000));}
  assert.equal(s.audit.findLast(a=>a.entity==='favorite'&&a.action==='apply').after.end_on,'2026-10-19T00:00:00+02:00');
- const applied=structuredClone(s);assert.throws(()=>applyFavorite(s,f.id,input,now),/Doppel/);assert.deepEqual(s,applied);assert.throws(()=>previewFavorite(s,f.id,{...input,date:'2026-10-17'},now),/Freitag/);
+ const applied=structuredClone(s);assert.throws(()=>applyFavorite(s,f.id,input,now),/Doppel/);assert.deepEqual(s,applied);assert.equal(previewFavorite({...s,assignments:[]},f.id,{...input,date:'2026-10-17'},now).start_on,'2026-10-16T16:00:00+02:00');
 });
 test('Mehrtagessplitting deckt Zeitumstellungen lückenlos ab und verwirft alle Teilstücke bei einem Konflikt',()=>{
  const s=demo(),f=saveFavorite(s,template({region_ids:['NORD'],start_time:'16:00',duration_minutes:56*60}));
@@ -94,4 +94,10 @@ test('JUGA: vorhandener Montag bleibt erhalten und Dienstag bis Freitag werden e
 test('Wochenfenster validieren Überschneidungen einschliesslich Sonntag/Montag; andere Priorität verhindert die gesamte Planung',()=>{
  for(const windows of [[],[{...weeklyWindows[0],weekdays:[]}],[{...weeklyWindows[0],weekdays:[0]}],[{...weeklyWindows[0],end_time:'12:00'}],[weeklyWindows[0],{...weeklyWindows[0],start_time:'13:00',end_time:'15:00'}],[{weekdays:[7],start_time:'17:00',end_time:'08:00',end_day_offset:1},{weekdays:[1],start_time:'07:00',end_time:'09:00',end_day_offset:0}]]){const s=demo();assert.throws(()=>saveFavorite(s,template({schedule_mode:'weekly',weekly_windows:windows})));assert.equal((s.favorites||[]).length,0);}
  const s=demo(),single=saveFavorite(s,template({start_time:'17:00',duration_minutes:900,priority:1,region_ids:['NORD']}));applyFavorite(s,single.id,{...request(single),date:'2026-10-13'},now);const f=saveFavorite(s,template({schedule_mode:'weekly',weekly_windows:weeklyWindows,region_ids:['NORD']})),before=structuredClone(s);assert.throws(()=>applyFavorite(s,f.id,{...request(f),date:'2026-10-12'},now),/Doppel/);assert.deepEqual(s,before);
+});
+test('Fester Favoriten-Starttag wird bei jedem Klicktag der ISO-Woche gewählt, auch über den Jahreswechsel',()=>{
+ const s=demo(),f=saveFavorite(s,template({region_ids:['NORD'],duration_minutes:120,start_weekday:5,start_time:'16:00'}));
+ for(const date of ['2026-12-28','2026-12-29','2026-12-30','2026-12-31','2027-01-01','2027-01-02','2027-01-03']){
+  const r=previewFavorite(s,f.id,{...request(f),date},now);assert.equal(r.start_on,'2027-01-01T16:00:00+01:00');assert.equal(r.end_on,'2027-01-01T18:00:00+01:00');
+ }
 });

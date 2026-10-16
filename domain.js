@@ -1,3 +1,4 @@
+import {personScopeAllows} from './public/organization.js';
 import { DateTime } from 'luxon';
 import { randomUUID } from 'node:crypto';
 import { simulatedElsAdapter } from './adapters/els.js';
@@ -58,7 +59,9 @@ export function coverage(s,function_id,geo,a,b) {
 export function validateAssignment(s,input,previous) {
   const person=s.people.find(p=>p.employee_id===input.employee_id&&!p.deleted_at);const f=s.functions.find(f=>f.id===input.function_id&&!f.deleted_at);
   if(!person||!f)throw Error('Person oder Funktion fehlt');
+  if(!personScopeAllows(s,f,person,f.id))throw Error('Funktion ist für die Abteilungen oder Gruppen dieser Person nicht zulässig');
   const geo=input.geodependency??null;if(geo!==null&&!s.regions.some(r=>r.id===geo&&!r.deleted_at))throw Error('Gebiet wurde gelöscht oder ist unbekannt');
+  if(geo&&!personScopeAllows(s,s.regions.find(r=>r.id===geo),person,f.id))throw Error('Gebiet ist für die Abteilungen, Gruppen oder Funktion dieser Person nicht zulässig');
   if(f.geo_ids.length?!f.geo_ids.includes(geo):geo!==null)throw Error(f.geo_ids.length?'Ein zugeordnetes Pflichtgebiet wählen':'Ortsunabhängige Funktion benötigt geodependency: null');
   if(!Number.isInteger(input.priority)||input.priority<1)throw Error('Priorität muss eine positive ganze Zahl sein');
   const a=instant(input.start_on),b=instant(input.end_on);if(b<=a)throw Error('Ende muss nach Beginn liegen');
