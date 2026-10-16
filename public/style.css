@@ -157,3 +157,5 @@ body > nav{position:sticky;top:0;z-index:20;box-shadow:0 2px 5px #17384914}
 .duty-selection-mode .timeline-day,.duty-selection-mode .duty-bar{cursor:crosshair}
 .timeline .duty-bar.duty-selected{outline:2px solid #071e39;outline-offset:2px;box-shadow:0 0 0 4px #fff!important;z-index:4}
 .duty-selection-box{position:fixed;pointer-events:none;z-index:30;border:2px solid #1769aa;background:#2989cf25}
+
+.favorite-sidebar-actions{flex-wrap:wrap;margin:8px 0}.favorite-sidebar-actions button{padding:6px 8px}
