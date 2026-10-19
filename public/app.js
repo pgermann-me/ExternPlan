@@ -12,7 +12,7 @@ import {swissTime,swissDate,localDate,localDateTime,displayTimes} from './time.j
 const $=s=>document.querySelector(s);const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let elsTab='files';
 let masterTab='departments',planningDepartment='',personDepartment='';
-let state,view='planning',month=new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Zurich',year:'numeric',month:'2-digit'}).format(new Date()),department='',group='',personSearch='',functionFilter='',planningGroup='',personFunction='',personGroup='',selectedFavoriteId='',personRegions=null,personPlanningMonth=month,importRows=[];
+let state,view='planning',month=new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Zurich',year:'numeric',month:'2-digit'}).format(new Date()),department='',group='',personSearch='',functionFilter='',planningGroup='',personFunction=null,personGroup='',selectedFavoriteId='',personRegions=null,personPlanningMonth=month,importRows=[];
 let peopleList=true,lastPlanningUndo=null;
 let favoritesHidden=false;try{favoritesHidden=localStorage.getItem('externplan.personFavoritesHidden')==='true';}catch{}
 let coarseMode=false;try{coarseMode=localStorage.getItem('externplan.coarseCalendar')==='true';}catch{}
@@ -112,17 +112,21 @@ async function render(){disposeSplitPanel();disposeSplitPanel=()=>{};document.qu
    if(!state.functions.length){c.innerHTML='<h1>Planung</h1><p>Zuerst eine Funktion anlegen.</p>';return;}
    const functions=availableFunctions(state,personGroup,personDepartment);
    if(!functions.length){c.innerHTML=`<h1>Planung</h1><p>Keine Funktionen für diese Filter verfügbar.</p><div class="toolbar"><select id="empty-department">${options(state.departments,'id','name',personDepartment).replace('— wählen —','Alle Abteilungen')}</select><select id="empty-group">${options(groups,'id','name',personGroup).replace('— wählen —','Alle Gruppen')}</select></div>`;$('#empty-department').onchange=safe(async e=>{personDepartment=e.target.value;personGroup='';await refresh();});$('#empty-group').onchange=safe(async e=>{personGroup=e.target.value;await refresh();});return;}
-   const f=functions.find(f=>f.id===personFunction)||functions[0];
-   if(personFunction!==f.id||personRegions===null){personFunction=f.id;personRegions=allowedFunctionRegions(f,state.groups.find(g=>g.id===personGroup),state.regions,personDepartment,state.groups);}
-   personRegions=personRegions.filter(g=>allowedFunctionRegions(f,state.groups.find(g=>g.id===personGroup),state.regions,personDepartment,state.groups).includes(g));
-   const params=new URLSearchParams({month:personPlanningMonth,function_id:f.id,...(personDepartment?{department_id:personDepartment}:{}),...(personGroup?{group_id:personGroup}:{})});
+   if(personFunction===null)personFunction=functions[0].id;
+   if(personFunction&&!functions.some(f=>f.id===personFunction))personFunction='';
+   const selectedFunctions=personFunction?functions.filter(f=>f.id===personFunction):functions;
+   const allowedRegions=[...new Set(selectedFunctions.flatMap(f=>allowedFunctionRegions(f,state.groups.find(g=>g.id===personGroup),state.regions,personDepartment,state.groups)))];
+   const f={id:personFunction,geo_ids:selectedFunctions.flatMap(f=>f.geo_ids)};
+   if(personRegions===null)personRegions=[...allowedRegions];
+   personRegions=personRegions.filter(g=>allowedRegions.includes(g));
+   const params=new URLSearchParams({month:personPlanningMonth,...(personFunction?{function_id:personFunction}:{}),...(personDepartment?{department_id:personDepartment}:{}),...(personGroup?{group_id:personGroup}:{})});
    if(personRegions.length)personRegions.forEach(g=>params.append('region_id',g));else params.append('region_id','');
    const result=await api('/person-month?'+params);
    personPlanningEmployeeIds=result.rows.map(p=>p.employee_id);
    if(selectedFavoriteId&&!state.favorites.some(f=>f.id===selectedFavoriteId&&personFavoriteMatches(f)))selectedFavoriteId='';
-   const geos=state.regions.filter(r=>allowedFunctionRegions(f,state.groups.find(g=>g.id===personGroup),state.regions,personDepartment,state.groups).includes(r.id));
+   const geos=state.regions.filter(r=>allowedRegions.includes(r.id));
    c.innerHTML=`<h1>Planung</h1><p class="muted">Alle Personen gemäss Abteilungs- und Gruppenfilter, auch ohne Pikettdienst · Schweizer Zeit · Ende exklusiv</p>
-   <div class="toolbar"><input type="month" id="person-month" value="${personPlanningMonth}" aria-label="Monat"><select id="person-department" aria-label="Abteilung">${options(state.departments,'id','name',personDepartment).replace('— wählen —','Alle Abteilungen')}</select><select id="person-group" aria-label="Gruppe">${options(groups,'id','name',personGroup).replace('— wählen —','Alle Gruppen')}</select><select id="person-function" aria-label="Funktion">${options(functions,'id','name',f.id,false)}</select>
+   <div class="toolbar"><input type="month" id="person-month" value="${personPlanningMonth}" aria-label="Monat"><select id="person-department" aria-label="Abteilung">${options(state.departments,'id','name',personDepartment).replace('— wählen —','Alle Abteilungen')}</select><select id="person-group" aria-label="Gruppe">${options(groups,'id','name',personGroup).replace('— wählen —','Alle Gruppen')}</select><select id="person-function" aria-label="Funktion">${options(functions,'id','name',f.id).replace('— wählen —','Alle Funktionen')}</select>
    ${f.geo_ids.length?`<details class="region-filter"><summary>${personRegions.length===1?'Region: '+esc(regionName(personRegions[0])):'Regionen: '+personRegions.length+' von '+geos.length}</summary><div><div class="actions"><button type="button" id="all-person-regions" class="secondary">Alle wählen</button><button type="button" id="no-person-regions" class="secondary">Auswahl leeren</button></div>${geos.map(g=>`<label class="check-option"><input type="checkbox" data-person-region="${esc(g.id)}" ${personRegions.includes(g.id)?'checked':''}>${esc(g.name)}</label>`).join('')}</div></details>`:'<span class="muted">Ortsunabhängige Funktion · keine Region erforderlich</span>'}
    <span id="person-count">${result.rows.length} Personen</span>${calendarModeToggle()}<button id="toggle-person-favorites" class="secondary" aria-expanded="${!favoritesHidden}" aria-controls="person-favorites">Favoriten ${favoritesHidden?'einblenden':'ausblenden'}</button><button id="undo-planning" class="secondary" ${lastPlanningUndo?'':'disabled'} title="Letzte Zuteilung, Bearbeitung, Löschung oder Favoritenplanung rückgängig machen">↶ Rückgängig</button><button id="add-person-duty">+ Zuteilung</button><button id="select-duties" class="secondary" aria-pressed="false">Dienste auswählen</button><button id="delete-selected-duties" class="danger" hidden disabled>0 Dienste löschen</button></div><p id="duty-selection-status" class="small muted" role="status" hidden></p>
    <p class="small muted">${coarseMode?'Grobe Tagesansicht: Dienste nur am Starttag, gleichmässig auf das Tagesfeld verteilt. ':''}Gesamtgebiets-Dienste werden bei ausdrücklich abgedeckten Teilregionen ebenfalls angezeigt, jeweils einmal. Jede Zelle enthält die tatsächlichen Zuteilungen; Unbeschriftete Balken zeigen den zeitlichen Verlauf. Details erscheinen per Klick oder beim Darüberfahren.</p>
@@ -145,7 +149,7 @@ async function render(){disposeSplitPanel();disposeSplitPanel=()=>{};document.qu
    $('#person-group').onchange=safe(async e=>{personGroup=e.target.value;personRegions=null;await refresh();});
    $('#person-function').onchange=safe(async e=>{if(personFunction===e.target.value)return;personFunction=e.target.value;personRegions=null;await refresh();});
    document.querySelectorAll('[data-person-region]').forEach(x=>x.onchange=safe(async()=>{personRegions=[...document.querySelectorAll('[data-person-region]:checked')].map(x=>x.dataset.personRegion);await refresh();$('.region-filter').open=true;}));
-   if(f.geo_ids.length){$('#all-person-regions').onclick=safe(async()=>{personRegions=allowedFunctionRegions(f,state.groups.find(g=>g.id===personGroup),state.regions,personDepartment,state.groups);await refresh();$('.region-filter').open=true;});$('#no-person-regions').onclick=safe(async()=>{personRegions=[];await refresh();$('.region-filter').open=true;});}
+   if(f.geo_ids.length){$('#all-person-regions').onclick=safe(async()=>{personRegions=[...allowedRegions];await refresh();$('.region-filter').open=true;});$('#no-person-regions').onclick=safe(async()=>{personRegions=[];await refresh();$('.region-filter').open=true;});}
    document.querySelectorAll('[data-person-day]').forEach(td=>td.onclick=safe(async()=>{
      const row=result.rows.find(r=>r.employee_id===td.dataset.employee),cell=row.cells[result.days.indexOf(td.dataset.personDay)];if(!favoritesHidden&&selectedFavoriteId){await planSelectedPersonFavorite(row.employee_id,td.dataset.personDay,f.id);return;}
      modal(`<h2>${esc(row.name)} · ${swissDate(td.dataset.personDay)}</h2>${cell.assignments.map(a=>`<p><button type="button" data-person-edit="${a.assignment_id}">${esc(a.geodependency?regionName(a.geodependency):'Ortsunabhängig')} · P${a.priority}</button><br>${esc(swissTime(a.start_on))} → ${esc(swissTime(a.end_on))}</p>`).join('')||'<p>Kein Dienst an diesem Tag</p>'}<button type="button" id="new-person-duty">+ Zuteilung</button>`,async()=>{});
@@ -414,7 +418,7 @@ function favoriteApplyDialog(defaults={}){
 
 async function planSelectedPersonFavorite(employeeId,date,functionId){
  const f=state.favorites.find(f=>f.id===selectedFavoriteId),p=state.people.find(p=>p.employee_id===employeeId),g=state.groups.find(g=>g.id===personGroup);
- if(!f||!personFavoriteMatches(f)||f.function_id!==functionId||!favoriteAvailable(f,g)||!p||!favoritePersonMatches(f,p))throw Error('Der gewählte Favorit passt nicht zu dieser Person oder Gruppenauswahl. Bitte einen passenden Favoriten wählen.');
+ if(!f||!personFavoriteMatches(f)||(functionId&&f.function_id!==functionId)||!favoriteAvailable(f,g)||!p||!favoritePersonMatches(f,p))throw Error('Der gewählte Favorit passt nicht zu dieser Person oder Gruppenauswahl. Bitte einen passenden Favoriten wählen.');
  const key=[f.id,employeeId,date].join('/');if(pendingFavoritePlans.has(key))return;pendingFavoritePlans.add(key);
  try{const result=await api('/favorites/'+f.id+'/apply','POST',{employee_id:employeeId,date,revision:f.revision,planning_department_id:personDepartment||null,planning_group_id:personGroup||null});message((result.assignments.length?`${result.assignments.length} Pikettdienste über Favorit geplant`:'Favorit bereits vollständig eingeplant')+(result.already_planned?' · '+result.already_planned+' bereits vorhanden':'')+(result.warnings.length?' · '+result.warnings.join(' · '):''));await refresh();}finally{pendingFavoritePlans.delete(key);}
 }

@@ -27,3 +27,9 @@ test('Gruppen- und Abteilungsfavoriten bleiben auf ausgewählte Organisation bes
  assert.equal(matches(s,favorite({scope_type:'group',scope_id:'andere-gruppe'}),{...noGroup,department_id:'demo-abteilung'}),false);assert.equal(matches(s,favorite({scope_type:'department',scope_id:'andere'}),{...noGroup,department_id:'demo-abteilung'}),false);assert.equal(matches(s,favorite({scope_type:'department',scope_id:'andere'}),{...noGroup,department_id:'andere'}),true);
  s.groups[1].deleted_at='2026-10-15';assert.equal(matches(s,favorite({scope_type:'group',scope_id:'andere-gruppe'}),noGroup),false);
 });
+
+test('Alle Funktionen lässt passende Favoriten verschiedener Funktionen zu',()=>{
+ const s=demo();assert.equal(matches(s,favorite(),context({function_id:''})),true);
+ assert.equal(matches(s,favorite({scope_id:'DEMO-ORT',function_id:'DEMO-ORT',region_ids:[]}),context({function_id:''})),true);
+ assert.equal(matches(s,favorite({region_ids:['SÜD']}),context({function_id:''})),false);
+});

@@ -2,7 +2,7 @@ import {personGroupIds,personDepartmentIds,allowedFunctionRegions,scopeAllows,pe
 // All preset regions must fit: applying a preset never silently drops regions.
 export function favoriteMatchesContext(state,f,context){
  const fn=state.functions.find(x=>x.id===f.function_id&&!x.deleted_at);
- if(f.deleted_at||!fn||fn.id!==context.function_id||!scopeAllows(fn,context,state.groups))return false;
+ if(f.deleted_at||!fn||(context.function_id&&fn.id!==context.function_id)||!scopeAllows(fn,context,state.groups))return false;
  const group=state.groups.find(g=>g.id===context.group_id&&!g.deleted_at);
  if(context.group_id&&!group)return false;
  const collections={function:'functions',group:'groups',department:'departments'};

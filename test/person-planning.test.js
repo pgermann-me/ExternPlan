@@ -40,3 +40,15 @@ test('Leere Monate behalten aktive Personen, Gruppen und Tagesfelder gemäss Abt
  assert.equal(personMonth(s,'2026-11','DEMO-ORT',[],null,'OTHER').rows[0].employee_id,'OTHER');assert.equal(personMonth(s,'2026-11','DEMO-KTD',[]).rows.length,3);
  s.people.forEach(p=>p.deleted_at='2026-01-01');assert.equal(personMonth(s,'2026-11','DEMO-KTD',['NORD']).rows.length,0);
 });
+
+test('Alle Funktionen zeigt regionale und ortsunabhängige Dienste gemeinsam und behält Filter bei',()=>{
+ const s=demo();const north=add(s);const south=add(s,{employee_id:'DEMO-EXT-001',geodependency:'SÜD'});const independent=add(s,{function_id:'DEMO-ORT',geodependency:null});
+ const ids=r=>r.rows.flatMap(p=>p.bars.map(b=>b.assignment_id)).sort();
+ const all=personMonth(s,'2026-10','');assert.equal(all.function_id,null);assert.equal(all.rows.length,2);assert.deepEqual(ids(all),[north.assignment_id,south.assignment_id,independent.assignment_id].sort());
+ assert.deepEqual(ids(personMonth(s,'2026-10','',['NORD'])),[north.assignment_id,independent.assignment_id].sort());
+ assert.deepEqual(ids(personMonth(s,'2026-10','',undefined,'demo-gruppe')),[south.assignment_id]);
+ const empty=personMonth(s,'2026-11','');assert.equal(empty.rows.length,2);assert.deepEqual(ids(empty),[]);
+ s.functions.find(f=>f.id==='DEMO-ORT').department_ids=['OTHER'];
+ assert.deepEqual(ids(personMonth(s,'2026-10','',undefined,null,'demo-abteilung')),[north.assignment_id,south.assignment_id].sort());
+ assert.throws(()=>personMonth(s,'2026-10','',['UNKNOWN']));
+});
