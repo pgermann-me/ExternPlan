@@ -7,7 +7,7 @@ import {resolve} from 'node:path';
 import {timelineBars} from './timeline.js';
 import {personGroupIds,allowedFunctionRegions,validatePlanningGroup,planningPeople,controlFunctions,validateScopeRestrictions} from './public/organization.js';
 import express from 'express';
-import { authentication } from './auth.js';
+import {installAccounts,roleViews} from './accounts.js';
 import { manualPerson,deletePerson } from './people.js';
 import { personMonth } from './person-planning.js';
 import {active,publicState,deleteMaster} from './master-data.js';
@@ -30,10 +30,11 @@ if(!testFixtures&&cleanupNeeded(read()))mutate(s=>{
  const backup=resolve(dataDir,'backup-before-ktd-cleanup-'+id()+'.json');writeFileSync(backup,JSON.stringify(s),{mode:0o600,flag:'wx'});
  const result=removeKtdAndExamplePeople(s);console.log('KTD-/Beispielbereinigung abgeschlossen; Sicherung: '+backup);return result;
 });
-const app=express();if(process.env.TRUST_PROXY==='1')app.set('trust proxy',1);app.disable('x-powered-by');app.use(authentication());app.use(express.json({limit:'10mb'}));
+const app=express();if(process.env.TRUST_PROXY==='1')app.set('trust proxy',1);app.disable('x-powered-by');app.use(express.json({limit:'10mb'}));
 app.use((req,res,next)=>{res.setHeader('X-Content-Type-Options','nosniff');if(!['GET','HEAD'].includes(req.method)&&req.headers.origin&&req.headers.origin!==`${req.protocol}://${req.headers.host}`)return res.status(403).json({error:'Fremder Ursprung nicht zugelassen'});next();});
+installAccounts(app,db,{dataDir,recordAudit:(action,before,after,actor)=>{const s=read();audit(s,'user',action,before,after);if(actor)s.audit.at(-1).actor=actor;db.prepare('UPDATE state SET data=? WHERE id=1').run(JSON.stringify(s));}});
 app.post('/api/planning/undo',(req,res)=>res.json(mutate(s=>undoPlanning(s,req.body.token))));
-app.get('/api/state',(req,res)=>res.json(publicState(read())));
+app.get('/api/state',(req,res)=>{const state=publicState(read());if(req.user.role!=='admin')for(const key of ['audit','exports','person_exports','outbox','els'])delete state[key];res.json({...state,current_user:req.user,allowed_views:roleViews[req.user.role]});});
 app.get('/api/health',(req,res)=>res.json({status:'ok',database:!!read(),timezone:zone}));
 function assignmentStyle(s,a,input){if(input.color===undefined)return;if(!/^#[0-9a-f]{6}$/i.test(input.color))throw Error('Ungültige Dienstfarbe');s.assignment_styles??={};s.assignment_styles[a.assignment_id]={...s.assignment_styles[a.assignment_id],color:input.color};}
 app.post('/api/assignments/delete-many',(req,res)=>res.json(mutate(s=>planningChange(s,()=>{
@@ -95,5 +96,5 @@ app.post('/api/import/commit',(req,res)=>res.json(mutate(s=>{const {type,rows,ma
 app.get('/vendor/html2canvas.js',(req,res)=>res.sendFile(resolve('node_modules/html2canvas/dist/html2canvas.min.js')));
 app.get('/vendor/jspdf.js',(req,res)=>res.sendFile(resolve('node_modules/jspdf/dist/jspdf.umd.min.js')));
 app.use(express.static('public'));
-app.use((err,req,res,next)=>res.status(400).json({error:err.message}));
+app.use((err,req,res,next)=>res.status(err.status||400).json({error:err.message}));
 const server=app.listen(Number(process.env.PORT||3000),process.env.HOST||'127.0.0.1',()=>console.log(`ExternPlan läuft auf Port ${server.address().port}`));

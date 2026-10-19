@@ -1,3 +1,4 @@
+import {actorContext} from './request-context.js';
 import {personScopeAllows} from './public/organization.js';
 import { DateTime } from 'luxon';
 import { randomUUID } from 'node:crypto';
@@ -84,7 +85,7 @@ export function validateAssignment(s,input,previous) {
 export function demo() {
  return {example_data:true,departments:[{id:'demo-abteilung',name:'Beispiel: Einsatz'}],groups:[{id:'demo-gruppe',name:'Beispiel: Externe',department_id:'demo-abteilung'}],people:[{employee_id:'DEMO-001',name:'Beispielperson Anna',source:'SAP',external_id:'DEMO-001',department_id:'demo-abteilung',group_id:null,contacts:[{type:'Telefon',value:'Beispiel – keine echte Nummer',priority:1}]},{employee_id:'DEMO-EXT-001',name:'Beispielperson Marco',source:'manual',external_id:null,department_id:null,group_id:'demo-gruppe',contacts:[]}],regions:[{id:'NORD',name:'Beispiel NORD'},{id:'SÜD',name:'Beispiel SÜD'},{id:'GANZ',name:'Beispiel GANZ'}],functions:[{id:'DEMO-KTD',name:'KTD Pikett',geo_ids:['NORD','SÜD','GANZ'],covers:{GANZ:['NORD','SÜD']},example:true},{id:'DEMO-ORT',name:'Beispiel: ortsunabhängiges Pikett',geo_ids:[],covers:{},example:true}],rules:[{id:id(),function_id:'DEMO-KTD',geo_id:null,mode:'continuous',windows:[],valid_from:null,valid_until:null}],assignments:[],outbox:[],exports:[],audit:[],els:{people:{},assignments:{},errors:[]}};
 }
-export function audit(s,entity,action,before,after){s.audit.push({id:id(),at:new Date().toISOString(),actor:'Lokaler Planer (Simulation)',entity,action,before,after});}
+export function audit(s,entity,action,before,after){s.audit.push({id:id(),at:new Date().toISOString(),actor:actorContext.getStore()||'Lokaler Planer (Simulation)',entity,action,before,after});}
 export function change(s,action,assignment){s.outbox.push({action,...assignment});}
 export function makeExport(s,mode='delta') {
  if(!['delta','snapshot'].includes(mode))throw Error('Unbekannter Exportmodus');

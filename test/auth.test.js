@@ -1,6 +1,0 @@
-import test from 'node:test';
-import assert from 'node:assert/strict';
-import {authentication} from '../auth.js';
-const invoke=(auth,header,path='/api/state')=>{let next=false,status=200,headers={};const res={setHeader(k,v){headers[k]=v;},status(n){status=n;return this;},send(){return this;}};auth({method:'GET',path,headers:{authorization:header}},res,()=>{next=true;});return {next,status,headers};};
-test('Hosting startet ohne vollständigen, ausreichend langen Zugriffsschutz nicht',()=>{assert.throws(()=>authentication({REQUIRE_AUTH:'true'}));assert.throws(()=>authentication({REQUIRE_AUTH:'true',APP_USERNAME:'planer',APP_PASSWORD:'kurz'}));assert.throws(()=>authentication({APP_USERNAME:'planer'}));assert.equal(invoke(authentication({})).next,true);});
-test('Basic Auth schützt Oberfläche und Daten, Healthcheck bleibt erreichbar',()=>{const auth=authentication({REQUIRE_AUTH:'true',APP_USERNAME:'planer',APP_PASSWORD:'nur-ein-testpasswort-123'});assert.equal(invoke(auth).status,401);assert.equal(invoke(auth,undefined,'/').status,401);assert.equal(invoke(auth,undefined,'/api/health').next,true);const good='Basic '+Buffer.from('planer:nur-ein-testpasswort-123').toString('base64');assert.equal(invoke(auth,good).next,true);assert.equal(invoke(auth,'Basic '+Buffer.from('planer:falsch').toString('base64')).status,401);});

@@ -21,7 +21,5 @@ services:
         value: "1"
       - key: REQUIRE_AUTH
         value: "true"
-      - key: APP_USERNAME
-        value: planer
       - key: APP_PASSWORD
         generateValue: true
