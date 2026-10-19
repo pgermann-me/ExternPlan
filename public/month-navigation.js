@@ -27,5 +27,5 @@ export function halfMonthResult(result,half,next){
   return {...(a||b),cells,bars,lanes:Math.max(1,ends.length)};
  });
  if(rows.some(row=>row.employee_id))rows.sort((a,b)=>a.name.localeCompare(b.name,'de-CH'));
- return {...result,days:[...result.days,...next.days].slice(offset,end),...(result.day_meta?{day_meta:[...result.day_meta,...next.day_meta].slice(offset,end)}:{}),rows};
+ return {...result,...(result.coverage_statuses?{coverage_statuses:[...result.coverage_statuses,...next.coverage_statuses].slice(offset,end)}:{}),days:[...result.days,...next.days].slice(offset,end),...(result.day_meta?{day_meta:[...result.day_meta,...next.day_meta].slice(offset,end)}:{}),rows};
 }

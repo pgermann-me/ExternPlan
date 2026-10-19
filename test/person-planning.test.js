@@ -52,3 +52,14 @@ test('Alle Funktionen zeigt regionale und ortsunabhängige Dienste gemeinsam und
  assert.deepEqual(ids(personMonth(s,'2026-10','',undefined,null,'demo-abteilung')),[north.assignment_id,south.assignment_id].sort());
  assert.throws(()=>personMonth(s,'2026-10','',['UNKNOWN']));
 });
+
+test('Tagesstatus der Planung berücksichtigt Regionen, Gruppen und ortsunabhängige Funktionen',()=>{
+ const s=demo();add(s,{start_on:'2026-10-07T00:00',end_on:'2026-10-08T00:00'});
+ assert.equal(personMonth(s,'2026-10','DEMO-KTD',['NORD']).coverage_statuses[6],'vollständig besetzt');
+ assert.equal(personMonth(s,'2026-10','DEMO-KTD',['NORD','SÜD']).coverage_statuses[6],'teilweise besetzt');
+ assert.equal(personMonth(s,'2026-10','DEMO-KTD',['NORD'],'demo-gruppe').coverage_statuses[6],'unbesetzt');
+ assert.equal(personMonth(s,'2026-10','DEMO-KTD',[]).coverage_statuses[6],'kein Pikett erforderlich');
+ assert.equal(personMonth(s,'2026-10','DEMO-ORT',[]).coverage_statuses[6],'kein Pikett erforderlich');
+ assert.equal(personMonth(s,'2026-10','',['NORD']).coverage_statuses[6],'vollständig besetzt');
+ assert.equal(personMonth(s,'2026-10','DEMO-KTD',['NORD']).coverage_statuses[7],'unbesetzt');
+});

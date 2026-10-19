@@ -1,7 +1,7 @@
 import {personGroupIds,allowedFunctionRegions,planningPeople,personScopeAllows,availableFunctions} from './public/organization.js';
 import { DateTime } from 'luxon';
 import {timelineBars} from './timeline.js';
-import { instant, overlap, iso, zone } from './domain.js';
+import { instant, overlap, iso, zone, coverage } from './domain.js';
 const planningName=p=>p.last_name&&p.first_name?`${p.last_name} ${p.first_name}`:p.name;
 // Active people remain available for planning in empty months; archived people appear only with historical duties.
 export function personMonth(state, month, functionId, selectedRegions,groupId,departmentId) {
@@ -21,6 +21,12 @@ export function personMonth(state, month, functionId, selectedRegions,groupId,de
    const allowedForFunction=allowedFunctionRegions(fn,group,state.regions,departmentId,state.groups);
    return (!fn.geo_ids.length?a.geodependency===null:regions.some(g=>allowedForFunction.includes(g)&&(a.geodependency===g||(fn.covers[a.geodependency]||[]).includes(g))))&&overlap([instant(a.start_on),instant(a.end_on)],monthInterval);
  });
+ const eligible=new Set(organizationPeople.map(p=>p.employee_id)),coverageState={...state,assignments:state.assignments.filter(a=>eligible.has(a.employee_id))};
+ const targets=functions.flatMap(fn=>fn.geo_ids.length?regions.filter(id=>allowedFunctionRegions(fn,group,state.regions,departmentId,state.groups).includes(id)).map(geo=>[fn.id,geo]):[[fn.id,null]]);
+ const coverageStatuses=days.map(day=>{
+  const required=targets.map(([fn,geo])=>coverage(coverageState,fn,geo,day.toMillis(),day.plus({days:1}).toMillis()).status).filter(status=>status!=='kein Pikett erforderlich');
+  return !required.length?'kein Pikett erforderlich':required.every(status=>status==='vollständig besetzt')?'vollständig besetzt':required.every(status=>status==='unbesetzt')?'unbesetzt':'teilweise besetzt';
+ });
  const dayMeta=days.map(d=>({date:d.toISODate(),weekday:d.weekday,week_number:d.weekNumber,week_year:d.weekYear,start_on:iso(d.toMillis()),end_on:iso(d.plus({days:1}).toMillis())}));
  const byPerson=new Map();
  for(const a of assignments){const list=byPerson.get(a.employee_id)||[];list.push(a);byPerson.set(a.employee_id,list);}
@@ -28,5 +34,5 @@ export function personMonth(state, month, functionId, selectedRegions,groupId,de
    employee_id:p.employee_id,name:planningName(p),group_id:p.group_id,group_ids:personGroupIds(p),...timelineBars(byPerson.get(p.employee_id)||[],dayMeta,state.assignment_styles||{}),
    cells:days.map(d=>({assignments:(byPerson.get(p.employee_id)||[]).filter(a=>overlap([instant(a.start_on),instant(a.end_on)],[d.toMillis(),d.plus({days:1}).toMillis()])).sort((a,b)=>instant(a.start_on)-instant(b.start_on)||a.priority-b.priority)}))
  }));
- return {month,day_meta:dayMeta,department_id:departmentId||null,group_id:groupId||null,function_id:functionId||null,region_ids:regions,days:days.map(d=>d.toISODate()),rows};
+ return {month,day_meta:dayMeta,coverage_statuses:coverageStatuses,department_id:departmentId||null,group_id:groupId||null,function_id:functionId||null,region_ids:regions,days:days.map(d=>d.toISODate()),rows};
 }

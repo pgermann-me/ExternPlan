@@ -171,10 +171,10 @@ body > nav{position:sticky;top:0;z-index:20;box-shadow:0 2px 5px #17384914}
 .planning-column-resizer{position:absolute;right:0;top:0;bottom:0;width:9px;border-right:3px solid #a8b6c1;cursor:col-resize;touch-action:none;user-select:none}
 .planning-column-resizer:hover,.planning-column-resizer:focus-visible{background:#137d6933;border-right-color:#137d69;outline:2px solid #137d69;outline-offset:-2px}
 .resizing-columns,.resizing-columns *{cursor:col-resize!important;user-select:none!important}
-.function-calendar .control-day-status{display:block;font-size:17px;font-weight:800;line-height:1.2;margin-bottom:2px;background:transparent}
-.function-calendar .control-day-status.full{color:#126249}
-.function-calendar .control-day-status.incomplete{color:#a13d33}
-.function-calendar .control-day-status.none{color:#6b7d8b}
+:is(.function-calendar,.timeline-board) .control-day-status{display:block;font-size:17px;font-weight:800;line-height:1.2;margin-bottom:2px;background:transparent}
+:is(.function-calendar,.timeline-board) .control-day-status.full{color:#126249}
+:is(.function-calendar,.timeline-board) .control-day-status.incomplete{color:#a13d33}
+:is(.function-calendar,.timeline-board) .control-day-status.none{color:#6b7d8b}
 
 #pikett-list-filter label{margin:0}
 #pikett-list-at{width:180px}
@@ -183,3 +183,5 @@ body > nav{position:sticky;top:0;z-index:20;box-shadow:0 2px 5px #17384914}
 .pikett-list th,.pikett-list td{padding:5px 7px;border-right:1px solid #c9d4dc;border-bottom:1px solid #c9d4dc;overflow-wrap:anywhere}
 .pikett-list th:nth-child(4),.pikett-list th:nth-child(5),.pikett-list td:nth-child(4),.pikett-list td:nth-child(5){white-space:nowrap}
 .pikett-list-future{background:#dedede}
+
+.timeline .day-heading th{height:58px}
