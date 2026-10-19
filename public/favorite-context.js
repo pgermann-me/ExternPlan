@@ -17,3 +17,18 @@ export function favoriteMatchesContext(state,f,context){
  const people=state.people.filter(p=>context.employee_ids.includes(p.employee_id)&&personScopeAllows(state,fn,p,fn.id)&&f.region_ids.every(id=>personScopeAllows(state,state.regions.find(r=>r.id===id),p,fn.id)));
  return people.some(p=>f.scope_type==='group'?personGroupIds(p).includes(f.scope_id):personDepartmentIds(p,state.groups).includes(f.scope_id));
 }
+// Definition filters match configured scopes; no planned services or assigned people are required.
+export function favoriteDefinitionMatches(state,f,context={}){
+ if(f.deleted_at||context.function_id&&f.function_id!==context.function_id)return false;
+ if(context.region_ids?.length&&!f.region_ids.some(id=>context.region_ids.includes(id)))return false;
+ if(!context.department_id&&!context.group_id)return true;
+ const fn=state.functions.find(fn=>fn.id===f.function_id&&!fn.deleted_at),group=state.groups.find(g=>g.id===context.group_id&&!g.deleted_at);
+ if(!fn||context.group_id&&!group||!scopeAllows(fn,context,state.groups))return false;
+ const department=context.department_id||group?.department_id;
+ if(f.scope_type==='department'&&department&&f.scope_id!==department)return false;
+ if(f.scope_type==='group'){
+  const owner=state.groups.find(g=>g.id===f.scope_id&&!g.deleted_at);
+  if(!owner||group&&owner.id!==group.id||department&&owner.department_id!==department)return false;
+ }
+ return f.region_ids.every(id=>allowedFunctionRegions(fn,group,state.regions,department,state.groups).includes(id));
+}

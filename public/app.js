@@ -7,11 +7,12 @@ import {masterReferences} from './master-references.js';
 import {favoriteTimeLabel,favoriteSchedule,favoriteDurationFromEnd,favoriteWeeklyWindows} from './favorite-time.js';
 import {dayBars} from './day-bars.js';
 import {bindSplitPanel} from './split-panel.js';
-import {favoriteMatchesContext} from './favorite-context.js';
+import {favoriteMatchesContext,favoriteDefinitionMatches} from './favorite-context.js';
 import {personGroupIds,personDepartmentIds,allowedFunctionRegions,planningPeople,controlFunctions,availableFunctions,personScopeAllows} from './organization.js';
 import {swissTime,swissDate,localDate,localDateTime,displayTimes} from './time.js';
 const $=s=>document.querySelector(s);const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let elsTab='files';
+let favoriteDepartment='',favoriteGroup='',favoriteFunction='',favoriteRegions=[];
 let masterTab='departments',planningDepartment='',personDepartment='';
 let state,view='planning',month=new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Zurich',year:'numeric',month:'2-digit'}).format(new Date()),department='',group='',personSearch='',functionFilter='',planningGroup='',personFunction=null,personGroup='',selectedFavoriteId='',personRegions=null,personPlanningMonth=month,importRows=[];
 let peopleList=true,lastPlanningUndo=null;
@@ -165,8 +166,21 @@ async function render(){disposeSplitPanel();disposeSplitPanel=()=>{};document.qu
  $('#department').onchange=safe(async e=>{department=e.target.value;await render();});$('#group').onchange=safe(async e=>{group=e.target.value;await render();});$('#new-person').onclick=()=>personDialog();document.querySelectorAll('[data-person]').forEach(b=>b.onclick=()=>personDialog(state.people.find(p=>p.employee_id===b.dataset.person)));document.querySelectorAll('[data-person-calendar]').forEach(b=>b.onclick=()=>{window.open('/person-calendar.html?'+new URLSearchParams({employee_id:b.dataset.personCalendar}),'_blank','popup,width=1100,height=800,noopener');});
  }
  if(view==='favorites'){
- c.innerHTML=`<h1>Favoritendienste</h1><article class="card"><div class="toolbar"><button id="new-favorite">+ Favoritendienst</button></div>${state.favorites.map(f=>favoriteMasterRow(f,state.favorites,'data-edit-favorite')).join('')||'<p>Noch keine Favoritendienste.</p>'}</article>`;
- bindFavoriteOrdering();$('#new-favorite').onclick=()=>favoriteEditor();document.querySelectorAll('[data-edit-favorite]').forEach(b=>b.onclick=()=>favoriteEditor(state.favorites.find(f=>f.id===b.dataset.editFavorite)));
+ if(favoriteDepartment&&!state.departments.some(d=>d.id===favoriteDepartment))favoriteDepartment='';
+ const groups=state.groups.filter(g=>!favoriteDepartment||g.department_id===favoriteDepartment);
+ if(favoriteGroup&&!groups.some(g=>g.id===favoriteGroup))favoriteGroup='';
+ const functions=availableFunctions(state,favoriteGroup,favoriteDepartment);
+ if(favoriteFunction&&!functions.some(f=>f.id===favoriteFunction))favoriteFunction='';
+ const selectedFunctions=functions.filter(f=>!favoriteFunction||f.id===favoriteFunction),group=groups.find(g=>g.id===favoriteGroup);
+ const regions=state.regions.filter(r=>selectedFunctions.some(f=>allowedFunctionRegions(f,group,state.regions,favoriteDepartment,state.groups).includes(r.id)));
+ favoriteRegions=favoriteRegions.filter(id=>regions.some(r=>r.id===id));
+ const context={department_id:favoriteDepartment,group_id:favoriteGroup,function_id:favoriteFunction,region_ids:favoriteRegions};
+ const favorites=state.favorites.filter(f=>favoriteDefinitionMatches(state,f,context));
+ c.innerHTML=`<h1>Favoritendienste</h1><article class="card"><div class="toolbar"><select id="favorite-department-filter" aria-label="Abteilung">${options(state.departments,'id','name',favoriteDepartment).replace('— wählen —','Alle Abteilungen')}</select><select id="favorite-group-filter" aria-label="Gruppe">${options(groups,'id','name',favoriteGroup).replace('— wählen —','Alle Gruppen')}</select><select id="favorite-function-filter" aria-label="Funktion">${options(functions,'id','name',favoriteFunction).replace('— wählen —','Alle Funktionen')}</select><details class="region-filter" id="favorite-region-filter"><summary>${favoriteRegions.length?'Regionen: '+favoriteRegions.length:'Alle Regionen'}</summary><div><button type="button" id="clear-favorite-regions" class="secondary">Alle Regionen</button>${regions.map(r=>`<label class="check-option"><input type="checkbox" data-favorite-filter-region="${esc(r.id)}" ${favoriteRegions.includes(r.id)?'checked':''}>${esc(r.name)}</label>`).join('')||'<p>Keine Regionen für diese Filter.</p>'}</div></details><button id="new-favorite">+ Favoritendienst</button></div>${favorites.map(f=>favoriteMasterRow(f,favorites,'data-edit-favorite')).join('')||'<p>Keine Favoritendienste für die gewählten Filter.</p>'}</article>`;
+ for(const [id,set] of [['department',value=>{favoriteDepartment=value;}],['group',value=>{favoriteGroup=value;}],['function',value=>{favoriteFunction=value;}]])$('#favorite-'+id+'-filter').onchange=safe(async e=>{set(e.target.value);await render();});
+ document.querySelectorAll('[data-favorite-filter-region]').forEach(x=>x.onchange=safe(async()=>{favoriteRegions=[...document.querySelectorAll('[data-favorite-filter-region]:checked')].map(x=>x.dataset.favoriteFilterRegion);await render();$('#favorite-region-filter').open=true;}));
+ $('#clear-favorite-regions').onclick=safe(async()=>{favoriteRegions=[];await render();$('#favorite-region-filter').open=true;});
+ bindFavoriteOrdering();$('#new-favorite').onclick=()=>favoriteEditor({},{function_id:favoriteFunction,region_ids:[...favoriteRegions]},{department_id:favoriteDepartment,group_id:favoriteGroup});document.querySelectorAll('[data-edit-favorite]').forEach(b=>b.onclick=()=>favoriteEditor(state.favorites.find(f=>f.id===b.dataset.editFavorite)));
  }
  if(view==='master'){
  c.innerHTML=`<h1>Stammdaten & Soll-Abdeckung</h1><div class="master-tabs" role="tablist" aria-label="Stammdaten">${['departments','groups','functions','regions','rules'].map(type=>`<button id="master-tab-${type}" data-master-tab="${type}" role="tab" aria-controls="master-panel-${type}">${masterTitles[type]||'Favoritendienste'}</button>`).join('')}</div>${['departments','groups','functions','regions','rules'].map(type=>`<article class="card" id="master-panel-${type}" data-master-panel="${type}" role="tabpanel" aria-labelledby="master-tab-${type}"><div class="toolbar"><h2>${masterTitles[type]}</h2><button data-master-new="${type}">+ Anlegen</button></div><table><thead><tr><th>Name</th><th>Konfiguration</th><th></th></tr></thead><tbody>${state[type].map(x=>`<tr><td>${esc(x.name||state.functions.find(f=>f.id===x.function_id)?.name)}</td><td>${masterSummary(type,x)}${['functions','regions'].includes(type)?restrictionSummary(x,type):''}</td><td><button data-master="${type}" data-id="${esc(x.id)}">Bearbeiten</button>${type!=='rules'?` <button class="secondary" data-references="${type}" data-id="${esc(x.id)}">Referenzen</button>`:''}</td></tr>`).join('')}</tbody></table></article>`).join('')}`;

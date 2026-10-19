@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {demo} from '../domain.js';
-import {favoriteMatchesContext as matches} from '../public/favorite-context.js';
+import {favoriteMatchesContext as matches,favoriteDefinitionMatches as definitionMatches} from '../public/favorite-context.js';
 const favorite=(extra={})=>({scope_type:'function',scope_id:'DEMO-KTD',function_id:'DEMO-KTD',region_ids:['NORD'],...extra});
 const context=(extra={})=>({function_id:'DEMO-KTD',group_id:'demo-gruppe',region_ids:['NORD'],employee_ids:[],...extra});
 test('Favoriten müssen Funktion und sämtliche gewählten Regionen erfüllen',()=>{
@@ -32,4 +32,20 @@ test('Alle Funktionen lässt passende Favoriten verschiedener Funktionen zu',()=
  const s=demo();assert.equal(matches(s,favorite(),context({function_id:''})),true);
  assert.equal(matches(s,favorite({scope_id:'DEMO-ORT',function_id:'DEMO-ORT',region_ids:[]}),context({function_id:''})),true);
  assert.equal(matches(s,favorite({region_ids:['SÜD']}),context({function_id:''})),false);
+});
+
+test('Favoritendefinitionen filtern Abteilung, Gruppe, Funktion und mehrere Regionen ohne geplante Dienste',()=>{
+ const s=demo(),f=favorite();
+ assert.equal(definitionMatches(s,f,{}),true);
+ assert.equal(definitionMatches(s,f,{function_id:'DEMO-ORT'}),false);
+ assert.equal(definitionMatches(s,f,{region_ids:['NORD','SÜD']}),true);
+ assert.equal(definitionMatches(s,f,{region_ids:['SÜD']}),false);
+ s.departments.push({id:'OTHER'});s.groups.push({id:'OTHER-GROUP',department_id:'OTHER'});s.functions[0].department_ids=['demo-abteilung'];
+ assert.equal(definitionMatches(s,f,{department_id:'OTHER'}),false);
+ assert.equal(definitionMatches(s,f,{department_id:'demo-abteilung'}),true);
+ assert.equal(definitionMatches(s,f,{group_id:'OTHER-GROUP'}),false);
+ assert.equal(definitionMatches(s,favorite({scope_type:'group',scope_id:'OTHER-GROUP'}),{department_id:'demo-abteilung'}),false);
+ assert.equal(definitionMatches(s,favorite({scope_type:'department',scope_id:'OTHER'}),{group_id:'demo-gruppe'}),false);
+ s.groups[0].geo_ids=['SÜD'];assert.equal(definitionMatches(s,f,{group_id:'demo-gruppe'}),false);
+ assert.equal(definitionMatches(s,favorite({region_ids:['SÜD']}),{group_id:'demo-gruppe'}),true);
 });
