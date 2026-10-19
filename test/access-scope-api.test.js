@@ -54,5 +54,16 @@ test('Datenberechtigungen gelten über HTTP für State, Kalender, Pikettliste, P
  const saved=(await ok('/users/'+account.id,'PUT',{...account,role:'user'},admin)).data;assert.deepEqual(saved.access_scope,account.access_scope);assert.equal((await call('/state','GET',undefined,cookie)).status,401);
  cookie=(await ok('/auth/login','POST',{email:account.email,password:password+'Neu'})).cookie;state=(await ok('/state','GET',undefined,cookie)).data;assert.deepEqual(state.regions.map(r=>r.id),['NORD']);assert.equal((await call('/people','POST',{},cookie)).status,403);
  await ok('/users/'+account.id,'PUT',{...saved,access_scope:{department_id:null,group_id:null,region_id:null}},admin);cookie=(await ok('/auth/login','POST',{email:account.email,password:password+'Neu'})).cookie;state=(await ok('/state','GET',undefined,cookie)).data;assert(state.people.some(p=>p.employee_id===other.employee_id));assert.equal(state.regions.length,3);
+ const current=(await ok('/users','GET',undefined,admin)).data.users.find(u=>u.id===account.id);
+ const multi={department_ids:['demo-abteilung','D2'],group_ids:['demo-gruppe','G2'],region_ids:['NORD','SÜD']};
+ await ok('/users/'+account.id,'PUT',{...current,access_scope:multi},admin);assert.equal((await call('/state','GET',undefined,cookie)).status,401);
+ cookie=(await ok('/auth/login','POST',{email:account.email,password:password+'Neu'})).cookie;
+ state=(await ok('/state','GET',undefined,cookie)).data;assert.deepEqual(state.current_user.access_scope,multi);assert.deepEqual(state.regions.map(r=>r.id),['NORD','SÜD']);assert.equal(state.groups.length,2);assert(state.people.some(p=>p.employee_id===other.employee_id));assert(!state.people.some(p=>p.employee_id==='DEMO-001'));
+ await ok('/assignments','POST',duty(other.employee_id,'SÜD','2099-01-10'),cookie);
+ await ok('/assignments','POST',duty(idle.employee_id,'NORD','2099-01-10'),cookie);
+ assert.equal((await call('/assignments','POST',duty(shared.employee_id,'GANZ','2099-01-10'),cookie)).status,403);
+ const stored=(await ok('/users','GET',undefined,admin)).data.users.find(u=>u.id===account.id);assert.deepEqual(stored.access_scope,multi);
+ assert.equal((await call('/users/'+account.id,'PUT',{...stored,access_scope:{...multi,department_ids:['demo-abteilung']}},admin)).status,400);
+
  }finally{if(child.exitCode===null)await new Promise(resolve=>{child.once('exit',resolve);child.kill();});rmSync(dir,{recursive:true,force:true});}
 });

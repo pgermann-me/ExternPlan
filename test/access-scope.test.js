@@ -36,3 +36,19 @@ test('Functions with no authorized regional target never become independent duti
  const s=fixture();assert.equal(scopedState(s,account({group_id:'GA'})).assignments.find(a=>a.assignment_id==='whole').geodependency,'N');s.functions.push({id:'south-only',geo_ids:['S'],covers:{}});const out=scopedState(s,account({group_id:'GA'}));assert(!out.functions.some(f=>f.id==='south-only'));
  assert.equal(accessPolicy(s,account({group_id:'GA'})).personDeletable(s.people[1]),false);
 });
+
+test('Multiple departments, groups and regions are alternatives within each dimension',()=>{
+ const s=fixture(),u=account({department_ids:['A','B'],group_ids:['GA','GB'],region_ids:['N','S']});
+ const out=scopedState(s,u);assert.deepEqual(out.people.map(p=>p.employee_id),['idle','shared','other']);assert.deepEqual(out.regions.map(r=>r.id),['N','S']);assert.deepEqual(out.groups.map(g=>g.id),['GA','GB']);
+ assert.equal(accessPolicy(s,u).assignmentAllowed(s.assignments[0]),true);assert.equal(accessPolicy(s,u).assignmentAllowed(s.assignments[1]),true);assert.equal(accessPolicy(s,u).assignmentAllowed(s.assignments[2]),false);
+ assert.deepEqual(validateAccessScope(s,u.access_scope,'planner'),u.access_scope);
+ const narrow=scopedState(s,account({department_ids:['A'],region_ids:['N','S']}));assert(!narrow.people.some(p=>p.employee_id==='other'));
+ assert.throws(()=>validateAccessScope(s,{department_ids:['A'],group_ids:['GA','GB']},'user'));
+ assert.throws(()=>validateAccessScope(s,{region_ids:['N','N']},'user'));
+ assert.throws(()=>validateAccessScope(s,{department_ids:'A'},'user'));
+ assert.deepEqual(validateAccessScope(s,{department_id:'A',group_id:'GA',region_id:'N'},'planner'),{department_ids:['A'],group_ids:['GA'],region_ids:['N']});
+});
+test('Function and region must match the same authorized organizational context',()=>{
+ const s=fixture();s.regions[0].department_ids=['B'];s.functions[0].department_ids=['A'];
+ const out=scopedState(s,account({department_ids:['A','B'],region_ids:['N']}));assert(!out.functions.some(f=>f.id==='F'));
+});

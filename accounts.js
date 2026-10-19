@@ -2,11 +2,11 @@ import {randomBytes,randomUUID,createHash,timingSafeEqual,scrypt as scryptCallba
 import {promisify} from 'node:util';
 import {existsSync,readFileSync,writeFileSync} from 'node:fs';
 import {resolve} from 'node:path';
-import {validateAccessScope} from './access-scope.js';
+import {validateAccessScope,normalizeAccessScope} from './access-scope.js';
 import {actorContext,accessContext} from './request-context.js';
 const scrypt=promisify(scryptCallback),hash=value=>createHash('sha256').update(value).digest('hex');
 export const roleViews={admin:['planning','person-planning','pikett-list','people','favorites','master','imports','exports','audit','users'],planner:['planning','person-planning','pikett-list','people','favorites'],user:['planning','person-planning','pikett-list']};
-const publicUser=u=>u?{access_scope:JSON.parse(u.access_scope||'{}'),...Object.fromEntries(['id','first_name','last_name','email','role','active','revision','must_change_password'].map(k=>[k,['active','must_change_password'].includes(k)?!!u[k]:u[k]]))}:null;
+const publicUser=u=>u?{access_scope:normalizeAccessScope(JSON.parse(u.access_scope||'{}')),...Object.fromEntries(['id','first_name','last_name','email','role','active','revision','must_change_password'].map(k=>[k,['active','must_change_password'].includes(k)?!!u[k]:u[k]]))}:null;
 const fail=(message,status=400)=>{const error=Error(message);error.status=status;throw error;};
 const passwordValid=value=>{if(typeof value!=='string'||value.length<12||value.length>256)fail('Das Passwort benötigt 12 bis 256 Zeichen');return value;};
 const fields=input=>{const out={};for(const key of ['first_name','last_name','email']){if(typeof input[key]!=='string'||!input[key].trim()||input[key].length>(key==='email'?254:100))fail('Vorname, Name und gültige E-Mail-Adresse sind erforderlich');out[key]=input[key].trim();}out.email=out.email.toLowerCase();if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(out.email))fail('Gültige E-Mail-Adresse erforderlich');if(!Object.hasOwn(roleViews,input.role))fail('Ungültige Rolle');out.role=input.role;if(input.active!==undefined&&typeof input.active!=='boolean')fail('Zugriffsstatus muss aktiv oder inaktiv sein');out.active=input.active!==false?1:0;return out;};
