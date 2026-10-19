@@ -18,6 +18,15 @@ try{
  await page.setViewportSize({width:1440,height:1000});
  await page.locator('#month').fill('2026-10');await page.locator('#month').dispatchEvent('change');
  await page.locator('#function-filter').selectOption('DEMO-KTD');await page.waitForTimeout(100);
+ // Daily coverage summary follows the visible function filter and exact coverage, including partial days.
+ assert.equal(await page.locator('.control-day-status.incomplete').count(),31);
+ await page.locator('#function-filter').selectOption('DEMO-ORT');await page.waitForFunction(()=>document.querySelectorAll('.control-day-status.none').length===31);
+ await page.locator('#function-filter').selectOption('DEMO-KTD');await page.waitForFunction(()=>document.querySelectorAll('.control-day-status.incomplete').length===31);
+ const summaryResponse=await page.request.post('http://127.0.0.1:3109/api/assignments',{data:{employee_id:'DEMO-001',function_id:'DEMO-KTD',geodependency:'GANZ',priority:1,start_on:'2026-10-01T00:00',end_on:'2026-10-02T12:00'}});assert.equal(summaryResponse.status(),200);const summaryDuty=(await summaryResponse.json()).assignment;
+ await page.reload();await page.locator('.month').waitFor();await page.locator('#month').fill('2026-10');await page.locator('#month').dispatchEvent('change');await page.waitForFunction(()=>document.querySelectorAll('.control-day-status.full').length===1);
+ assert.equal(await page.locator('.month thead th[title="01.10.2026"] .control-day-status').getAttribute('aria-label'),'Alle Soll-Abdeckungen erfüllt');assert.equal(await page.locator('.month thead th[title="02.10.2026"] .control-day-status').getAttribute('aria-label'),'Mindestens eine Soll-Abdeckung nicht erfüllt');assert.equal(await page.locator('.control-day-status.incomplete').count(),30);
+ assert.equal((await page.request.delete('http://127.0.0.1:3109/api/assignments/'+summaryDuty.assignment_id+'?revision=1')).status(),200);
+ await page.reload();await page.locator('.month').waitFor();await page.locator('#month').fill('2026-10');await page.locator('#month').dispatchEvent('change');await page.locator('#function-filter').selectOption('DEMO-KTD');await page.waitForFunction(()=>document.querySelectorAll('.control-day-status.incomplete').length===31&&document.querySelectorAll('.duty-bar').length===0);
  await page.locator('.board').evaluate(e=>e.scrollLeft=600);
  await page.locator('#new-assignment').click();await page.locator('[name=employee_id]').selectOption('DEMO-001');await page.locator('[name=geodependency]').selectOption('NORD');await page.locator('[name=start_on]').fill('07.10.2026 07:00');await page.locator('[name=end_on]').fill('08.10.2026 07:00');await page.locator('#form button[type=submit]').click();await page.waitForFunction(()=>!document.querySelector('dialog').open,{},{timeout:8000}).catch(async()=>{throw Error('Dialog bleibt offen: '+await page.locator('#message').textContent());});await page.locator('.month .duty-bar').first().waitFor();
  assert.equal(await page.locator('.month .duty-bar').count(),1);assert.deepEqual(await page.locator('.month .duty-bar .bar-hour').allTextContents(),['7','7']);
