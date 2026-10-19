@@ -17,7 +17,7 @@ async function downloadPdf(data,rows){
   texts.forEach((lines,i)=>{pdf.setFillColor(...(row.future?[225,225,225]:[255,255,255]));pdf.rect(x,y,widths[i],height,'FD');pdf.text(lines,x+1.3,y+3.5);x+=widths[i];});y+=height;
  }
  for(let i=1;i<=page;i++){pdf.setPage(i);pdf.setFontSize(7);pdf.setTextColor(90,100,110);pdf.text(`ExternPlan · Seite ${i} von ${page}`,margin,290);}
- await pdf.save('pikettliste-'+data.at.replace(/[:.]/g,'-')+'.pdf',{returnPromise:true});
+ await pdf.save('Pikettliste '+swissTime(data.at).replace(/\./g,'-').replace(' ','_').replace(':','-')+'.pdf',{returnPromise:true});
 }
 export async function renderPikettList(root,{api,safe}){
  root.innerHTML=`<h1>Pikettliste</h1><form id="pikett-list-filter" class="toolbar"><label for="pikett-list-at">Datum / Uhrzeit</label><input id="pikett-list-at" type="text" value="${esc(swissTime(new Date()))}" placeholder="TT.MM.JJJJ HH:mm" required><button type="submit">Anzeigen</button><button type="button" id="pikett-list-previous" class="secondary">← Vortag</button><button type="button" id="pikett-list-now" class="secondary">Jetzt</button><button type="button" id="pikett-list-next" class="secondary">Folgetag →</button><select id="pikett-list-function" aria-label="Pikett filtern"><option value="">Alle Piketts</option></select><button type="button" id="pikett-list-pdf" disabled>PDF herunterladen</button></form><p class="small muted">Schweizer Zeit · Graue Zeilen: Pikett beginnt später an diesem Tag.</p><div id="pikett-list-results" aria-live="polite"></div>`;
