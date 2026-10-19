@@ -28,3 +28,9 @@ test('Personenlöschung schützt laufende und zukünftige Dienste und erhält di
  const duty={employee_id:'P',end_on:new Date(now).toISOString()};const s={people:[{employee_id:'P',name:'Name'}],assignments:[duty],audit:[]};assert.equal(deletePerson(s,'P',now).archived,true);assert.equal(s.people[0].deleted_at,'2026-10-15T14:00:00+02:00');assert.deepEqual(s.assignments,[duty]);assert.equal(s.audit[0].action,'delete');assert.throws(()=>deletePerson(s,'P',now),/nicht gefunden/);
  const idle={people:[{employee_id:'SAP',source:'SAP'}],assignments:[],audit:[]};assert.equal(deletePerson(idle,'SAP',now).ok,true);
 });
+test('Geschäftliche Adresse wird normalisiert, bei Teiländerungen erhalten und ausdrücklich gelöscht',()=>{
+ const input={first_name:'Erika',last_name:'Beispiel',business_address:{type:'BusinessStandort',street:' Musterstrasse ',streetNumber:' 7a ',zipCode:' 0900 ',city:' St. Gallen ',additionalInfo:' Postfach ',country:' CH '}};
+ const p=manualPerson(input,null,'EXT-ADDR');assert.deepEqual(p.business_address,{type:'BusinessStandort',street:'Musterstrasse',streetNumber:'7a',additionalInfo:'Postfach',zipCode:'0900',city:'St. Gallen',country:'CH'});
+ assert.deepEqual(manualPerson({first_name:'Erika',last_name:'Neu'},p).business_address,p.business_address);assert.equal(manualPerson({business_address:null},p).business_address,null);assert.equal(manualPerson({business_address:{street:'  '}},p).business_address,null);
+ assert.throws(()=>manualPerson({...input,business_address:'Adresse'},null,'X'),/Objekt/);assert.throws(()=>manualPerson({...input,business_address:{type:'Private'}},null,'X'),/Adressart/);assert.throws(()=>manualPerson({...input,business_address:{zipCode:9000}},null,'X'),/Text/);
+});

@@ -161,3 +161,5 @@ body > nav{position:sticky;top:0;z-index:20;box-shadow:0 2px 5px #17384914}
 .favorite-sidebar-actions{flex-wrap:wrap;margin:8px 0}.favorite-sidebar-actions button{padding:6px 8px}
 
 .export-preview{margin-top:12px}.export-preview summary{cursor:pointer;font-weight:600;color:#126e62}.export-preview pre{max-height:55vh}
+
+.person-export-record{border-top:1px solid #dce3e8;margin-top:18px;padding-top:6px}.person-export-record h3{overflow-wrap:anywhere}

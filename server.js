@@ -1,3 +1,4 @@
+import {createOnCallPersonExport} from './adapters/oncall-person.js';
 import {planningChange,undoPlanning} from './planning-undo.js';
 import {emptyState,cleanupNeeded,removeKtdAndExamplePeople} from './data-cleanup.js';
 import {resolve} from 'node:path';
@@ -71,6 +72,8 @@ app.post('/api/favorites',(req,res)=>res.json(mutate(s=>saveFavorite(s,req.body)
 app.delete('/api/favorites/:id',(req,res)=>res.json(mutate(s=>removeFavorite(s,req.params.id,req.query.revision))));
 app.post('/api/favorites/:id/preview',(req,res)=>res.json(previewFavorite(read(),req.params.id,req.body)));
 app.post('/api/favorites/:id/apply',(req,res)=>res.json(mutate(s=>planningChange(s,()=>applyFavorite(s,req.params.id,req.body)))));
+app.post('/api/oncall/person-exports',(req,res)=>res.json(mutate(s=>createOnCallPersonExport(s))));
+app.get('/api/oncall/person-exports/:id',(req,res)=>{const e=(read().person_exports||[]).find(x=>x.id===req.params.id);if(!e)return res.status(404).json({error:'Personenexport nicht gefunden'});res.setHeader('Content-Disposition',`attachment; filename="${e.filename}"`);res.type('application/json').send(JSON.stringify(e.payload,null,2));});
 app.post('/api/exports',(req,res)=>res.json(mutate(s=>makeExport(s,req.body.mode||'delta'))));
 app.post('/api/exports/:id/confirm',(req,res)=>res.json(mutate(s=>confirmExport(s,req.params.id))));
 app.post('/api/els/people',(req,res)=>res.json(mutate(s=>{for(const p of s.people)simulatedElsAdapter.syncPerson(s.els,p);return {confirmed:s.people.length};})));

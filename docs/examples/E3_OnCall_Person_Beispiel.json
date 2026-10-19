@@ -1,0 +1,86 @@
+[
+  {
+    "externalAD_ID1": null,
+    "externalAD_ID2": null,
+    "externalAD_Role": null,
+    "persID": "EXT-BEISPIEL-001",
+    "shortSign": "",
+    "sex": null,
+    "firstName": "Erika",
+    "lastName": "Beispiel",
+    "birthdate": null,
+    "organisation": "",
+    "position": "",
+    "department": "BEISPIEL-ABTEILUNG",
+    "qualifications": [],
+    "addresses": [
+      {
+        "type": "BusinessStandort",
+        "street": "Beispielstrasse",
+        "streetNumber": "1",
+        "additionalInfo": "Gebäude B",
+        "zipCode": "9000",
+        "city": "St. Gallen",
+        "country": null
+      }
+    ],
+    "contacts": [
+      {
+        "priority": 0,
+        "type": "Mobile",
+        "kind": "",
+        "value": "+41000000001",
+        "description": ""
+      },
+      {
+        "priority": 1,
+        "type": "Phone",
+        "kind": "business",
+        "value": "+41000000002",
+        "description": ""
+      },
+      {
+        "priority": 2,
+        "type": "Email",
+        "kind": "",
+        "value": "erika@example.invalid",
+        "description": ""
+      }
+    ]
+  },
+  {
+    "externalAD_ID1": null,
+    "externalAD_ID2": null,
+    "externalAD_Role": null,
+    "persID": "EXT-BEISPIEL-002",
+    "shortSign": "",
+    "sex": null,
+    "firstName": "Hans",
+    "lastName": "Muster",
+    "birthdate": null,
+    "organisation": "",
+    "position": "",
+    "department": "BEISPIEL-ABTEILUNG",
+    "qualifications": [],
+    "addresses": [
+      {
+        "type": "BusinessPostal",
+        "street": "Beispielstrasse",
+        "streetNumber": "2",
+        "additionalInfo": null,
+        "zipCode": "9000",
+        "city": "St. Gallen",
+        "country": null
+      }
+    ],
+    "contacts": [
+      {
+        "priority": 1,
+        "type": "Phone",
+        "kind": "private",
+        "value": "+41000000003",
+        "description": ""
+      }
+    ]
+  }
+]
