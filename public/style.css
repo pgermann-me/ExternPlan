@@ -163,3 +163,6 @@ body > nav{position:sticky;top:0;z-index:20;box-shadow:0 2px 5px #17384914}
 .export-preview{margin-top:12px}.export-preview summary{cursor:pointer;font-weight:600;color:#126e62}.export-preview pre{max-height:55vh}
 
 .person-export-record{border-top:1px solid #dce3e8;margin-top:18px;padding-top:6px}.person-export-record h3{overflow-wrap:anywhere}
+
+.person-card .person-names dt,.person-card .person-affiliations dt,.person-card .person-card-section h3,.person-card .person-business-address b{font-size:12px;font-weight:600;color:#536979;line-height:1.45}
+.person-card-section{margin:14px 0}.person-card-section h3{margin:0 0 3px}.person-card-section .person-contact{margin:3px 0}
