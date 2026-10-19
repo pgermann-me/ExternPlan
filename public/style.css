@@ -166,3 +166,8 @@ body > nav{position:sticky;top:0;z-index:20;box-shadow:0 2px 5px #17384914}
 
 .person-card .person-names dt,.person-card .person-affiliations dt,.person-card .person-card-section h3,.person-card .person-business-address b{font-size:12px;font-weight:600;color:#536979;line-height:1.45}
 .person-card-section{margin:14px 0}.person-card-section h3{margin:0 0 3px}.person-card-section .person-contact{margin:3px 0}
+
+.timeline thead .person-column,.timeline thead .group-column{padding-right:15px}
+.planning-column-resizer{position:absolute;right:0;top:0;bottom:0;width:9px;border-right:3px solid #a8b6c1;cursor:col-resize;touch-action:none;user-select:none}
+.planning-column-resizer:hover,.planning-column-resizer:focus-visible{background:#137d6933;border-right-color:#137d69;outline:2px solid #137d69;outline-offset:-2px}
+.resizing-columns,.resizing-columns *{cursor:col-resize!important;user-select:none!important}
