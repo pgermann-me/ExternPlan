@@ -419,7 +419,7 @@ async function planSelectedPersonFavorite(employeeId,date,functionId){
 }
 function coverageCellAttributes(cell){return cell.status==='kein Pikett erforderlich'?'class="coverage-cell"':`class="coverage-cell ${cls(cell.status)}" title="${esc(cell.status)}" aria-label="${esc(cell.status)}"`;}
 function barHours(a){
- return `<span class="bar-hour" aria-hidden="true">${swissTime(a.start_on).slice(11,13)}</span><span class="bar-hour" aria-hidden="true">${swissTime(a.end_on).slice(11,13)}</span>`;
+ return `<span class="bar-hour" aria-hidden="true">${Number(swissTime(a.start_on).slice(11,13))}</span><span class="bar-hour" aria-hidden="true">${Number(swissTime(a.end_on).slice(11,13))}</span>`;
 }
 function barInk(color){const rgb=/^#[0-9a-f]{6}$/i.test(color||'')?[1,3,5].map(i=>parseInt(color.slice(i,i+2),16)):[];return rgb.length&&(rgb[0]*299+rgb[1]*587+rgb[2]*114)/1000>150?'#172b3a':'#fff';}
 function functionCellBars(cell,day,row,index){
