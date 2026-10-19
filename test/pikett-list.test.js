@@ -16,6 +16,6 @@ test('Schweizer Tagesgrenze, Zeitumstellung und historische Namen bleiben korrek
  const row=pikettList(s,'2026-10-24T22:00:00Z').rows[0];assert.equal(row.future,true);assert.equal(row.person_name,'Historisch Anna');assert.equal(row.function_name,'KTD Pikett');assert.equal(row.region_name,'Beispiel NORD');
  assert.equal(pikettList(s,'2026-10-25T02:30:00+02:00').rows[0].future,false);assert.equal(pikettList(s,'2026-10-25T02:30:00+01:00').rows[0].future,false);
 });
-test('Kontakte werden vollständig und nach Priorität ausgegeben',()=>{
- assert.deepEqual(listContacts([{type:'phone_private',value:'3',priority:0},{type:'Polycom',value:'2',priority:2},{type:'phone_mobile',value:'1',priority:1}]),['(1) Telefon Mobil: 1','(2) Polycom: 2','Telefon Privat: 3']);
+test('Nur Telefonnummern werden nach Priorität ausgegeben',()=>{
+ assert.deepEqual(listContacts([{type:'email',value:'person@example.invalid',priority:1},{type:'E-Mail',value:'andere@example.invalid',priority:0},{type:'Email',value:'dritte@example.invalid',priority:2},{type:'Notiz',value:'Hinweis',priority:0},{type:'phone_private',value:'3',priority:0},{type:'Polycom',value:'2',priority:2},{type:'phone_mobile',value:'1',priority:1}]),['(1) Telefon Mobil: 1','(2) Polycom: 2','Telefon Privat: 3']);
 });
