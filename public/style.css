@@ -185,3 +185,10 @@ body > nav{position:sticky;top:0;z-index:20;box-shadow:0 2px 5px #17384914}
 .pikett-list-future{background:#dedede}
 
 .timeline .day-heading th{height:58px}
+
+/* Mark today without replacing the coverage background or hiding duty bars. */
+.function-calendar .month thead th.current-day,.timeline .day-heading th.current-day{background:#d5eaff;color:#173e60;box-shadow:inset 0 3px #397bac,inset 2px 0 #397bac,inset -2px 0 #397bac;font-weight:700}
+.function-calendar .month thead th.current-day .muted{color:#173e60}
+.function-calendar .month td.current-day{box-shadow:inset 2px 0 #397bac,inset -2px 0 #397bac}
+.timeline-day.current-day{background:#e5f2ff;box-shadow:inset 2px 0 #397bac,inset -2px 0 #397bac}
+.timeline-day.current-day:hover{background:#cce4fa}
