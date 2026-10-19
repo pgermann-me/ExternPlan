@@ -61,22 +61,20 @@ function assignmentDialog(a={},defaults={}){
  }
  const f=state.functions.find(f=>f.id===a.function_id)||state.functions[0];
  const filteredGroup=view==='planning'?planningGroup:view==='person-planning'?personGroup:'';const filteredDepartment=view==='planning'?planningDepartment:view==='person-planning'?personDepartment:'';const people=planningPeople(state,filteredGroup,filteredDepartment);
- const timeField=(field,text,fallback)=>label(text,input(field,assignmentTime(a[field],fallback)))+
- label('Zeitumstellung: doppelte Uhrzeit',`<select name="${field}_offset"><option value="">Automatisch · eindeutige Schweizer Zeit</option><option value="+02:00">Sommerzeit (erste doppelte Uhrzeit)</option><option value="+01:00">Winterzeit (zweite doppelte Uhrzeit)</option></select>`);
+ const timeField=(field,text,fallback)=>label(text,input(field,assignmentTime(a[field],fallback)));
  modal(`<h2>${a.assignment_id?'Zuteilung bearbeiten':'Pikett zuteilen'}</h2>`+(a.assignment_id?label('Kennung',`<input name="assignment_id" value="${esc(a.assignment_id)}" readonly>`):'')+
  label('Person',`<select name="employee_id" required>${options(people.map(p=>({...p,display_name:p.last_name&&p.first_name?`${p.last_name} ${p.first_name}`:p.name})).sort((a,b)=>a.display_name.localeCompare(b.display_name,'de-CH')),'employee_id','display_name',a.employee_id)}</select>`)+
  label('Funktion',`<select name="function_id" required>${options(availableFunctions(state,filteredGroup,filteredDepartment),'id','name',f?.id,false)}</select>`)+`<div id="geo-field"></div>`+
  timeField('start_on','Beginn · Schweizer Zeit',swissDate(month+'-01')+' 07:00')+
  timeField('end_on','Ende · exklusiv',swissDate(month+'-02')+' 07:00')+
- `<p class="small muted">Format: 19.04.1972 13:40. Bei einer doppelten Uhrzeit im Herbst die gewünschte Sommer- oder Winterzeit auswählen.</p>`+
+ `<p class="small muted">Format: 19.04.1972 13:40. Es gilt automatisch die Schweizer Sommer- oder Winterzeit.</p>`+
  label('Dienstfarbe · Colorpicker',input('color',a.assignment_id?dutyColor(a,state.assignment_styles):'#2563eb','color'))+
  label('Kontaktpriorität dieser Zuteilung',input('priority',a.priority||1,'number'))+
  (a.assignment_id?'<div class="actions"><button type="button" class="secondary" id="transfer-assignment">Zeitbereich übergeben</button><button type="button" class="danger" id="delete-assignment">Löschen</button></div>':'<button type="button" id="assignment-favorite" class="secondary">★ Favorit verwenden</button>'),async d=>{
    for(const field of ['start_on','end_on']){
-     const local=localDateTime(d[field]);const chosen=d[field+'_offset'];if(chosen&&swissTime(local+chosen)!==d[field].trim())throw Error('Die gewählte Sommer-/Winterzeit passt nicht zur Schweizer Uhrzeit');
+     const local=localDateTime(d[field]);
      // Keep an existing precise instant when its displayed local time has not changed.
-     d[field]=!chosen&&a.assignment_id&&swissTime(a[field])===d[field].trim()?a[field]:local+chosen;
-     delete d[field+'_offset'];
+     d[field]=a.assignment_id&&swissTime(a[field])===d[field].trim()?a[field]:(await api('/swiss-time?'+new URLSearchParams({value:local}))).time;
    }
    if(filteredDepartment)d.planning_department_id=filteredDepartment;if(filteredGroup)d.planning_group_id=filteredGroup;delete d.assignment_id;d.priority=Number(d.priority);d.geodependency=d.geodependency||null;if(a.assignment_id)d.revision=a.revision;
    const r=await api('/assignments'+(a.assignment_id?'/'+a.assignment_id:''),a.assignment_id?'PUT':'POST',d);
@@ -90,11 +88,11 @@ function assignmentDialog(a={},defaults={}){
 function assignmentTransferDialog(a){
  const fn=state.functions.find(f=>f.id===a.function_id),region=state.regions.find(r=>r.id===a.geodependency);
  const people=state.people.filter(p=>p.employee_id!==a.employee_id&&personScopeAllows(state,fn,p,a.function_id)&&(!region||personScopeAllows(state,region,p,a.function_id))).map(p=>({...p,display_name:p.last_name&&p.first_name?`${p.last_name} ${p.first_name}`:p.name})).sort((a,b)=>a.display_name.localeCompare(b.display_name,'de-CH'));
- const timeField=(key,text)=>label(text,input(key,swissTime(a[key])))+label('Zeitumstellung: doppelte Uhrzeit',`<select name="${key}_offset"><option value="">Automatisch · bestehende Uhrzeit beibehalten</option><option value="+02:00">Sommerzeit (erste doppelte Uhrzeit)</option><option value="+01:00">Winterzeit (zweite doppelte Uhrzeit)</option></select>`);
+ const timeField=(key,text)=>label(text,input(key,swissTime(a[key])));
  modal(`<h2>Zeitbereich übergeben</h2><p><b>${esc(name(a.employee_id))}</b> · ${esc(functionName(a.function_id))} · ${esc(a.geodependency?regionName(a.geodependency):'Ortsunabhängig')}<br>${esc(swissTime(a.start_on))} → ${esc(swissTime(a.end_on))}</p>`+
  label('Übernahme durch',`<select name="employee_id" id="transfer-person" required>${options(people,'employee_id','display_name',people.length===1?people[0].employee_id:'')}</select>`)+timeField('start_on','Beginn der Übernahme · Schweizer Zeit')+timeField('end_on','Ende der Übernahme · exklusiv')+
  '<p class="small muted">Nur dieser Zeitbereich wechselt zur Ersatzperson. Die Zeit davor und danach bleibt bei der bisherigen Person. Funktion, Region, Priorität und Farbe bleiben erhalten. Die gesamte Übergabe kann mit Rückgängig zurückgenommen werden.</p>',async d=>{
- const payload={employee_id:d.employee_id,revision:a.revision};for(const key of ['start_on','end_on']){const local=localDateTime(d[key]),offset=d[key+'_offset'];if(offset&&swissTime(local+offset)!==d[key].trim())throw Error('Die gewählte Sommer-/Winterzeit passt nicht zur Schweizer Uhrzeit');payload[key]=!offset&&swissTime(a[key])===d[key].trim()?a[key]:local+offset;}
+ const payload={employee_id:d.employee_id,revision:a.revision};for(const key of ['start_on','end_on']){const local=localDateTime(d[key]);payload[key]=swissTime(a[key])===d[key].trim()?a[key]:(await api('/swiss-time?'+new URLSearchParams({value:local}))).time;}
  const result=await api('/assignments/'+a.assignment_id+'/transfer','POST',payload);message('Zeitbereich übergeben'+(result.warnings.length?' · '+result.warnings.join(' · '):''));
  });
  $('#form button[type=submit]').textContent='Zeitbereich übergeben';if(!people.length){$('#fields').insertAdjacentHTML('beforeend','<p role="status">Keine andere passende Person vorhanden.</p>');$('#form button[type=submit]').disabled=true;}

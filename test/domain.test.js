@@ -1,3 +1,4 @@
+import {automaticSwissInstant} from '../domain.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {demo,instant,iso,validateAssignment,coverage,change,makeExport,confirmExport} from '../domain.js';
@@ -15,3 +16,12 @@ test('Ältere Revision überschreibt keine neuere; Löschungen bleiben Tombstone
 test('Snapshot hat ausdrücklichen Geltungsbereich, kein implizites Löschen',()=>{const s=demo();const a=add(s,input());change(s,'create',a);confirmExport(s,makeExport(s).export_id);s.assignments=[];const snapshot=makeExport(s,'snapshot');assert.equal(snapshot.scope.replacement,false);confirmExport(s,snapshot.export_id);assert.equal(s.els.assignments[a.assignment_id].deleted,false);});
 test('Fehlende Person verhindert Zuteilungsimport und erhält ausstehende Änderung',()=>{const s=demo();const a=add(s,input());change(s,'create',a);const e=makeExport(s);s.people=[];const result=confirmExport(s,e.export_id);assert.equal(result.status,'Fehler');assert.equal(s.outbox.length,1);assert.equal(s.els.assignments[a.assignment_id],undefined);});
 test('Adapterfehler bleiben sichtbar und werden nicht bestätigt',()=>{const s=demo();const a=add(s,input());change(s,'create',a);const e=makeExport(s);const adapter={syncPerson(){throw Error('Personenanlage abgelehnt');},applyAssignment(){return {acknowledged:false,error:'Person nicht angelegt'};}};const result=confirmExport(s,e.export_id,adapter);assert.equal(result.status,'Fehler');assert.ok(result.errors.length);assert.equal(s.outbox.length,1);});
+
+test('Automatische Schweizer Zeiteingabe berücksichtigt Sommerzeit, Winterzeit und doppelte Herbststunde',()=>{
+ assert.equal(automaticSwissInstant('2026-07-01T12:00'),instant('2026-07-01T12:00+02:00'));
+ assert.equal(automaticSwissInstant('2026-12-01T12:00'),instant('2026-12-01T12:00+01:00'));
+ assert.equal(automaticSwissInstant('2026-10-25T02:30'),instant('2026-10-25T02:30+02:00'));
+ assert.equal(automaticSwissInstant('2026-10-25T02:30+01:00'),instant('2026-10-25T02:30+01:00'));
+ assert.throws(()=>automaticSwissInstant('2026-03-29T02:30'),/existiert/);
+ assert.throws(()=>automaticSwissInstant('ungültig'),/Ungültig/);
+});

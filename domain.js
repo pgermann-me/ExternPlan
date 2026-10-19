@@ -16,6 +16,13 @@ export function instant(value) {
   }
   return dt.toMillis();
 }
+// UI wall times use Swiss DST rules automatically; for a repeated autumn hour choose its first occurrence.
+export function automaticSwissInstant(value){
+ try{return instant(value);}catch(error){
+  if(error.message.startsWith('Mehrdeutige lokale Uhrzeit'))return Math.min(...DateTime.fromISO(value,{zone}).getPossibleOffsets().map(d=>d.toMillis()));
+  throw error;
+ }
+}
 export const iso = ms => DateTime.fromMillis(ms,{zone}).toISO({suppressMilliseconds:true});
 export const overlap = (a,b) => a[0]<b[1] && b[0]<a[1];
 export function merge(intervals) {
