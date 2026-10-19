@@ -1,0 +1,58 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {spawn} from 'node:child_process';
+import {mkdtempSync,rmSync} from 'node:fs';
+import {DatabaseSync} from 'node:sqlite';
+const secret='Einrichtung-Nur-Scopes-Test-123',password='Scopes-Testpasswort-123456';
+test('Datenberechtigungen gelten über HTTP für State, Kalender, Pikettliste, Planung, Favoriten, Personen und Undo',async()=>{
+ const dir=mkdtempSync('/tmp/externplan-scope-api-');
+ // Start from the old account schema to exercise the additive migration.
+ const db=new DatabaseSync(dir+'/externplan.sqlite');db.exec('CREATE TABLE app_users (id TEXT PRIMARY KEY,email TEXT NOT NULL UNIQUE,first_name TEXT NOT NULL,last_name TEXT NOT NULL,role TEXT NOT NULL,active INTEGER NOT NULL,revision INTEGER NOT NULL,password_hash TEXT NOT NULL,password_salt TEXT NOT NULL,must_change_password INTEGER NOT NULL)');db.close();
+ const child=spawn(process.execPath,['server.js'],{env:{...process.env,NODE_ENV:'test',EXTERNPLAN_TEST_FIXTURES:'1',EXTERNPLAN_AUTH_TEST_BYPASS:'0',APP_PASSWORD:secret,DATA_DIR:dir,PORT:'0'},stdio:['ignore','pipe','pipe']});let output='';
+ try{
+ const port=await new Promise((resolve,reject)=>{const timer=setTimeout(()=>{child.kill();reject(Error(output));},20000);child.stdout.on('data',d=>{output+=d;const match=output.match(/Port (\d+)/);if(match){clearTimeout(timer);resolve(match[1]);}});child.stderr.on('data',d=>output+=d);child.once('exit',()=>{clearTimeout(timer);reject(Error(output));});});
+ const call=async(path,method='GET',body,cookie='')=>{const r=await fetch('http://127.0.0.1:'+port+'/api'+path,{method,headers:{'Content-Type':'application/json',Cookie:cookie},body:body===undefined?undefined:JSON.stringify(body)});return {status:r.status,data:await r.json(),cookie:r.headers.get('set-cookie')?.split(';')[0]};};
+ const ok=async(...args)=>{const r=await call(...args);assert.equal(r.status,200,JSON.stringify(r.data));return r;};
+ const admin=(await ok('/auth/setup','POST',{setup_secret:secret,first_name:'A',last_name:'Admin',email:'admin@scope.invalid',password})).cookie;
+ const post=async(path,body)=>(await ok(path,'POST',body,admin)).data;
+ await post('/master/departments',{id:'D2',name:'Andere Abteilung'});await post('/master/groups',{id:'G2',name:'Andere Gruppe',department_id:'D2',geo_ids:['SÜD']});
+ await post('/master/groups',{id:'demo-gruppe',name:'Nordgruppe',department_id:'demo-abteilung',geo_ids:['NORD']});
+ const idle=await post('/people',{first_name:'Ohne',last_name:'Dienst',department_id:'demo-abteilung',group_ids:['demo-gruppe'],contacts:[]});
+ const shared=await post('/people',{first_name:'Geteilte',last_name:'Person',department_id:'D2',group_ids:['demo-gruppe','G2'],contacts:[]});
+ const other=await post('/people',{first_name:'Andere',last_name:'Person',department_id:'D2',group_ids:['G2'],contacts:[]});
+ const duty=(employee_id,geodependency,date='2099-01-03')=>({employee_id,function_id:'DEMO-KTD',geodependency,start_on:date+'T07:00',end_on:date+'T08:00',priority:1});
+ const outside=await post('/assignments',duty(other.employee_id,'SÜD'));
+ const broad=await post('/assignments',duty(shared.employee_id,'GANZ'));
+ const favorite=await post('/favorites',{name:'Nordfavorit',function_id:'DEMO-KTD',region_ids:['NORD'],start_time:'07:00',duration_minutes:60,priority:1});
+ const hiddenFavorite=await post('/favorites',{name:'Südfavorit',function_id:'DEMO-KTD',region_ids:['SÜD'],start_time:'07:00',duration_minutes:60,priority:1});
+ let account=await post('/users',{first_name:'P',last_name:'Planer',email:'planner@scope.invalid',role:'planner',password,access_scope:{department_id:'demo-abteilung',group_id:'demo-gruppe',region_id:'NORD'}});
+ let cookie=(await ok('/auth/login','POST',{email:account.email,password})).cookie;cookie=(await ok('/auth/password','POST',{current_password:password,password:password+'Neu'},cookie)).cookie;
+ let state=(await ok('/state','GET',undefined,cookie)).data;
+ assert(state.people.some(p=>p.employee_id===idle.employee_id));assert(state.people.some(p=>p.employee_id===shared.employee_id));assert(!state.people.some(p=>p.employee_id===other.employee_id));assert.deepEqual(state.regions.map(r=>r.id),['NORD']);assert.deepEqual(state.groups.map(g=>g.id),['demo-gruppe']);assert.deepEqual(state.favorites.map(f=>f.id),[favorite.id]);assert.equal(state.assignments.find(a=>a.assignment_id===broad.assignment.assignment_id).access_read_only,true);
+ assert.deepEqual(state.people.find(p=>p.employee_id===shared.employee_id).group_ids,['demo-gruppe']);
+ const month=(await ok('/month?month=2099-01','GET',undefined,cookie)).data;assert(month.rows.every(r=>r.geo_id==='NORD'));assert.equal(JSON.stringify(month).includes(other.employee_id),false);
+ const peopleMonth=(await ok('/person-month?month=2099-01','GET',undefined,cookie)).data;assert(peopleMonth.rows.some(r=>r.employee_id===idle.employee_id));assert(!peopleMonth.rows.some(r=>r.employee_id===other.employee_id));
+ const list=(await ok('/pikett-list?at=2099-01-03T07:30','GET',undefined,cookie)).data;assert.equal(JSON.stringify(list).includes(other.employee_id),false);
+ for(const path of ['/month?month=2099-01&department_id=D2','/person-month?month=2099-01&region_id=SÜD'])assert.equal((await call(path,'GET',undefined,cookie)).status,403);
+ assert.equal((await call('/assignments','POST',duty(other.employee_id,'SÜD','2099-01-04'),cookie)).status,403);
+ assert.equal((await call('/assignments/'+outside.assignment.assignment_id+'?revision=1','DELETE',undefined,cookie)).status,403);
+ assert.equal((await call('/assignments/'+broad.assignment.assignment_id+'?revision=1','DELETE',undefined,cookie)).status,403);
+ const inside=(await ok('/assignments','POST',duty(idle.employee_id,'NORD','2099-01-04'),cookie)).data;
+ assert.equal((await call('/assignments/delete-many','POST',{assignments:[{assignment_id:inside.assignment.assignment_id,revision:1},{assignment_id:outside.assignment.assignment_id,revision:1}]},cookie)).status,403);
+ assert((await ok('/state','GET',undefined,admin)).data.assignments.some(a=>a.assignment_id===inside.assignment.assignment_id));
+ assert.equal((await call('/assignments/'+inside.assignment.assignment_id+'/transfer','POST',{employee_id:other.employee_id,revision:1,start_on:'2099-01-04T07:00',end_on:'2099-01-04T08:00'},cookie)).status,403);
+ assert.equal((await call('/planning/undo','POST',{token:outside.undo_token},cookie)).status,403);
+ await ok('/planning/undo','POST',{token:inside.undo_token},cookie);
+ assert.equal((await call('/favorites/'+hiddenFavorite.id+'/preview','POST',{employee_id:idle.employee_id,revision:1,date:'2099-01-06'},cookie)).status,403);
+ await ok('/favorites/'+favorite.id+'/apply','POST',{employee_id:idle.employee_id,revision:1,date:'2099-01-06'},cookie);
+ const projected=state.people.find(p=>p.employee_id===shared.employee_id);
+ await ok('/people/'+shared.employee_id,'PUT',{...projected,first_name:'Geändert',last_name:'Person'},cookie);
+ const original=(await ok('/state','GET',undefined,admin)).data.people.find(p=>p.employee_id===shared.employee_id);assert.deepEqual(original.group_ids,['demo-gruppe','G2']);assert.equal(original.department_id,'D2');
+ assert.equal((await call('/people/'+shared.employee_id,'PUT',{...projected,group_ids:['G2']},cookie)).status,403);
+ const records=(await ok('/users','GET',undefined,admin)).data.users;account=records.find(u=>u.id===account.id);
+ assert.equal((await call('/users/'+account.id,'PUT',{...account,access_scope:{department_id:'demo-abteilung',group_id:'G2'}},admin)).status,400);
+ const saved=(await ok('/users/'+account.id,'PUT',{...account,role:'user'},admin)).data;assert.deepEqual(saved.access_scope,account.access_scope);assert.equal((await call('/state','GET',undefined,cookie)).status,401);
+ cookie=(await ok('/auth/login','POST',{email:account.email,password:password+'Neu'})).cookie;state=(await ok('/state','GET',undefined,cookie)).data;assert.deepEqual(state.regions.map(r=>r.id),['NORD']);assert.equal((await call('/people','POST',{},cookie)).status,403);
+ await ok('/users/'+account.id,'PUT',{...saved,access_scope:{department_id:null,group_id:null,region_id:null}},admin);cookie=(await ok('/auth/login','POST',{email:account.email,password:password+'Neu'})).cookie;state=(await ok('/state','GET',undefined,cookie)).data;assert(state.people.some(p=>p.employee_id===other.employee_id));assert.equal(state.regions.length,3);
+ }finally{if(child.exitCode===null)await new Promise(resolve=>{child.once('exit',resolve);child.kill();});rmSync(dir,{recursive:true,force:true});}
+});

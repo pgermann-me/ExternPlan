@@ -2,10 +2,11 @@ import {randomBytes,randomUUID,createHash,timingSafeEqual,scrypt as scryptCallba
 import {promisify} from 'node:util';
 import {existsSync,readFileSync,writeFileSync} from 'node:fs';
 import {resolve} from 'node:path';
-import {actorContext} from './request-context.js';
+import {validateAccessScope} from './access-scope.js';
+import {actorContext,accessContext} from './request-context.js';
 const scrypt=promisify(scryptCallback),hash=value=>createHash('sha256').update(value).digest('hex');
 export const roleViews={admin:['planning','person-planning','pikett-list','people','favorites','master','imports','exports','audit','users'],planner:['planning','person-planning','pikett-list','people','favorites'],user:['planning','person-planning','pikett-list']};
-const publicUser=u=>u?Object.fromEntries(['id','first_name','last_name','email','role','active','revision','must_change_password'].map(k=>[k,['active','must_change_password'].includes(k)?!!u[k]:u[k]])):null;
+const publicUser=u=>u?{access_scope:JSON.parse(u.access_scope||'{}'),...Object.fromEntries(['id','first_name','last_name','email','role','active','revision','must_change_password'].map(k=>[k,['active','must_change_password'].includes(k)?!!u[k]:u[k]]))}:null;
 const fail=(message,status=400)=>{const error=Error(message);error.status=status;throw error;};
 const passwordValid=value=>{if(typeof value!=='string'||value.length<12||value.length>256)fail('Das Passwort benötigt 12 bis 256 Zeichen');return value;};
 const fields=input=>{const out={};for(const key of ['first_name','last_name','email']){if(typeof input[key]!=='string'||!input[key].trim()||input[key].length>(key==='email'?254:100))fail('Vorname, Name und gültige E-Mail-Adresse sind erforderlich');out[key]=input[key].trim();}out.email=out.email.toLowerCase();if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(out.email))fail('Gültige E-Mail-Adresse erforderlich');if(!Object.hasOwn(roleViews,input.role))fail('Ungültige Rolle');out.role=input.role;if(input.active!==undefined&&typeof input.active!=='boolean')fail('Zugriffsstatus muss aktiv oder inaktiv sein');out.active=input.active!==false?1:0;return out;};
@@ -19,8 +20,10 @@ export function permitted(role,method,path){
  if(['PUT','DELETE'].includes(method)&&/^\/api\/assignments\/[^/]+$/.test(path))return true;
  return role==='planner'&&(['POST','PUT','DELETE'].includes(method)&&(/^\/api\/people(?:\/[^/]+(?:\/groups)?)?$/.test(path)||/^\/api\/favorites(?:\/[^/]+)?$/.test(path)));
 }
-export function installAccounts(app,db,{env=process.env,dataDir,recordAudit}){
+export function installAccounts(app,db,{env=process.env,dataDir,recordAudit,getState}){
  db.exec(`CREATE TABLE IF NOT EXISTS app_users (id TEXT PRIMARY KEY,email TEXT NOT NULL UNIQUE,first_name TEXT NOT NULL,last_name TEXT NOT NULL,role TEXT NOT NULL,active INTEGER NOT NULL,revision INTEGER NOT NULL,password_hash TEXT NOT NULL,password_salt TEXT NOT NULL,must_change_password INTEGER NOT NULL);CREATE TABLE IF NOT EXISTS app_sessions (token_hash TEXT PRIMARY KEY,user_id TEXT NOT NULL,expires_at INTEGER NOT NULL);CREATE INDEX IF NOT EXISTS app_sessions_user ON app_sessions(user_id);`);
+ if(!db.prepare('PRAGMA table_info(app_users)').all().some(c=>c.name==='access_scope'))db.exec("ALTER TABLE app_users ADD COLUMN access_scope TEXT NOT NULL DEFAULT '{}'");
+ const scopeField=(input,role,previous)=>JSON.stringify(validateAccessScope(getState(),input===undefined?JSON.parse(previous||'{}'):input,role));
  const users=()=>db.prepare('SELECT * FROM app_users ORDER BY last_name,first_name').all(),find=id=>db.prepare('SELECT * FROM app_users WHERE id=?').get(id);
  const testBypass=env.NODE_ENV==='test'&&env.EXTERNPLAN_AUTH_TEST_BYPASS!=='0'&&!env.APP_PASSWORD&&!users().length;
  let setupSecret=env.APP_PASSWORD;
@@ -34,7 +37,7 @@ export function installAccounts(app,db,{env=process.env,dataDir,recordAudit}){
  const cookieOptions=req=>({httpOnly:true,sameSite:'strict',secure:req.secure,path:'/',maxAge:12*60*60*1000});
  const createSession=(req,res,user)=>{const value=randomBytes(32).toString('hex');db.prepare('DELETE FROM app_sessions WHERE expires_at<=?').run(Date.now());db.prepare('INSERT INTO app_sessions VALUES(?,?,?)').run(hash(value),user.id,Date.now()+12*60*60*1000);res.cookie('externplan_session',value,cookieOptions(req));};
  const invalidate=id=>db.prepare('DELETE FROM app_sessions WHERE user_id=?').run(id);
- const save=(u)=>{db.prepare(`INSERT INTO app_users (id,email,first_name,last_name,role,active,revision,password_hash,password_salt,must_change_password) VALUES (@id,@email,@first_name,@last_name,@role,@active,@revision,@password_hash,@password_salt,@must_change_password) ON CONFLICT(id) DO UPDATE SET email=excluded.email,first_name=excluded.first_name,last_name=excluded.last_name,role=excluded.role,active=excluded.active,revision=excluded.revision,password_hash=excluded.password_hash,password_salt=excluded.password_salt,must_change_password=excluded.must_change_password`).run(u);};
+ const save=(u)=>{db.prepare(`INSERT INTO app_users (id,email,first_name,last_name,role,active,revision,password_hash,password_salt,must_change_password,access_scope) VALUES (@id,@email,@first_name,@last_name,@role,@active,@revision,@password_hash,@password_salt,@must_change_password,@access_scope) ON CONFLICT(id) DO UPDATE SET email=excluded.email,first_name=excluded.first_name,last_name=excluded.last_name,role=excluded.role,active=excluded.active,revision=excluded.revision,password_hash=excluded.password_hash,password_salt=excluded.password_salt,must_change_password=excluded.must_change_password,access_scope=excluded.access_scope`).run(u);};
  const uniqueEmail=(email,id)=>{if(db.prepare('SELECT id FROM app_users WHERE email=? AND id<>?').get(email,id||''))fail('Diese E-Mail-Adresse wird bereits verwendet');};
  const guardLastAdmin=(before,after)=>{if(before.role==='admin'&&before.active&&(!after||after.role!=='admin'||!after.active)&&db.prepare("SELECT COUNT(*) AS n FROM app_users WHERE role='admin' AND active=1").get().n<=1)fail('Der letzte aktive Admin kann nicht gelöscht, deaktiviert oder zurückgestuft werden');};
  const attempts=new Map();
@@ -45,7 +48,7 @@ export function installAccounts(app,db,{env=process.env,dataDir,recordAudit}){
   const key=throttle(req);if(users().length||testBypass)fail('Die Ersteinrichtung wurde bereits abgeschlossen',409);
   if(typeof req.body.setup_secret!=='string'||!timingSafeEqual(Buffer.from(hash(req.body.setup_secret)),Buffer.from(hash(setupSecret)))){fail('Einrichtungsschlüssel oder bisheriges Zugangspasswort ist falsch',401);}
   const values=fields({...req.body,role:'admin',active:true}),password=await passwordHash(req.body.password);
-  const user={id:randomUUID(),...values,...password,revision:1,must_change_password:0};
+  const user={id:randomUUID(),...values,...password,access_scope:scopeField(req.body.access_scope,values.role),revision:1,must_change_password:0};
   transaction(()=>{if(users().length)fail('Die Ersteinrichtung wurde bereits abgeschlossen',409);save(user);recordAudit('create',null,publicUser(user),user.email);});attempts.delete(key);createSession(req,res,user);res.json({user:publicUser(user)});
  });
  app.post('/api/auth/login',async(req,res)=>{
@@ -68,17 +71,17 @@ export function installAccounts(app,db,{env=process.env,dataDir,recordAudit}){
   if(!user||user.must_change_password){if(req.path.startsWith('/api/'))return res.status(401).json({error:user?'Bitte zuerst das Passwort ändern':'Anmeldung erforderlich'});return res.redirect('/login.html');}
   res.setHeader('Cache-Control','no-store');req.user=publicUser(user);
   if(req.path.startsWith('/api/')&&!permitted(user.role,req.method,req.path))return res.status(403).json({error:'Für diese Aktion fehlen die Rechte'});
-  actorContext.run(`${user.first_name} ${user.last_name} <${user.email}>`,next);
+  actorContext.run(`${user.first_name} ${user.last_name} <${user.email}>`,()=>accessContext.run(req.user,next));
  });
  app.get('/api/users',(req,res)=>res.json({users:users().map(publicUser)}));
  app.post('/api/users',async(req,res)=>{
   const values=fields(req.body),password=await passwordHash(req.body.password);
-  const user={id:randomUUID(),...values,...password,revision:1,must_change_password:1};
+  const user={id:randomUUID(),...values,...password,access_scope:scopeField(req.body.access_scope,values.role),revision:1,must_change_password:1};
   transaction(()=>{uniqueEmail(user.email);save(user);recordAudit('create',null,publicUser(user));});res.json(publicUser(user));
  });
  app.put('/api/users/:id',async(req,res)=>{
   const values=fields(req.body),password=req.body.password?await passwordHash(req.body.password):null;
-  const updated=transaction(()=>{const before=find(req.params.id);if(!before)fail('Benutzerzugang nicht gefunden',404);if(req.body.revision!==before.revision)fail('Benutzerzugang wurde inzwischen geändert. Bitte neu laden',409);uniqueEmail(values.email,before.id);const updated={...before,...values,...password,must_change_password:password?1:before.must_change_password,revision:before.revision+1};guardLastAdmin(before,updated);save(updated);invalidate(before.id);recordAudit('update',publicUser(before),publicUser(updated));return updated;});res.json(publicUser(updated));
+  const updated=transaction(()=>{const before=find(req.params.id);if(!before)fail('Benutzerzugang nicht gefunden',404);if(req.body.revision!==before.revision)fail('Benutzerzugang wurde inzwischen geändert. Bitte neu laden',409);uniqueEmail(values.email,before.id);const updated={...before,...values,...password,access_scope:scopeField(req.body.access_scope,values.role,before.access_scope),must_change_password:password?1:before.must_change_password,revision:before.revision+1};guardLastAdmin(before,updated);save(updated);invalidate(before.id);recordAudit('update',publicUser(before),publicUser(updated));return updated;});res.json(publicUser(updated));
  });
  app.delete('/api/users/:id',(req,res)=>{
   transaction(()=>{const before=find(req.params.id);if(!before)fail('Benutzerzugang nicht gefunden',404);if(Number(req.query.revision)!==before.revision)fail('Benutzerzugang wurde inzwischen geändert. Bitte neu laden',409);guardLastAdmin(before,null);invalidate(before.id);db.prepare('DELETE FROM app_users WHERE id=?').run(before.id);recordAudit('delete',publicUser(before),null);});res.json({ok:true});
