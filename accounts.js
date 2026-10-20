@@ -5,7 +5,7 @@ import {resolve} from 'node:path';
 import {validateAccessScope,normalizeAccessScope} from './access-scope.js';
 import {actorContext,accessContext} from './request-context.js';
 const scrypt=promisify(scryptCallback),hash=value=>createHash('sha256').update(value).digest('hex');
-export const roleViews={admin:['planning','person-planning','pikett-list','people','favorites','master','imports','exports','audit','users'],planner:['planning','person-planning','pikett-list','people','favorites'],user:['planning','person-planning','pikett-list']};
+export const roleViews={admin:['planning','person-planning','pikett-list','people','favorites','master','imports','exports','audit','users','region-map'],planner:['planning','person-planning','pikett-list','people','favorites'],user:['planning','person-planning','pikett-list']};
 const publicUser=u=>u?{access_scope:normalizeAccessScope(JSON.parse(u.access_scope||'{}')),...Object.fromEntries(['id','first_name','last_name','email','role','active','revision','must_change_password'].map(k=>[k,['active','must_change_password'].includes(k)?!!u[k]:u[k]]))}:null;
 const fail=(message,status=400)=>{const error=Error(message);error.status=status;throw error;};
 const passwordValid=value=>{if(typeof value!=='string'||value.length<12||value.length>256)fail('Das Passwort benötigt 12 bis 256 Zeichen');return value;};

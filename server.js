@@ -18,7 +18,7 @@ import ExcelJS from 'exceljs';
 import { normalizeSapPerson } from './adapters/sap.js';
 import { simulatedElsAdapter } from './adapters/els.js';
 import { DatabaseSync } from 'node:sqlite';
-import { mkdirSync,writeFileSync } from 'node:fs';
+import { mkdirSync,writeFileSync,readFileSync } from 'node:fs';
 import { DateTime } from 'luxon';
 import {demo,id,audit,change,validateAssignment,coverage,makeExport,confirmExport,zone,iso,automaticSwissInstant} from './domain.js';
 const dataDir=process.env.DATA_DIR||'data';mkdirSync(dataDir,{recursive:true});
@@ -38,6 +38,8 @@ installAccounts(app,db,{dataDir,getState:read,recordAudit:(action,before,after,a
 app.use('/api',(req,res,next)=>{if(restricted(req.user)){const p=accessPolicy(read(),req.user);for(const [key,ids] of [['department_id',p.departmentIds],['group_id',p.groupIds],['function_id',p.functionIds],['region_id',p.regionIds],['planning_department_id',p.departmentIds],['planning_group_id',p.groupIds]])for(const value of [].concat(req.query[key]||req.body?.[key]||[]))if(value&&!ids.has(value))return res.status(403).json({error:'Dieser Filter liegt ausserhalb Ihrer Berechtigung'});}next();});
 app.post('/api/planning/undo',(req,res)=>res.json(mutate(s=>undoPlanning(s,req.body.token))));
 app.get('/api/state',(req,res)=>{const state=publicState(scopedState(read(),req.user));if(req.user.role!=='admin')for(const key of ['audit','exports','person_exports','outbox','els'])delete state[key];res.json({...state,current_user:req.user,allowed_views:roleViews[req.user.role]});});
+const regionMapLayers=[['amtsarzt','Amtsarzt','Amtsarzt_Gebiete.geojson'],['ua','Untersuchungsämter','UA_Regionen.geojson'],['wildhut','Wildhut','Wildhut_Kanton_SG.geojson']].map(([id,name,filename])=>({id,name,filename,geojson:JSON.parse(readFileSync(new URL('./map-data/'+filename,import.meta.url),'utf8'))}));
+app.get('/api/region-map',(req,res)=>res.json({layers:regionMapLayers}));
 app.get('/api/health',(req,res)=>res.json({status:'ok',database:!!read(),timezone:zone}));
 function assignmentStyle(s,a,input){if(input.color===undefined)return;if(!/^#[0-9a-f]{6}$/i.test(input.color))throw Error('Ungültige Dienstfarbe');s.assignment_styles??={};s.assignment_styles[a.assignment_id]={...s.assignment_styles[a.assignment_id],color:input.color};}
 app.post('/api/assignments/delete-many',(req,res)=>res.json(mutate(s=>planningChange(s,()=>{
@@ -98,6 +100,7 @@ app.post('/api/import/commit',(req,res)=>res.json(mutate(s=>{const {type,rows,ma
  }return {imported,skipped};})));
 app.get('/vendor/html2canvas.js',(req,res)=>res.sendFile(resolve('node_modules/html2canvas/dist/html2canvas.min.js')));
 app.get('/vendor/jspdf.js',(req,res)=>res.sendFile(resolve('node_modules/jspdf/dist/jspdf.umd.min.js')));
+app.use('/vendor/leaflet',express.static(resolve('node_modules/leaflet/dist')));
 app.use(express.static('public'));
 app.use((err,req,res,next)=>res.status(err.status||400).json({error:err.message}));
 const server=app.listen(Number(process.env.PORT||3000),process.env.HOST||'127.0.0.1',()=>console.log(`ExternPlan läuft auf Port ${server.address().port}`));

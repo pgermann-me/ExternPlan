@@ -9,6 +9,7 @@ RUN --mount=type=secret,id=cloud_ca \
 COPY --chown=node:node server.js access-scope.js accounts.js request-context.js planning-undo.js assignment-transfer.js domain.js people.js person-planning.js master-data.js favorites.js timeline.js data-cleanup.js ./
 COPY --chown=node:node adapters ./adapters
 COPY --chown=node:node public ./public
+COPY --chown=node:node map-data ./map-data
 RUN mkdir -p /app/data && chown node:node /app/data
 COPY docker-entrypoint.sh /usr/local/bin/externplan-entrypoint
 RUN chmod 755 /usr/local/bin/externplan-entrypoint
