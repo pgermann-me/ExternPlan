@@ -59,7 +59,7 @@ export function accessPolicy(s,user){
   return candidates.some(geo=>targetAllowed(f,geo));
  };
  const personDeletable=p=>!personGroupIds(p).some(id=>!groupIds.has(id))&&(!p.department_id||departmentIds.has(p.department_id))&&(!selectedRegions.length||personGroupIds(p).length>0&&personGroupIds(p).every(id=>{const g=s.groups.find(g=>g.id===id);return Array.isArray(g?.geo_ids)&&g.geo_ids.every(id=>selectedRegions.includes(id));}))&&!s.assignments.some(a=>a.employee_id===p.employee_id&&!assignmentAllowed(a));
- const projectPerson=p=>{const ids=personGroupIds(p).filter(id=>groupIds.has(id));return {...p,group_ids:ids,group_id:ids[0]||null,department_id:departmentIds.has(p.department_id)?p.department_id:null,access_can_delete:personDeletable(p),...(Array.isArray(p.function_regions)?{function_regions:p.function_regions.filter(r=>regionIds.has(r.geo_id)&&functionIds.has(r.function_id))}:{})};};
+ const projectPerson=p=>{const ids=personGroupIds(p).filter(id=>groupIds.has(id));return {...p,group_ids:ids,group_id:ids[0]||null,department_id:departmentIds.has(p.department_id)?p.department_id:null,access_can_delete:personDeletable(p),...(Array.isArray(p.function_regions)?{function_regions:p.function_regions.filter(r=>functionIds.has(r.function_id)&&targetAllowed(s.functions.find(f=>f.id===r.function_id),r.geo_id))}:{})};};
  const favoriteAllowed=f=>functionIds.has(f.function_id)&&(f.scope_type!=='group'||groupIds.has(f.scope_id))&&(f.scope_type!=='department'||departmentIds.has(f.scope_id))&&(!selectedRegions.length||f.region_ids?.length>0)&&(f.region_ids||[]).every(id=>targetAllowed(s.functions.find(fn=>fn.id===f.function_id),id));
  return {limited,scope,groups,groupIds,departments,departmentIds,regions,regionIds,functions,functionIds,personAllowed,projectPerson,personDeletable,assignmentAllowed,favoriteAllowed,targetAllowed};
 }
@@ -91,8 +91,14 @@ export function scopedPersonInput(s,user,input,previous){
  const ids=input.group_ids??(input.group_id?[input.group_id]:[]);
  if(!Array.isArray(ids)||ids.some(id=>!p.groupIds.has(id)))denied();
  if(input.department_id&&!p.departmentIds.has(input.department_id))denied();
+ let affiliations={};if(input.function_regions!==undefined){
+  if(!Array.isArray(input.function_regions))denied();
+  const allowed=r=>r&&p.functionIds.has(r.function_id)&&p.targetAllowed(s.functions.find(f=>f.id===r.function_id),r.geo_id);
+  if(input.function_regions.some(r=>!allowed(r)))denied();
+  affiliations={function_regions:[...input.function_regions,...(previous?.function_regions||[]).filter(r=>!allowed(r))]};
+ }
  const hidden=personGroupIds(previous).filter(id=>!p.groupIds.has(id));
- return {...input,group_ids:[...new Set([...ids,...hidden])],department_id:input.department_id||(!p.departmentIds.has(previous?.department_id)?previous?.department_id:null)||null};
+ return {...input,...affiliations,group_ids:[...new Set([...ids,...hidden])],department_id:input.department_id||(!p.departmentIds.has(previous?.department_id)?previous?.department_id:null)||null};
 }
 export function assertFavoriteAccess(s,user,key,input){
  if(!restricted(user))return;

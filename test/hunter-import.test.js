@@ -17,7 +17,7 @@ test('Vorschau ändert keine Daten; fehlende Gebiete erfordern Zustimmung',()=>{
 });
 test('Wiederholter Import aktualisiert statt Duplikate und bewahrt fremde Zuordnungen',()=>{
  const s=state();importHunters(s,xml(),true);const p=s.people[0],fn=s.functions[0];p.group_ids=['G'];p.group_id='G';p.department_id='D';p.external_id='ALT';p.function_regions.push({function_id:'ANDERE',geo_id:'X',priority:2});p.contacts.push({type:'email',value:'test@example.invalid',priority:1});s.departments.push({id:'D'});s.groups.push({id:'G',department_id:'D'});
- const result=importHunters(s,xml().replace('Anna','Anne'),true);assert.equal(result.updated,1);assert.equal(s.people.length,1);assert.equal(s.functions.length,1);assert.equal(s.people[0].first_name,'Anne');assert.deepEqual(s.people[0].group_ids,['G']);assert.equal(s.people[0].external_id,'ALT');assert.equal(s.people[0].function_regions.length,2);assert.equal(s.people[0].contacts.length,3);assert.equal(controlFunctions(s,'G','D')[0].id,fn.id);
+ const result=importHunters(s,xml().replace('Anna','Anne'),true);assert.equal(result.updated,1);assert.equal(s.people.length,1);assert.equal(s.functions.length,1);assert.equal(s.people[0].first_name,'Anne');assert(s.people[0].group_ids.includes('G'));assert(s.people[0].group_ids.includes(s.groups.find(g=>g.hunter_geo_id==='J012').id));assert.equal(s.people[0].external_id,'ALT');assert.equal(s.people[0].function_regions.length,2);assert.equal(s.people[0].contacts.length,3);assert.equal(controlFunctions(s,'G','D')[0].id,fn.id);
  const edit=manualPerson({first_name:'Anni',last_name:'Test'},s.people[0]);assert.equal(edit.birth_date,'1972-04-19');assert.deepEqual(edit.function_regions,s.people[0].function_regions);
 });
 test('Unsichere/ungültige XML, doppelte Kennungen, Daten und Prioritäten abweisen',()=>{
@@ -42,4 +42,9 @@ test('Revierzuordnungen respektieren regionale Zugriffsrechte und erscheinen in 
  const s=demo(),person=s.people.find(p=>p.employee_id==='DEMO-EXT-001');person.function_regions=[{function_id:'DEMO-KTD',geo_id:'NORD',priority:3},{function_id:'DEMO-KTD',geo_id:'SÜD',priority:2}];
  const policy=accessPolicy(s,{role:'planner',access_scope:{region_ids:['NORD']}});assert.equal(policy.personAllowed(person),true);assert.deepEqual(policy.projectPerson(person).function_regions,[person.function_regions[0]]);assert.equal(policy.personAllowed({...person,function_regions:[person.function_regions[1]]}),false);
  assert(masterReferences(s,'functions','DEMO-KTD').people.some(p=>p.id===person.employee_id));assert(masterReferences(s,'regions','NORD').people.some(p=>p.id===person.employee_id));
+});
+
+test('Jäger-Import erzeugt Gebietsgruppen in Abteilung Jäger, nutzt Beschreibung und bleibt wiederholbar',()=>{
+ const s=state();s.regions.push({id:'J012',name:'Gebiet aus Stammdaten'});const first=importHunters(s,xml(),true);assert.equal(first.created_departments,1);assert.equal(first.created_groups,1);const department=s.departments.find(d=>d.name==='Jäger'),group=s.groups.find(g=>g.hunter_geo_id==='J012');assert.equal(group.name,'J012 · Gebiet aus Stammdaten');assert.equal(group.department_id,department.id);assert.deepEqual(group.geo_ids,['J012']);assert.deepEqual(s.people[0].group_ids,[group.id]);assert.equal(s.people[0].department_id,department.id);const second=importHunters(s,xml(),true);assert.equal(second.created_groups,0);assert.equal(second.created_departments,0);assert.equal(s.groups.length,1);
+ const fallback=state();importHunters(fallback,xml(),true);assert.equal(fallback.groups[0].name,'J012 · Ignorieren');importHunters(fallback,xml('1000'),true);assert.deepEqual(fallback.people[0].group_ids,[]);assert.deepEqual(fallback.people[0].function_regions,[]);
 });

@@ -218,3 +218,5 @@ th.sortable-heading{padding:0}.table-sort-button{display:block;width:100%;paddin
 .region-bulk-table tbody td:not(:last-child),.region-bulk-table tbody th{cursor:pointer}.region-bulk-table tbody tr.is-selected{background:#e3f1ed}
 
 .people-list input[type=checkbox]{width:17px;height:17px}.people-list tbody tr.is-selected{background:#e3f1ed}.people-list tbody tr.is-selected th{background:#e3f1ed}.people-list tbody td:not(:last-child),.people-list tbody th{cursor:pointer}
+
+.person-affiliation-row{display:grid;grid-template-columns:minmax(150px,1fr) minmax(180px,1.5fr) 80px auto;gap:8px;align-items:end;margin:8px 0}.person-affiliation-row label{min-width:0}.person-affiliation-row select{width:100%}@media(max-width:650px){.person-affiliation-row{grid-template-columns:1fr 1fr}}

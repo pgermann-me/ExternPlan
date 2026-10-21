@@ -1,6 +1,6 @@
 import {DateTime} from 'luxon';
 import {audit,instant,iso} from './domain.js';
-import {personGroupIds} from './public/organization.js';
+import {personGroupIds,personScopeAllows} from './public/organization.js';
 function businessAddress(value){
  if(value==null)return null;
  if(typeof value!=='object'||Array.isArray(value))throw Error('Geschäftliche Adresse muss ein Objekt sein');
@@ -17,17 +17,15 @@ export function manualPerson(input, previous, employeeId) {
   }
   const group_ids=input.group_ids??(Object.hasOwn(input,'group_id')?(input.group_id?[input.group_id]:[]):personGroupIds(previous));
   if(!Array.isArray(group_ids)||group_ids.some(g=>typeof g!=='string'||!g)||new Set(group_ids).size!==group_ids.length)throw Error('Gruppen müssen eindeutige Kennungen enthalten');
-  const birth_date=input.birth_date===undefined?(previous?.birth_date||null):(input.birth_date||null);
-  if(birth_date&&(typeof birth_date!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(birth_date)||!DateTime.fromISO(birth_date).isValid))throw Error('Ungültiges Geburtsdatum');
   return {
     ...previous,
-    birth_date,
+    ...personDetails(input,previous),
     employee_id: previous?.employee_id || employeeId,
     first_name,
     last_name,
     name: first_name || last_name ? [first_name,last_name].filter(Boolean).join(' ') : previous.name,
     source:'manual',
-    external_id:input.external_id||null,
+    external_id:input.external_id===undefined?(previous?.external_id||null):(input.external_id||null),
     department_id:input.department_id||null,
     group_ids,group_id:group_ids[0]||null,
     business_address:businessAddress(Object.hasOwn(input,'business_address')?input.business_address:previous?.business_address),
@@ -41,4 +39,23 @@ export function deletePerson(s,employeeId,now=Date.now()){
  if(s.assignments.some(a=>a.employee_id===employeeId&&instant(a.end_on)>now))throw Error('Löschen nicht möglich: Die Person hat laufende oder zukünftige Pikettdienste');
  const before={...person};person.deleted_at=iso(now);audit(s,'person','delete',before,{...person});
  return {ok:true,archived:true};
+}
+
+export function personDetails(input,previous){
+ const birth_date=input.birth_date===undefined?(previous?.birth_date||null):(input.birth_date||null);
+ if(birth_date&&(typeof birth_date!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(birth_date)||!DateTime.fromISO(birth_date).isValid))throw Error('Ungültiges Geburtsdatum');
+ const rows=input.function_regions??previous?.function_regions;
+ if(rows===undefined)return {birth_date};
+ if(!Array.isArray(rows)||rows.length>1000)throw Error('Funktions-/Gebietszuordnungen müssen eine Liste sein (höchstens 1000)');
+ const keys=new Set(),function_regions=rows.map(r=>{
+  if(!r||typeof r.function_id!=='string'||!r.function_id||!(r.geo_id===null||typeof r.geo_id==='string'&&r.geo_id)||!Number.isSafeInteger(r.priority)||r.priority<1)throw Error('Zuordnung benötigt Funktion, Gebiet und positive ganzzahlige Priorität');
+  const key=JSON.stringify([r.function_id,r.geo_id]);if(keys.has(key))throw Error('Funktion und Gebiet dürfen pro Person nur einmal zugeordnet werden');keys.add(key);return {function_id:r.function_id,geo_id:r.geo_id,priority:r.priority};
+ });return {birth_date,function_regions};
+}
+export function validatePersonAffiliations(s,p,previous){
+ for(const r of p.function_regions||[]){
+  const unchanged=(previous?.function_regions||[]).some(old=>old.function_id===r.function_id&&old.geo_id===r.geo_id&&old.priority===r.priority);
+  const fn=s.functions.find(f=>f.id===r.function_id&&!f.deleted_at),region=s.regions.find(g=>g.id===r.geo_id&&!g.deleted_at);
+  if((!fn||!personScopeAllows(s,fn,p,fn.id)||(fn.geo_ids.length?!fn.geo_ids.includes(r.geo_id)||!region||!personScopeAllows(s,region,p,fn.id):r.geo_id!==null))&&!unchanged)throw Error('Funktion/Gebiet der Person ist nicht zulässig');
+ }
 }
