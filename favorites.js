@@ -1,5 +1,5 @@
 import {favoriteSchedule,favoriteWeeklyWindows} from './public/favorite-time.js';
-import {personGroupIds,personDepartmentIds,allowedFunctionRegions,validatePlanningGroup,scopeAllows} from './public/organization.js';
+import {personRegionPriority,personGroupIds,personDepartmentIds,allowedFunctionRegions,validatePlanningGroup,scopeAllows} from './public/organization.js';
 import {DateTime} from 'luxon';
 import {id,instant,iso,validateAssignment,change,audit,zone} from './domain.js';
 const defaultColor='#2563eb';
@@ -81,7 +81,7 @@ export function previewFavorite(s,key,input,now=Date.now()){
  }
  }
  const regions=f.region_ids.length?f.region_ids:[null];const working={...s,assignments:[...s.assignments]};const assignments=[],warnings=[];let already_planned=0;
- for(const geo of regions)for(const segment of segments){if(['weekly','continuous'].includes(f.schedule_mode)&&s.assignments.some(a=>a.employee_id===person.employee_id&&a.function_id===f.function_id&&a.geodependency===geo&&a.priority===f.priority&&instant(a.start_on)===instant(segment.start_on)&&instant(a.end_on)===instant(segment.end_on))){already_planned++;continue;}const result=validateAssignment(working,{employee_id:person.employee_id,function_id:f.function_id,geodependency:geo,priority:f.priority,...segment});assignments.push(result.assignment);working.assignments.push(result.assignment);warnings.push(...result.warnings);}
+ for(const geo of regions)for(const segment of segments){if(['weekly','continuous'].includes(f.schedule_mode)&&s.assignments.some(a=>a.employee_id===person.employee_id&&a.function_id===f.function_id&&a.geodependency===geo&&a.priority===personRegionPriority(person,f.function_id,geo,f.priority)&&instant(a.start_on)===instant(segment.start_on)&&instant(a.end_on)===instant(segment.end_on))){already_planned++;continue;}const result=validateAssignment(working,{employee_id:person.employee_id,function_id:f.function_id,geodependency:geo,priority:personRegionPriority(person,f.function_id,geo,f.priority),...segment});assignments.push(result.assignment);working.assignments.push(result.assignment);warnings.push(...result.warnings);}
  return {favorite_id:f.id,start_on:iso(overallStart),end_on:iso(overallEnd),segments_per_region:segments.length,already_planned,assignments,warnings:[...new Set(warnings)]};
 }
 export function applyFavorite(s,key,input,now=Date.now()){

@@ -1,3 +1,4 @@
+import {previewHunters,importHunters} from './hunter-import.js';
 import {bulkRegionScopes} from './region-bulk.js';
 import {inspectGeojson,mapGeojson,geojsonConflicts,prepareGeojsonImport} from './geojson-import.js';
 import {accessContext} from './request-context.js';
@@ -98,6 +99,8 @@ app.post('/api/exports',(req,res)=>res.json(mutate(s=>makeExport(s,req.body.mode
 app.post('/api/exports/:id/confirm',(req,res)=>res.json(mutate(s=>confirmExport(s,req.params.id))));
 app.post('/api/els/people',(req,res)=>res.json(mutate(s=>{for(const p of s.people)simulatedElsAdapter.syncPerson(s.els,p);return {confirmed:s.people.length};})));
 app.get('/api/exports/:id',(req,res)=>{const e=read().exports.find(x=>x.payload.export_id===req.params.id);if(!e)return res.status(404).json({error:'Nicht gefunden'});res.setHeader('Content-Disposition',`attachment; filename="els-${e.payload.export_id}.json"`);res.json(e.payload);});
+app.post('/api/import/hunters/preview',(req,res)=>res.json(previewHunters(read(),req.body.content)));
+app.post('/api/import/hunters/commit',(req,res)=>res.json(mutate(s=>importHunters(s,req.body.content,req.body.create_regions===true))));
 // Import is two-stage: parse and inspect headers, then explicitly map columns and commit atomically.
 app.post('/api/import/preview',async(req,res)=>{const {format,content}=req.body;let rows;if(format==='xlsx'){const workbook=new ExcelJS.Workbook();await workbook.xlsx.load(Buffer.from(content,'base64'));const sheet=workbook.worksheets[0];if(!sheet)throw Error('Leere Arbeitsmappe');const headers=sheet.getRow(1).values.slice(1).map(v=>String(v??''));rows=[];sheet.eachRow((row,n)=>{if(n>1){const r={};headers.forEach((h,i)=>{const v=row.getCell(i+1).value;r[h]=typeof v==='object'&&v!==null?(v.text??v.result??String(v)):v;});rows.push(r);}});}else{const parsed=JSON.parse(content);rows=Array.isArray(parsed)?parsed:Array.isArray(parsed.people)?parsed.people:Array.isArray(parsed.persons)?parsed.persons:null;if(!rows)throw Error('JSON benötigt ein Array oder people/persons; Struktur zuerst prüfen');}res.json({rows,headers:[...new Set(rows.flatMap(r=>Object.keys(r)))],count:rows.length});});
 app.post('/api/import/commit',(req,res)=>res.json(mutate(s=>{const {type,rows,mapping}=req.body;if(!Array.isArray(rows)||rows.length>10000)throw Error('Import erwartet maximal 10 000 Datensätze');let imported=0,skipped=0;

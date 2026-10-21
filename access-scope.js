@@ -37,6 +37,7 @@ export function accessPolicy(s,user){
  const personAllowed=p=>{
   if(!p||effectiveDeps.length&&!personDepartmentIds(p,s.groups).some(id=>effectiveDeps.includes(id))||selectedGroups.length&&!personGroupIds(p).some(id=>selectedGroups.includes(id)&&groupIds.has(id)))return false;
   if(!selectedRegions.length)return true;
+  if(Array.isArray(p.function_regions)&&!p.function_regions.some(r=>selectedRegions.includes(r.geo_id)))return false;
   const own=groups.filter(g=>!g.deleted_at&&personGroupIds(p).includes(g.id));
   if(personGroupIds(p).length&&!own.length)return false;
   const projected={...p,group_ids:personGroupIds(p).filter(id=>groupIds.has(id)),department_id:departmentIds.has(p.department_id)?p.department_id:null};
@@ -58,7 +59,7 @@ export function accessPolicy(s,user){
   return candidates.some(geo=>targetAllowed(f,geo));
  };
  const personDeletable=p=>!personGroupIds(p).some(id=>!groupIds.has(id))&&(!p.department_id||departmentIds.has(p.department_id))&&(!selectedRegions.length||personGroupIds(p).length>0&&personGroupIds(p).every(id=>{const g=s.groups.find(g=>g.id===id);return Array.isArray(g?.geo_ids)&&g.geo_ids.every(id=>selectedRegions.includes(id));}))&&!s.assignments.some(a=>a.employee_id===p.employee_id&&!assignmentAllowed(a));
- const projectPerson=p=>{const ids=personGroupIds(p).filter(id=>groupIds.has(id));return {...p,group_ids:ids,group_id:ids[0]||null,department_id:departmentIds.has(p.department_id)?p.department_id:null,access_can_delete:personDeletable(p)};};
+ const projectPerson=p=>{const ids=personGroupIds(p).filter(id=>groupIds.has(id));return {...p,group_ids:ids,group_id:ids[0]||null,department_id:departmentIds.has(p.department_id)?p.department_id:null,access_can_delete:personDeletable(p),...(Array.isArray(p.function_regions)?{function_regions:p.function_regions.filter(r=>regionIds.has(r.geo_id)&&functionIds.has(r.function_id))}:{})};};
  const favoriteAllowed=f=>functionIds.has(f.function_id)&&(f.scope_type!=='group'||groupIds.has(f.scope_id))&&(f.scope_type!=='department'||departmentIds.has(f.scope_id))&&(!selectedRegions.length||f.region_ids?.length>0)&&(f.region_ids||[]).every(id=>targetAllowed(s.functions.find(fn=>fn.id===f.function_id),id));
  return {limited,scope,groups,groupIds,departments,departmentIds,regions,regionIds,functions,functionIds,personAllowed,projectPerson,personDeletable,assignmentAllowed,favoriteAllowed,targetAllowed};
 }

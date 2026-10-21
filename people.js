@@ -1,3 +1,4 @@
+import {DateTime} from 'luxon';
 import {audit,instant,iso} from './domain.js';
 import {personGroupIds} from './public/organization.js';
 function businessAddress(value){
@@ -16,8 +17,11 @@ export function manualPerson(input, previous, employeeId) {
   }
   const group_ids=input.group_ids??(Object.hasOwn(input,'group_id')?(input.group_id?[input.group_id]:[]):personGroupIds(previous));
   if(!Array.isArray(group_ids)||group_ids.some(g=>typeof g!=='string'||!g)||new Set(group_ids).size!==group_ids.length)throw Error('Gruppen müssen eindeutige Kennungen enthalten');
+  const birth_date=input.birth_date===undefined?(previous?.birth_date||null):(input.birth_date||null);
+  if(birth_date&&(typeof birth_date!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(birth_date)||!DateTime.fromISO(birth_date).isValid))throw Error('Ungültiges Geburtsdatum');
   return {
     ...previous,
+    birth_date,
     employee_id: previous?.employee_id || employeeId,
     first_name,
     last_name,

@@ -8,12 +8,12 @@ export function planningPeople(s,groupId,departmentId){
  if(group&&departmentId&&group.department_id!==departmentId)throw Error('Gruppe gehört nicht zur gewählten Abteilung');
  return s.people.filter(p=>(!groupId&&!departmentId||!p.deleted_at)&&(!groupId||personGroupIds(p).includes(groupId))&&(!departmentId||personDepartmentIds(p,s.groups).includes(departmentId)));
 }
-// Function affiliations come from duties across all months, as on person records.
+// Function affiliations come from imported memberships and duties across all months.
 export function controlFunctions(s,groupId,departmentId){
  const active=availableFunctions(s,groupId,departmentId);
  if(!groupId&&!departmentId)return active;
  const members=new Set(planningPeople(s,groupId,departmentId).map(p=>p.employee_id));
- const functions=new Set(s.assignments.filter(a=>members.has(a.employee_id)).map(a=>a.function_id));
+ const functions=new Set([...s.assignments.filter(a=>members.has(a.employee_id)),...s.people.filter(p=>members.has(p.employee_id)).flatMap(p=>p.function_regions||[])].map(a=>a.function_id));
  return active.filter(f=>functions.has(f.id)||f.department_ids?.length||f.group_ids?.length);
 }
 export function validatePlanningGroup(s,input){
@@ -54,3 +54,5 @@ export function validateScopeRestrictions(s,type,p){
  }
  if(p.department_ids?.length&&p.group_ids?.some(id=>!s.groups.some(g=>g.id===id&&p.department_ids.includes(g.department_id))))throw Error('Gruppen müssen zu einer ausgewählten Abteilung gehören');
 }
+
+export const personRegionPriority=(person,functionId,geoId,fallback=1)=>person?.function_regions?.find(r=>r.function_id===functionId&&r.geo_id===geoId)?.priority??fallback;
