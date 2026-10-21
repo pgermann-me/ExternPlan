@@ -1,5 +1,6 @@
+import {mergeContinuousDuties} from './continuous-migration.js';
 import {createStandingDuties,validateStandingFunction} from './standing-duties.js';
-import {bulkPeopleOrganization} from './people-bulk.js';
+import {bulkPeopleOrganization,bulkDeletePeople} from './people-bulk.js';
 import {previewHunters,importHunters} from './hunter-import.js';
 import {bulkRegionScopes} from './region-bulk.js';
 import {inspectGeojson,mapGeojson,geojsonConflicts,prepareGeojsonImport} from './geojson-import.js';
@@ -25,7 +26,7 @@ import { simulatedElsAdapter } from './adapters/els.js';
 import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync,writeFileSync,readFileSync } from 'node:fs';
 import { DateTime } from 'luxon';
-import {demo,id,audit,change,validateAssignment,coverage,makeExport,confirmExport,zone,iso,automaticSwissInstant} from './domain.js';
+import {demo,id,audit,change,validateAssignment,coverage,makeExport,confirmExport,zone,iso,instant,automaticSwissInstant} from './domain.js';
 const dataDir=process.env.DATA_DIR||'data';mkdirSync(dataDir,{recursive:true});
 const db=new DatabaseSync(`${dataDir}/externplan.sqlite`);db.exec('PRAGMA journal_mode=WAL; CREATE TABLE IF NOT EXISTS state (id INTEGER PRIMARY KEY CHECK(id=1), data TEXT NOT NULL)');
 const testFixtures=process.env.NODE_ENV==='test'&&process.env.EXTERNPLAN_TEST_FIXTURES==='1';
@@ -38,6 +39,7 @@ if(!testFixtures&&cleanupNeeded(read()))mutate(s=>{
  const result=removeKtdAndExamplePeople(s);console.log('KTD-/Beispielbereinigung abgeschlossen; Sicherung: '+backup);return result;
 });
 if(read().regions.some(r=>r.name==='region Wil/Uzwil/Gossau'))mutate(s=>{for(const r of s.regions.filter(r=>r.name==='region Wil/Uzwil/Gossau')){const before={...r};r.name='Region Wil/Uzwil/Gossau';audit(s,'regions','update',before,{...r});}});
+if(read().continuous_storage_version!==1)mutate(s=>mergeContinuousDuties(s));
 const app=express();if(process.env.TRUST_PROXY==='1')app.set('trust proxy',1);app.disable('x-powered-by');app.use(express.json({limit:'10mb'}));
 app.use((req,res,next)=>{res.setHeader('X-Content-Type-Options','nosniff');if(!['GET','HEAD'].includes(req.method)&&req.headers.origin&&req.headers.origin!==`${req.protocol}://${req.headers.host}`)return res.status(403).json({error:'Fremder Ursprung nicht zugelassen'});next();});
 installAccounts(app,db,{dataDir,getState:read,recordAudit:(action,before,after,actor)=>{const s=read();audit(s,'user',action,before,after);if(actor)s.audit.at(-1).actor=actor;db.prepare('UPDATE state SET data=? WHERE id=1').run(JSON.stringify(s));}});
@@ -64,6 +66,7 @@ app.post('/api/assignments/:id/transfer',(req,res)=>res.json(mutate(s=>planningC
 app.put('/api/assignments/:id',(req,res)=>res.json(mutate(s=>planningChange(s,()=>{const index=s.assignments.findIndex(x=>x.assignment_id===req.params.id);if(index<0)throw Error('Zuteilung nicht gefunden');const before=s.assignments[index];if(req.body.revision!==before.revision)throw Error('Zuteilung wurde inzwischen geändert. Neu laden.');validatePlanningGroup(s,req.body);const r=validateAssignment(s,req.body,before);s.assignments[index]=r.assignment;assignmentStyle(s,r.assignment,req.body);change(s,'update',r.assignment);audit(s,'assignment','update',before,r.assignment);return r;}))));
 app.delete('/api/assignments/:id',(req,res)=>res.json(mutate(s=>planningChange(s,()=>{const index=s.assignments.findIndex(x=>x.assignment_id===req.params.id);if(index<0)throw Error('Zuteilung nicht gefunden');const before=s.assignments[index];if(Number(req.query.revision)!==before.revision)throw Error('Revision stimmt nicht überein');s.assignments.splice(index,1);change(s,'delete',{...before,revision:before.revision+1});audit(s,'assignment','delete',before,null);return {ok:true};}))));
 function validPerson(s,p,previous){validatePersonAffiliations(s,p,previous);if(!p.employee_id||!p.name)throw Error('employee_id und Name erforderlich');if(p.department_id&&!s.departments.some(x=>x.id===p.department_id))throw Error('Abteilung unbekannt');if(personGroupIds(p).some(g=>!s.groups.some(x=>x.id===g&&(active(x)||personGroupIds(previous).includes(g)))))throw Error('Gruppe unbekannt');if(!Array.isArray(p.contacts)||p.contacts.some(c=>!c.type||!c.value||!Number.isInteger(c.priority)||c.priority<0))throw Error('Kontakte benötigen Typ, Wert und eine ganzzahlige Priorität ab 0');}
+app.post('/api/people/delete-many',(req,res)=>res.json(mutate(s=>bulkDeletePeople(s,req.body.employee_ids,req.user))));
 app.post('/api/people/bulk-organization',(req,res)=>res.json(mutate(s=>bulkPeopleOrganization(s,req.body,req.user))));
 app.post('/api/people',(req,res)=>res.json(mutate(s=>{
  let employeeId;do{employeeId='EXT-'+id();}while(s.people.some(p=>p.employee_id===employeeId));
@@ -98,7 +101,7 @@ app.post('/api/favorites/:id/preview',(req,res)=>{const s=read();assertFavoriteA
 app.post('/api/favorites/:id/apply',(req,res)=>res.json(mutate(s=>planningChange(s,()=>{assertFavoriteAccess(s,req.user,req.params.id,req.body);return applyFavorite(s,req.params.id,req.body);}))));
 app.post('/api/oncall/person-exports',(req,res)=>res.json(mutate(s=>createOnCallPersonExport(s))));
 app.get('/api/oncall/person-exports/:id',(req,res)=>{const e=(read().person_exports||[]).find(x=>x.id===req.params.id);if(!e)return res.status(404).json({error:'Personenexport nicht gefunden'});res.setHeader('Content-Disposition',`attachment; filename="${e.filename}"`);res.type('application/json').send(JSON.stringify(e.payload,null,2));});
-app.post('/api/exports',(req,res)=>res.json(mutate(s=>makeExport(s,req.body.mode||'delta'))));
+app.post('/api/exports',(req,res)=>res.json(mutate(s=>makeExport(s,req.body.mode||'delta',process.env.NODE_ENV==='test'&&process.env.EXTERNPLAN_TEST_EXPORT_NOW?instant(process.env.EXTERNPLAN_TEST_EXPORT_NOW):Date.now()))));
 app.post('/api/exports/:id/confirm',(req,res)=>res.json(mutate(s=>confirmExport(s,req.params.id))));
 app.post('/api/els/people',(req,res)=>res.json(mutate(s=>{for(const p of s.people)simulatedElsAdapter.syncPerson(s.els,p);return {confirmed:s.people.length};})));
 app.get('/api/exports/:id',(req,res)=>{const e=read().exports.find(x=>x.payload.export_id===req.params.id);if(!e)return res.status(404).json({error:'Nicht gefunden'});res.setHeader('Content-Disposition',`attachment; filename="els-${e.payload.export_id}.json"`);res.json(e.payload);});

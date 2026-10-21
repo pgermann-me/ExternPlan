@@ -15,13 +15,8 @@ export function createStandingDuties(s,functionId,input={},now=Date.now()){
  const key=(person,geo)=>JSON.stringify([person,geo]);
  for(const p of people.values())for(const r of p.function_regions||[])if(r.function_id===fn.id)targets.set(key(p.employee_id,r.geo_id),{person:p,geo:r.geo_id,priority:r.priority});
  for(const a of s.assignments)if(a.function_id===fn.id&&people.has(a.employee_id)&&!targets.has(key(a.employee_id,a.geodependency))){const person=people.get(a.employee_id);if(!Array.isArray(person.function_regions))targets.set(key(a.employee_id,a.geodependency),{person,geo:a.geodependency,priority:a.priority});}
- const slots=[];
- for(let day=dates[0];day<=dates[1];day=day.plus({days:1})){
-  // Internal ends are exclusive. Only the final day ends at 23:59, as in Immer favorites.
-  const end=day.hasSame(dates[1],'day')?day.plus({days:1}).minus({minutes:1}).toMillis():day.plus({days:1}).toMillis();
-  for(let start=day.toMillis();start<end;){const next=Math.min(start+86400000,end);slots.push([start,next]);start=next;}
- }
- if(targets.size*slots.length>250000)throw Error('Zu viele Dienste auf einmal; einen kürzeren Zeitraum wählen');
+ if(targets.size>250000)throw Error('Zu viele Zuordnungen auf einmal');
+ const slots=[[dates[0].toMillis(),dates[1].plus({days:1}).minus({minutes:1}).toMillis()]];
  const existing=new Map();for(const a of s.assignments)if(a.function_id===fn.id){const k=key(a.employee_id,a.geodependency);if(!existing.has(k))existing.set(k,[]);existing.get(k).push([instant(a.start_on),instant(a.end_on)]);}
  const prepared=[];let already_planned=0;
  for(const [k,target] of targets){

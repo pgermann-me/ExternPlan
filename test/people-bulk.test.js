@@ -20,3 +20,8 @@ test('Planer behalten verborgene Mitgliedschaften und können nur im eigenen Ber
  for(const body of [{expected:[personOrganizationSnapshot(s.people[1])]},{expected:[{employee_id:'1',department_id:null,group_ids:['GA','GA2']}],groups:{mode:'replace',ids:['GB']}}]){const before=structuredClone(s);assert.throws(()=>bulkPeopleOrganization(s,body,user),{status:403});assert.deepEqual(s,before);}
  assert.equal(permitted('planner','POST','/api/people/bulk-organization'),true);assert.equal(permitted('user','POST','/api/people/bulk-organization'),false);
 });
+
+import {bulkDeletePeople} from '../people-bulk.js';
+test('Sammellöschen ist atomar, geschützt durch zukünftige Dienste und Berechtigungen',()=>{
+ const s=state();s.assignments=[{employee_id:'2',end_on:'2099-01-01T00:00Z'}];const before=structuredClone(s);assert.throws(()=>bulkDeletePeople(s,['1','2'],admin));assert.deepEqual(s,before);s.assignments=[];assert.throws(()=>bulkDeletePeople(s,['1','2'],{role:'planner',access_scope:{group_ids:['GA']}}),{status:403});assert(!s.people.some(p=>p.deleted_at));assert.equal(bulkDeletePeople(s,['1','2'],admin).deleted,2);assert(s.people.every(p=>p.deleted_at));assert.equal(s.audit.length,2);
+});

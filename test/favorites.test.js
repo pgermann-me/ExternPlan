@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {demo,instant,makeExport} from '../domain.js';
+import {demo,instant,makeExport as actualMakeExport} from '../domain.js';
 import {saveFavorite,previewFavorite,applyFavorite,removeFavorite} from '../favorites.js';
 import {deleteMaster,publicState} from '../master-data.js';
 const now=instant('2026-10-14T12:00+02:00');
@@ -67,7 +67,7 @@ test('Wildhüter Freitag 16:00 bis Sonntag 24:00 wird atomar in 24/24/8 Stunden 
  const result=applyFavorite(s,f.id,input,now),north=result.assignments.filter(a=>a.geodependency==='NORD');assert.deepEqual(north.map(a=>[a.start_on,a.end_on]),[['2026-10-16T16:00:00+02:00','2026-10-17T16:00:00+02:00'],['2026-10-17T16:00:00+02:00','2026-10-18T16:00:00+02:00'],['2026-10-18T16:00:00+02:00','2026-10-19T00:00:00+02:00']]);
  for(const a of result.assignments){assert.ok(instant(a.end_on)-instant(a.start_on)<=86400000);assert.equal(s.assignment_styles[a.assignment_id].color,'#a4470c');}
  assert.equal(new Set(result.assignments.map(a=>a.assignment_id)).size,6);
- for(const mode of ['delta','snapshot']){const exported=makeExport(s,mode);assert.equal(exported.changes.length,6);assert.deepEqual(exported.changes.map(a=>a.assignment_id),result.assignments.map(a=>a.assignment_id));assert.ok(exported.changes.every(a=>instant(a.end_on)-instant(a.start_on)<=86400000));}
+ for(const mode of ['delta','snapshot']){const exported=makeExport(s,mode);assert.equal(exported.changes.length,6);assert.deepEqual(exported.changes.map(a=>a.source_assignment_id),result.assignments.map(a=>a.assignment_id));assert.ok(exported.changes.every(a=>instant(a.end_on)-instant(a.start_on)<=86400000));}
  assert.equal(s.audit.findLast(a=>a.entity==='favorite'&&a.action==='apply').after.end_on,'2026-10-19T00:00:00+02:00');
  const applied=structuredClone(s);assert.throws(()=>applyFavorite(s,f.id,input,now),/Doppel/);assert.deepEqual(s,applied);assert.equal(previewFavorite({...s,assignments:[]},f.id,{...input,date:'2026-10-17'},now).start_on,'2026-10-16T16:00:00+02:00');
 });
@@ -84,7 +84,7 @@ test('Ein Klick plant die gesamte Kalenderwoche mit Pausen, Übernachtungen und 
  const north=preview.assignments.filter(a=>a.geodependency==='NORD');assert.equal(north.length,12);assert.deepEqual(north.filter(a=>a.start_on.startsWith('2026-10-12')).map(a=>[a.start_on,a.end_on]),[['2026-10-12T12:00:00+02:00','2026-10-12T14:00:00+02:00'],['2026-10-12T17:00:00+02:00','2026-10-13T08:00:00+02:00']]);assert.ok(north.some(a=>a.start_on==='2026-10-17T08:00:00+02:00'&&a.end_on==='2026-10-18T08:00:00+02:00'));
  for(const date of ['2026-10-12','2026-10-14','2026-10-18']){const r=previewFavorite(s,f.id,{...input,date},now);assert.equal(r.start_on,preview.start_on);assert.equal(r.end_on,preview.end_on);}
  for(const [date,count,start,end] of [['2026-10-25',13,'2026-10-19T12:00:00+02:00','2026-10-26T08:00:00+01:00'],['2026-03-29',12,'2026-03-23T12:00:00+01:00','2026-03-30T08:00:00+02:00'],['2027-01-31',12,'2027-01-25T12:00:00+01:00','2027-02-01T08:00:00+01:00']]){const r=previewFavorite(s,f.id,{...input,date},now);assert.equal(r.segments_per_region,count);assert.equal(r.start_on,start);assert.equal(r.end_on,end);assert.ok(r.assignments.every(a=>instant(a.end_on)-instant(a.start_on)<=86400000));}
- applyFavorite(s,f.id,input,now);const applied=structuredClone(s),repeat=applyFavorite(s,f.id,{...input,date:'2026-10-18'},now);assert.equal(repeat.assignments.length,0);assert.equal(repeat.already_planned,24);assert.deepEqual(s,applied);assert.equal(makeExport(s).changes.length,24);
+ applyFavorite(s,f.id,input,now);const applied=structuredClone(s),repeat=applyFavorite(s,f.id,{...input,date:'2026-10-18'},now);assert.equal(repeat.assignments.length,0);assert.equal(repeat.already_planned,24);assert.deepEqual(s,applied);assert(makeExport(s).changes.every(a=>instant(a.start_on)>=instant('2026-10-14T00:00+02:00')&&instant(a.end_on)<=instant('2026-10-19T00:00+02:00')));
 });
 test('JUGA: vorhandener Montag bleibt erhalten und Dienstag bis Freitag werden ergänzt',()=>{
  const s=demo(),single=saveFavorite(s,template({region_ids:['NORD'],start_time:'12:00',duration_minutes:120}));const monday=applyFavorite(s,single.id,{...request(single),date:'2026-10-12'},now).assignments[0];
@@ -101,12 +101,11 @@ test('Fester Favoriten-Starttag wird bei jedem Klicktag der ISO-Woche gewählt, 
   const r=previewFavorite(s,f.id,{...request(f),date},now);assert.equal(r.start_on,'2027-01-01T16:00:00+01:00');assert.equal(r.end_on,'2027-01-01T18:00:00+01:00');
  }
 });
-test('Immer plant den festen Zeitraum inklusive Enddatum lückenlos in höchstens 24h, unabhängig vom Klicktag',()=>{
- const s=demo(),f=saveFavorite(s,template({schedule_mode:'continuous',start_date:'2026-10-24',end_date:'2026-10-26',start_time:'07:00',duration_minutes:undefined,region_ids:['NORD','SÜD']}));
- assert.equal(f.start_time,'00:00');assert.equal(f.duration_minutes,4319);assert.equal(f.end_time,'23:59');
- const r=applyFavorite(s,f.id,{...request(f),date:'2020-01-01',start_time:'12:00'},now);assert.equal(r.start_on,'2026-10-24T00:00:00+02:00');assert.equal(r.end_on,'2026-10-26T23:59:00+01:00');assert.equal(r.assignments.length,8);
- for(const geo of ['NORD','SÜD']){const parts=r.assignments.filter(a=>a.geodependency===geo);assert.deepEqual(parts.map(a=>(instant(a.end_on)-instant(a.start_on))/60000),[1440,1440,60,1439]);assert.equal(parts[0].end_on,parts[1].start_on);assert.equal(parts[1].end_on,parts[2].start_on);}
- const repeat=applyFavorite(s,f.id,{...request(f),date:'2030-01-01'},now);assert.equal(repeat.assignments.length,0);assert.equal(repeat.already_planned,8);assert.equal(makeExport(s,'snapshot').changes.length,8);
+test('Immer plant pro Region einen durchgehenden Zeitraum; nur der Export wird geteilt',()=>{
+ const s=demo(),f=saveFavorite(s,template({schedule_mode:'continuous',start_date:'2026-10-24',end_date:'2026-10-26',region_ids:['NORD','SÜD']}));
+ const r=applyFavorite(s,f.id,{...request(f),date:'2020-01-01'},now);assert.equal(r.assignments.length,2);assert.equal(r.start_on,'2026-10-24T00:00:00+02:00');assert.equal(r.end_on,'2026-10-26T23:59:00+01:00');
+ const exported=makeExport(s,'snapshot',instant('2026-10-24T00:00+02:00'));assert.equal(exported.changes.length,8);assert(exported.changes.every(a=>instant(a.end_on)-instant(a.start_on)<=86400000));
+ const repeat=applyFavorite(s,f.id,request(f),now);assert.equal(repeat.assignments.length,0);assert.equal(repeat.already_planned,2);
 });
 test('Immer validiert beide Daten und Reihenfolge und setzt die Startzeit fest auf Mitternacht',()=>{
  const s=demo(),base=template({schedule_mode:'continuous',start_date:'2026-03-29',end_date:'2026-03-29',start_time:'07:00'});
@@ -119,15 +118,7 @@ test('Favoriten benötigen nur die Funktion; bestehende Immer-Vorlagen werden oh
  Object.assign(f,{start_time:'07:00',duration_minutes:3900,end_day_offset:3,end_time:'00:00'});const saved=structuredClone(s);const r=previewFavorite(s,f.id,request(f),now);assert.equal(r.start_on,'2026-10-24T00:00:00+02:00');assert.equal(r.end_on,'2026-10-26T23:59:00+01:00');assert.deepEqual(s,saved);
 });
 
-test('Immer korrigiert Winterzeit am 25. Oktober und beginnt danach jeden Tag wieder um Mitternacht',()=>{
- const s=demo(),f=saveFavorite(s,template({schedule_mode:'continuous',start_date:'2026-10-01',end_date:'2026-10-31',region_ids:['NORD']}));
- const r=previewFavorite(s,f.id,request(f),now),parts=r.assignments;assert.equal(parts.length,32);
- assert.deepEqual(parts.filter(a=>a.start_on.startsWith('2026-10-25')).map(a=>[a.start_on,a.end_on]),[['2026-10-25T00:00:00+02:00','2026-10-25T23:00:00+01:00'],['2026-10-25T23:00:00+01:00','2026-10-26T00:00:00+01:00']]);
- for(const a of parts.filter(a=>a.start_on.slice(0,10)>'2026-10-25'))assert.match(a.start_on,/T00:00:00/);
- assert.equal(parts.at(-1).start_on,'2026-10-31T00:00:00+01:00');assert.equal(parts.at(-1).end_on,'2026-10-31T23:59:00+01:00');
- for(let i=0;i<parts.length;i++){assert.ok(instant(parts[i].end_on)-instant(parts[i].start_on)<=86400000);if(i)assert.equal(parts[i-1].end_on,parts[i].start_on);}
+test('Immer bleibt im Oktober und März durchgehend, mit Schweizer Endzeit',()=>{
+ for(const [from,to,end] of [['2026-10-01','2026-10-31','2026-10-31T23:59:00+01:00'],['2026-03-28','2026-03-31','2026-03-31T23:59:00+02:00']]){const s=demo(),f=saveFavorite(s,template({schedule_mode:'continuous',start_date:from,end_date:to,region_ids:['NORD']})),r=applyFavorite(s,f.id,request(f),now);assert.equal(r.assignments.length,1);assert.equal(r.assignments[0].end_on,end);assert(instant(end)-instant(r.start_on)>86400000);}
 });
-test('Immer verkürzt den Sommerzeit-Tag lokal auf 23h und hält anschliessend die Mitternachtsgrenze',()=>{
- const s=demo(),f=saveFavorite(s,template({schedule_mode:'continuous',start_date:'2026-03-28',end_date:'2026-03-31',region_ids:['NORD']}));
- const r=applyFavorite(s,f.id,request(f),now);assert.deepEqual(r.assignments.map(a=>(instant(a.end_on)-instant(a.start_on))/60000),[1440,1380,1440,1439]);assert.equal(r.assignments[2].start_on,'2026-03-30T00:00:00+02:00');assert.equal(makeExport(s,'snapshot').changes[2].start_on,'2026-03-30T00:00:00+02:00');
-});
+const makeExport=(s,mode='delta',at=instant('2026-10-14T00:00+02:00'))=>actualMakeExport(s,mode,at);

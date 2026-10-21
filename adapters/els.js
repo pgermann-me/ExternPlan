@@ -4,7 +4,7 @@ export const simulatedElsAdapter = {
     els.people[person.employee_id]={employee_id:person.employee_id,name:person.name,contacts:person.contacts,status:'Import bestätigt'};
   },
   applyAssignment(els, change) {
-    const current=els.assignments[change.assignment_id];
+    const current=els.projection_receipts?.[change.assignment_id]||(els.assignments[change.assignment_id]?.projection_summary?null:els.assignments[change.assignment_id]);
     if(current && current.revision>=change.revision)return {acknowledged:true,stale:true};
     if(change.action!=='delete'&&!els.people[change.employee_id])return {acknowledged:false,error:'Person im ELS fehlt'};
     els.assignments[change.assignment_id]={...change,status:'Import bestätigt',deleted:change.action==='delete'};

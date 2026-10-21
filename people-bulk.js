@@ -26,3 +26,10 @@ export function bulkPeopleOrganization(s,input,user){
  let updated=0;for(const {before,after} of changes){if(JSON.stringify(personOrganizationSnapshot(before))===JSON.stringify(personOrganizationSnapshot(after)))continue;s.people[s.people.indexOf(before)]=after;audit(s,'person','bulk-organization',before,after);updated++;}
  return {selected:expected.length,updated};
 }
+
+export function bulkDeletePeople(s,ids,user,now=Date.now()){
+ if(!Array.isArray(ids)||!ids.length||ids.length>1000||new Set(ids).size!==ids.length)throw Error('1 bis 1000 eindeutige Personen auswählen');
+ const policy=restricted(user)?accessPolicy(s,user):null;
+ const people=ids.map(id=>{const p=s.people.find(p=>p.employee_id===id&&!p.deleted_at);if(!p)throw Error('Person nicht mehr vorhanden');if(policy&&(!policy.personAllowed(p)||!policy.personDeletable(p))){const error=Error('Person darf mit Ihrer Berechtigung nicht gelöscht werden');error.status=403;throw error;}if(s.assignments.some(a=>a.employee_id===id&&Date.parse(a.end_on)>now))throw Error('Löschen nicht möglich: '+p.name+' hat laufende oder zukünftige Dienste');return p;});
+ for(const p of people){const before={...p};p.deleted_at=new Date(now).toISOString();audit(s,'person','delete',before,{...p});}return {deleted:people.length};
+}

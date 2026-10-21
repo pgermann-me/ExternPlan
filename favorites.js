@@ -72,10 +72,8 @@ export function previewFavorite(s,key,input,now=Date.now()){
  if(end<=start)throw Error('Ende muss nach Beginn liegen');
  overallStart=Math.min(overallStart,start);overallEnd=Math.max(overallEnd,end);
  for(let from=start;from<end;){
-  // Continuous favorites reset at each Swiss midnight. The 25h autumn day
-  // gets its extra piece locally; subsequent days keep their midnight boundary.
-  const dayEnd=f.schedule_mode==='continuous'?DateTime.fromMillis(from,{zone}).startOf('day').plus({days:1}).toMillis():end;
-  const to=Math.min(from+86400000,dayEnd,end);
+  // Immer is stored as one interval; other time models retain their existing pieces.
+  const to=f.schedule_mode==='continuous'?end:Math.min(from+86400000,end);
   if(segments.length>=(f.schedule_mode==='continuous'?368:366))throw Error('Zu viele Teilstücke pro Region');
   segments.push({start_on:iso(from),end_on:iso(to)});from=to;
  }

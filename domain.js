@@ -1,3 +1,4 @@
+import {projectEls,finishElsProjection} from './els-projection.js';
 import {actorContext} from './request-context.js';
 import {personScopeAllows} from './public/organization.js';
 import { DateTime } from 'luxon';
@@ -87,11 +88,11 @@ export function demo() {
 }
 export function audit(s,entity,action,before,after){s.audit.push({id:id(),at:new Date().toISOString(),actor:actorContext.getStore()||'Lokaler Planer (Simulation)',entity,action,before,after});}
 export function change(s,action,assignment){s.outbox.push({action,...assignment});}
-export function makeExport(s,mode='delta') {
+export function makeExport(s,mode='delta',now=Date.now()) {
  if(!['delta','snapshot'].includes(mode))throw Error('Unbekannter Exportmodus');
- const changes=mode==='snapshot'?s.assignments.map(a=>({action:'create',...a})):s.outbox.map(x=>x.action==='delete'?{action:x.action,assignment_id:x.assignment_id,revision:x.revision}:{...x});
- const payload={schema_version:'1.0',export_id:id(),export_mode:mode,timezone:zone,...(mode==='snapshot'?{scope:{type:'all_assignments',replacement:false,description:'Alle Zuteilungen; Abwesenheit bewirkt keine Löschung. Löschungen nur als explizite Delta-Tombstones.'}}:{}),changes};
- s.exports.push({payload,status:'Datei erzeugt',created_at:new Date().toISOString(),errors:[]});return payload;
+ const {changes,sources,scope}=projectEls(s,mode,now);
+ const payload={schema_version:'1.0',export_id:id(),export_mode:mode,timezone:zone,scope,changes};
+ s.exports.push({payload,sources,status:'Datei erzeugt',created_at:new Date(now).toISOString(),errors:[]});return payload;
 }
 export function confirmExport(s,export_id,adapter=simulatedElsAdapter) {
  const e=s.exports.find(e=>e.payload.export_id===export_id);if(!e)throw Error('Export nicht gefunden');
@@ -101,8 +102,10 @@ export function confirmExport(s,export_id,adapter=simulatedElsAdapter) {
    try {
      const result=adapter.applyAssignment(s.els,c);
      if(!result.acknowledged){errors.push({assignment_id:c.assignment_id,message:result.error});continue;}
-     s.outbox=s.outbox.filter(x=>!(x.assignment_id===c.assignment_id&&x.revision<=c.revision));
+     s.els.projection_receipts??={};const previous=s.els.projection_receipts[c.assignment_id];if(!previous||previous.revision<=c.revision)s.els.projection_receipts[c.assignment_id]={...c,deleted:c.action==='delete'};
+     if(!e.sources)s.outbox=s.outbox.filter(x=>!(x.assignment_id===c.assignment_id&&x.revision<=c.revision));
    }catch(error){errors.push({assignment_id:c.assignment_id,message:error.message});}
  }
+ finishElsProjection(s,e);
  e.errors=errors;e.status=errors.length?'Fehler':'Import bestätigt';e.confirmed_at=new Date().toISOString();s.els.errors=errors;return e;
 }

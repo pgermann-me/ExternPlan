@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {demo,validateAssignment,instant,makeExport} from '../domain.js';
+import {demo,validateAssignment,instant,makeExport as actualMakeExport} from '../domain.js';
 import {transferAssignment} from '../assignment-transfer.js';
 import {planningChange,undoPlanning} from '../planning-undo.js';
 const setup=(extra={})=>{const s=demo();const a=validateAssignment(s,{employee_id:'DEMO-001',function_id:'DEMO-KTD',geodependency:'NORD',priority:2,start_on:'2026-10-24T07:00+02:00',end_on:'2026-10-25T07:00+01:00',...extra}).assignment;s.assignments.push(a);s.assignment_styles={[a.assignment_id]:{color:'#123abc',favorite_id:'origin-favorite'}};return {s,a};};
@@ -26,3 +26,5 @@ test('Sommer-/Winterzeit bleibt sekundengenau; mehrdeutige neue Uhrzeiten benöt
 test('Die gesamte Übergabe lässt sich als eine Planungsänderung rückgängig machen',()=>{
  const {s,a}=setup();const r=planningChange(s,()=>transferAssignment(s,a.assignment_id,request(a)));assert.ok(r.undo_token);undoPlanning(s,r.undo_token);assert.equal(s.assignments.length,1);assert.deepEqual({...s.assignments[0],revision:a.revision},a);assert.equal(s.assignments[0].revision,3);assert.equal(s.assignment_styles[a.assignment_id].color,'#123abc');assert.equal(s.outbox.filter(c=>c.action==='delete').length,2);
 });
+
+const makeExport=(s,mode='delta',at=instant('2026-10-24T00:00+02:00'))=>actualMakeExport(s,mode,at);
