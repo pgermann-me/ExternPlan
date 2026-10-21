@@ -337,14 +337,14 @@ const weekdays=['Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag',
 const regionName=id=>masterRecord('regions',id)?.name||id;
 function restrictionSummary(p,kind){return [['department_ids','Abteilungen','departments'],['group_ids','Gruppen','groups'],['function_ids','Funktionen','functions']].filter(([key])=>kind==='regions'||key!=='function_ids').map(([key,label,type])=>`<p>${label}: ${p[key]?.length?p[key].map(id=>esc(state[type].find(x=>x.id===id)?.name||id)).join(', '):'Alle'}</p>`).join('');}
 function masterSummary(type,p){
- if(type==='functions')return `<p>${p.geo_ids.length?'Gebiete: '+p.geo_ids.map(g=>esc(regionName(g))).join(', '):'Ortsunabhängig'}</p>${Object.entries(p.covers).map(([whole,parts])=>`<p>${esc(regionName(whole))} deckt ab: ${parts.map(g=>esc(regionName(g))).join(', ')||'keine Teilgebiete'}</p>`).join('')}`;
+ if(type==='functions')return `${p.duty_time_model==='always'?`<p><span class="color-dot" style="background:${esc(p.duty_color||'#808080')}"></span> Zeitbereich: Immer</p>`:''}<p>${p.geo_ids.length?'Gebiete: '+p.geo_ids.map(g=>esc(regionName(g))).join(', '):'Ortsunabhängig'}</p>${Object.entries(p.covers).map(([whole,parts])=>`<p>${esc(regionName(whole))} deckt ab: ${parts.map(g=>esc(regionName(g))).join(', ')||'keine Teilgebiete'}</p>`).join('')}`;
  if(type==='departments')return `<p>Abteilung: ${esc(p.name)}</p>`;
  if(type==='groups')return `<p>Abteilung: ${esc(state.departments.find(d=>d.id===p.department_id)?.name||'Keine Abteilung')}</p>`+`<p>Regionen: ${Array.isArray(p.geo_ids)?p.geo_ids.map(g=>esc(regionName(g))).join(', ')||'Keine regionalen Dienste':'Alle Regionen'}</p>`;
  if(type==='rules')return `<p>${p.geo_id?esc(regionName(p.geo_id)):'Allgemeine Vorgabe'} · ${p.mode==='continuous'?'Durchgehend rund um die Uhr':'Wiederkehrende Wochenzeitfenster'}</p>${coverageWindowGroups(p.windows).map(w=>`<p>${w.weekdays.map(d=>weekdays[d-1]).join(', ')}: ${esc(w.start_time)} → ${w.end_day_offset?'+ '+w.end_day_offset+' Tag(e) ':''}${esc(w.end_time)}</p>`).join('')}<p class="small">Gültig ab: ${swissDate(p.valid_from)||'unbegrenzt'} · Gültig bis (exklusiv): ${swissDate(p.valid_until)||'unbegrenzt'}</p>`;
  return esc(p.name);
 }
 function masterDialog(type,p){
- const current=p||{};
+ const current=p||{};let standingRequested=false;
  let windows=coverageWindowGroups(p?.windows?.length?p.windows:[{start_day:1,start_time:'12:00',end_day:1,end_time:'14:00'}]);
  let covers=Object.entries(p?.covers||{}).map(([whole,parts])=>({whole,parts:[...parts]}));
  const checkList=(rows,selected,name)=>rows.map(r=>`<label class="check-option"><input type="checkbox" name="${name}" value="${esc(r.id)}" ${selected.includes(r.id)?'checked':''}>${esc(r.name)} <small>${esc(r.id)}</small></label>`).join('');
@@ -354,6 +354,7 @@ function masterDialog(type,p){
  if(type==='groups')fields+=label('Abteilung',`<select name="department_id">${options(state.departments,'id','name',current.department_id)}</select>`);
  if(type==='groups')fields+=`<label class="check-option"><input type="checkbox" id="group-all-regions" ${!Array.isArray(p?.geo_ids)?'checked':''}>Alle Regionen zulassen</label><fieldset><legend>Zulässige Regionen bei eingeschränkter Auswahl</legend>${checkList([...state.regions,...(state.archived_master?.regions||[]).filter(r=>p?.geo_ids?.includes(r.id))],p?.geo_ids||[],'group_geo_ids')}</fieldset>`;
  if(type==='functions')fields+=`<label class="check-option"><input type="checkbox" id="independent" ${!p?.geo_ids?.length?'checked':''}>Ortsunabhängige Funktion</label><fieldset id="geo-options"><legend>Zulässige Gebiete</legend>${checkList([...state.regions,...(state.archived_master?.regions||[]).filter(r=>p?.geo_ids?.includes(r.id)).map(r=>({...r,name:r.name+' (gelöscht)'}))],p?.geo_ids||[],'geo_ids')||'<p>Zuerst Gebiete anlegen.</p>'}</fieldset><h3>Gesamtgebiet und abgedeckte Teilgebiete</h3><p class="small muted">Diese Beziehungen gelten nur für diese Funktion. Sie werden nicht aus Namen abgeleitet.</p><div id="cover-rows"></div><button type="button" id="add-cover" class="secondary">+ Gesamtgebiet-Beziehung</button>`;
+ if(type==='functions')fields+=label('Zeitbereich',`<select name="duty_time_model"><option value="scheduled" ${current.duty_time_model!=='always'?'selected':''}>Zeitlich geplante Dienste</option><option value="always" ${current.duty_time_model==='always'?'selected':''}>Immer</option></select>`)+`<fieldset id="standing-fields"><legend>Ständige Dienste</legend><p class="small muted">Beim erstmaligen Speichern von „Immer“ werden Dienste ab heute bis Ende des laufenden Jahres eingetragen. Zugeordnete Personen und Gebiete werden aus importierten Zuordnungen oder vorhandenen Pikettdiensten ermittelt. Bereits besetzte Zeitbereiche bleiben erhalten.</p>`+label('Dienstfarbe',input('duty_color',current.duty_color||'#808080','color'))+'<div class="form-pair">'+label('Von',input('standing_from',today(),'date'))+label('Bis (einschliesslich)',input('standing_to',today().slice(0,4)+'-12-31','date'))+'</div><button type="button" id="standing-apply">Dienstzeiten eintragen</button><p class="small muted">Ganztägig ab 00:00; der letzte Tag endet um 23:59. Dazwischen ohne Lücken, in Teilstücken bis 24 Stunden; Schweizer Zeitumstellungen werden am jeweiligen Tag berücksichtigt. Der Button speichert auch die Funktion.</p></fieldset>';
  if(['functions','regions'].includes(type))fields+=`<h3>Verfügbarkeit einschränken</h3><p class="small muted">Ohne Auswahl für alle verfügbar. Mehrere Einträge sind möglich; ausgewählte Einschränkungen gelten gemeinsam.</p><fieldset><legend>Abteilungen</legend>${checkList(state.departments,p?.department_ids||[],'scope_departments')}</fieldset><fieldset><legend>Gruppen</legend><div id="scope-groups"></div></fieldset>${type==='regions'?`<fieldset><legend>Funktionen</legend>${checkList(state.functions,p?.function_ids||[],'scope_functions')}</fieldset>`:''}`;
  if(type==='rules')fields+=label('Funktion',`<select name="function_id" required>${options(state.functions,'id','name',p?.function_id||state.functions[0]?.id,false)}</select>`)+label('Gebiet / allgemeine Vorgabe','<select name="geo_id" id="rule-geo"></select>')+
  label('Abdeckung',`<select name="mode"><option value="continuous" ${p?.mode==='continuous'?'selected':''}>Durchgehend rund um die Uhr</option><option value="weekly" ${p?.mode!=='continuous'?'selected':''}>Wiederkehrende Wochenzeitfenster</option></select>`)+
@@ -361,12 +362,14 @@ function masterDialog(type,p){
  label('Gültig ab · TT.MM.JJJJ (optional)',input('valid_from',swissDate(current.valid_from),'text',false))+label('Gültig bis · exklusiv · TT.MM.JJJJ (optional)',input('valid_until',swissDate(current.valid_until),'text',false))+
  '<p class="small muted">Eine gebietsspezifische Vorgabe ersetzt die allgemeine Vorgabe. Mehrere Wochentage pro Zeitfenster wählen. Endtag 0 ist derselbe Tag, 1 der Folgetag; 24:00 entspricht 00:00 am Folgetag.</p>';
  modal(`<h2>${masterTitles[type]} ${p?'bearbeiten':'anlegen'}</h2>`+(['groups','functions'].includes(type)?'<p class="small muted">Mit Shift-Klick ganze Bereiche innerhalb einer Auswahlliste markieren oder abwählen.</p>':'')+fields+(p?'<p class="small muted">Funktionen, Gebiete und Gruppen können nur ohne laufende oder zukünftige Pikettdienste gelöscht werden. Vergangene Dienste bleiben erhalten.</p><button type="button" id="delete-master" class="danger">Löschen</button>':''),async d=>{
+   const applyStanding=standingRequested;standingRequested=false;
    const next={...current,id:p?.id||d.id?.trim()||''};
    if(type!=='rules')next.name=d.name.trim();
    if(type==='regions'&&d.polygon_geo_id){if(d.polygon_geo_id==='auto')delete next.polygon_geo_id;else next.polygon_geo_id=d.polygon_geo_id==='none'?null:d.polygon_geo_id;}
    if(['functions','regions'].includes(type)){next.department_ids=[...document.querySelectorAll('[name=scope_departments]:checked')].map(x=>x.value);next.group_ids=[...document.querySelectorAll('[name=scope_groups]:checked')].map(x=>x.value);if(type==='regions')next.function_ids=[...document.querySelectorAll('[name=scope_functions]:checked')].map(x=>x.value);}
    if(type==='groups'){next.department_id=d.department_id||null;next.geo_ids=$('#group-all-regions').checked?null:[...document.querySelectorAll('[name=group_geo_ids]:checked')].map(x=>x.value);}
    if(type==='functions'){
+     next.duty_time_model=d.duty_time_model;next.duty_color=d.duty_color||current.duty_color||'#808080';if(applyStanding)next.standing_dates={from:d.standing_from,to:d.standing_to,color:next.duty_color};
      next.geo_ids=$('#independent').checked?[]:[...document.querySelectorAll('[name=geo_ids]:checked')].map(x=>x.value);
      if(!$('#independent').checked&&!next.geo_ids.length)throw Error('Gebiete wählen oder die Funktion als ortsunabhängig markieren');
      readCovers();next.covers={};if(next.geo_ids.length)for(const r of covers){if(!r.whole||!r.parts.length)throw Error('Gesamtgebiet und mindestens ein Teilgebiet wählen');if(next.covers[r.whole])throw Error('Ein Gesamtgebiet nur einmal konfigurieren');next.covers[r.whole]=r.parts;}
@@ -376,7 +379,7 @@ function masterDialog(type,p){
      if(d.mode==='weekly'&&!windows.length)throw Error('Mindestens ein Wochenzeitfenster anlegen');
      next.valid_from=d.valid_from.trim()?localDate(d.valid_from):null;next.valid_until=d.valid_until.trim()?localDate(d.valid_until):null;
    }
-   await api('/master/'+type,'POST',next);message('Konfiguration gespeichert');
+   const saved=await api('/master/'+type,'POST',next);message(saved.standing_result?`${saved.standing_result.created} Dienste für ${saved.standing_result.people} Personen eingetragen · ${saved.standing_result.already_planned} bereits vorhanden`:'Konfiguration gespeichert');
  });
  if(['functions','regions'].includes(type)){
   let selected=p?.group_ids||[];
@@ -403,6 +406,7 @@ function masterDialog(type,p){
    geo();$('[name=function_id]').onchange=geo;renderWindows();$('#add-window').onclick=()=>{readWindows();windows.push({weekdays:[1],start_time:'07:00',end_time:'19:00',end_day_offset:0});renderWindows();};
    const mode=()=>{$('#weekly-fields').hidden=$('[name=mode]').value!=='weekly';document.querySelectorAll('#weekly-fields input').forEach(x=>x.disabled=$('[name=mode]').value!=='weekly');};mode();$('[name=mode]').onchange=mode;
  }
+ if(type==='functions'){const toggleStanding=()=>{const enabled=$('[name=duty_time_model]').value==='always';$('#standing-fields').hidden=!enabled;$('#standing-fields').disabled=!enabled;};toggleStanding();$('[name=duty_time_model]').onchange=toggleStanding;$('#standing-apply').onclick=()=>{if($('#form').reportValidity()){standingRequested=true;$('#form').requestSubmit();}};}
  if(['groups','functions'].includes(type))disposeCheckboxRanges=bindCheckboxRanges($('#fields'));
  if(p)$('#delete-master').onclick=safe(async()=>{await api(`/master/${type}/${encodeURIComponent(p.id)}`,'DELETE');$('#dialog').close();await refresh();});
 }
