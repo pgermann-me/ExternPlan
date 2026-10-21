@@ -18,9 +18,9 @@ try{
  const pastRegion=(await call('/master/regions','POST',{id:'DELETE-PAST-GEO',name:'Vergangenes Gebiet'})).data;
  const pastFunction=(await call('/master/functions','POST',{id:'DELETE-PAST-FUNCTION',name:'Vergangene Funktion',geo_ids:[pastRegion.id],covers:{}})).data;
  const pastDuty=(await call('/assignments','POST',{employee_id:'DEMO-001',function_id:pastFunction.id,geodependency:pastRegion.id,priority:1,start_on:'2000-01-01T07:00',end_on:'2000-01-02T07:00'})).data.assignment;
- assert.equal((await call('/master/regions/'+pastRegion.id,'DELETE')).status,200);assert.equal((await call('/master/functions/'+pastFunction.id,'DELETE')).status,200);
+ assert.equal((await call('/master/regions/'+pastRegion.id,'DELETE')).status,400);assert.equal((await call('/master/functions/'+pastFunction.id,'DELETE')).status,200);
  const archived=(await call('/state')).data;assert.equal(archived.functions.some(f=>f.id===pastFunction.id),false);assert.ok(archived.archived_master.functions.some(f=>f.id===pastFunction.id));assert.ok(archived.assignments.some(a=>a.assignment_id===pastDuty.assignment_id));
- assert.equal((await call('/master/regions','POST',{id:pastRegion.id,name:'Kennung wiederverwenden'})).status,400);assert.equal((await call('/assignments','POST',{employee_id:'DEMO-001',function_id:pastFunction.id,geodependency:pastRegion.id,priority:1,start_on:'2099-01-01T07:00',end_on:'2099-01-02T07:00'})).status,400);
+ assert.equal((await call('/master/functions','POST',{id:pastFunction.id,name:'Kennung wiederverwenden'})).status,400);assert.equal((await call('/assignments','POST',{employee_id:'DEMO-001',function_id:pastFunction.id,geodependency:pastRegion.id,priority:1,start_on:'2099-01-01T07:00',end_on:'2099-01-02T07:00'})).status,400);
  // Finish this separate ELS batch; preserve historical records but keep later checks scoped.
  await call('/exports/'+(await call('/exports','POST',{})).data.export_id+'/confirm','POST',{});
  const person={employee_id:'IGNORED-CLIENT-ID',first_name:'Externe',last_name:'Testperson',group_id:'demo-gruppe',contacts:[{type:'phone',value:'Beispiel',priority:2}]};const createdPerson=await call('/people','POST',person);assert.equal(createdPerson.status,200);const employeeId=createdPerson.data.employee_id;assert.match(employeeId,/^EXT-/);assert.notEqual(employeeId,person.employee_id);

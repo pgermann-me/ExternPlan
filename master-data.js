@@ -7,13 +7,18 @@ export function publicState(s){
  const types=['functions','regions','groups','rules','favorites'];
  return {...visible,people:s.people.filter(active),archived_people:s.people.filter(p=>!active(p)),...Object.fromEntries(types.map(t=>[t,(s[t]||[]).filter(active)])),favorites:orderedFavorites(s),archived_master:Object.fromEntries(types.map(t=>[t,(s[t]||[]).filter(x=>!active(x))]))};
 }
+export function assertRegionDeletable(s,key){
+ const record=s.regions.find(r=>r.id===key&&active(r));if(!record)throw Error('Gebiet nicht gefunden');
+ if(s.assignments.some(a=>a.geodependency===key||(s.functions.find(f=>f.id===a.function_id)?.covers?.[a.geodependency]||[]).includes(key)))throw Error('Gebiet '+record.name+' kann nicht gelöscht werden: Ein Pikettdienst verweist noch darauf (direkt oder über ein Gesamtgebiet), auch vergangene Dienste zählen.');
+ return record;
+}
 export function deleteMaster(s,type,key,now=Date.now()){
  if(!['functions','regions','groups','departments','rules'].includes(type))throw Error('Unbekannte Stammdaten');
  const record=s[type].find(x=>x.id===key&&active(x));if(!record)throw Error('Stammdatensatz nicht gefunden');
  const current=s.assignments.filter(a=>instant(a.end_on)>now);
  let used=false;
  if(type==='functions')used=current.some(a=>a.function_id===key);
- if(type==='regions')used=current.some(a=>a.geodependency===key||(s.functions.find(f=>f.id===a.function_id)?.covers[a.geodependency]||[]).includes(key));
+ if(type==='regions')assertRegionDeletable(s,key);
  if(type==='groups'){const members=new Set(s.people.filter(p=>personGroupIds(p).includes(key)).map(p=>p.employee_id));used=current.some(a=>members.has(a.employee_id));}
  if(used)throw Error('Löschen nicht möglich: laufender oder zukünftiger Pikettdienst ist zugewiesen');
  if(type==='departments'&&(s.people.some(p=>active(p)&&p.department_id===key)||s.groups.some(g=>active(g)&&g.department_id===key)))throw Error('Abteilung wird noch verwendet');

@@ -1,3 +1,4 @@
+import {assertRegionDeletable,deleteMaster} from './master-data.js';
 import {regionScopeFields,scopeSnapshot,changedScope} from './public/region-bulk-scope.js';
 import {validateScopeRestrictions} from './public/organization.js';
 import {audit} from './domain.js';
@@ -21,4 +22,11 @@ export function bulkRegionScopes(state,input){
  let updated=0;
  for(const {before,after} of updates){if(JSON.stringify(scopeSnapshot(before))===JSON.stringify(scopeSnapshot(after)))continue;state.regions[state.regions.indexOf(before)]=after;audit(state,'regions','update',before,after);updated++;}
  return {selected:ids.length,updated};
+}
+
+export function bulkDeleteRegions(state,ids,now=Date.now()){
+ if(!Array.isArray(ids)||!ids.length||ids.length>1000||ids.some(id=>typeof id!=='string'||!id)||new Set(ids).size!==ids.length)fail('1 bis 1000 eindeutige Gebiete wählen');
+ for(const id of ids)assertRegionDeletable(state,id);
+ for(const id of ids)deleteMaster(state,'regions',id,now);
+ return {deleted:ids.length};
 }

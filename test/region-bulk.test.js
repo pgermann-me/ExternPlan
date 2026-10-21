@@ -17,3 +17,19 @@ test('Konflikte und ungültige Zuordnungen werden vor jeder Änderung abgewiesen
  for(const changes of [{department_ids:{mode:'replace',ids:['B']},group_ids:{mode:'add',ids:['GA']}},{function_ids:{mode:'replace',ids:['unbekannt']}},{department_ids:{mode:'replace',ids:[]}}]){const s=state(),before=structuredClone(s);assert.throws(()=>bulkRegionScopes(s,request(s,changes)));assert.deepEqual(s,before);}
  const s=state(),stale=request(s,{department_ids:{mode:'add',ids:['B']}});s.regions[79].function_ids=['F2'];const before=structuredClone(s);assert.throws(()=>bulkRegionScopes(s,stale),{status:409});assert.deepEqual(s,before);
 });
+
+
+import {bulkDeleteRegions} from '../region-bulk.js';
+import {deleteMaster} from '../master-data.js';
+import {permitted} from '../accounts.js';
+test('Mehrere unbenutzte Gebiete gemeinsam archivieren; Stammdatenbezüge und Polygone erhalten',()=>{
+ const s=state();s.assignments=[];s.rules=[];s.favorites=[];const before=structuredClone(s.regions);assert.equal(bulkDeleteRegions(s,['R0','R1']).deleted,2);assert(s.regions.slice(0,2).every(r=>r.deleted_at));assert.equal(s.regions[0].polygon_geo_id,before[0].polygon_geo_id);assert.deepEqual(s.regions[2],before[2]);assert.equal(s.audit.length,2);
+});
+test('Verweise aus beliebigen Diensten verhindern auch eine teilweise Gebietslöschung',()=>{
+ for(const end_on of ['2000-01-01T00:00Z','2099-01-01T00:00Z']){const s=state();s.rules=[];s.favorites=[];s.assignments=[{function_id:'F1',geodependency:'R1',end_on}];const before=structuredClone(s);assert.throws(()=>bulkDeleteRegions(s,['R0','R1']),/verweist/);assert.deepEqual(s,before);assert.throws(()=>deleteMaster(s,'regions','R1'),/verweist/);assert.deepEqual(s,before);}
+});
+test('Gesamtgebietsabdeckung und gelöschte Funktionshistorie schützen referenzierte Teilgebiete',()=>{
+ const s=state();s.rules=[];s.favorites=[];s.functions[0].covers={GANZ:['R1']};s.functions[0].deleted_at='2026-01-01';s.assignments=[{function_id:'F1',geodependency:'GANZ',end_on:'2000-01-01T00:00Z'}];const before=structuredClone(s);assert.throws(()=>bulkDeleteRegions(s,['R0','R1']),/Gesamtgebiet/);assert.deepEqual(s,before);
+ s.assignments=[];assert.equal(bulkDeleteRegions(s,['R0','R1']).deleted,2);
+ assert.equal(permitted('planner','POST','/api/regions/delete-many'),false);assert.equal(permitted('user','POST','/api/regions/delete-many'),false);
+});
