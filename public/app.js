@@ -1,3 +1,4 @@
+import {bindCheckboxRanges} from './checkbox-ranges.js';
 import {bindTableSort} from './table-sort.js';
 import {bindGroupMasterView} from './group-master-view.js';
 import {bindRegionBulkList} from './region-bulk-list.js';
@@ -23,6 +24,7 @@ let disposeRegionMap=()=>{},disposeRegionPreviews=()=>{},disposeDialogMap=()=>{}
 const loadRegionMap=async()=>regionMapData??=await api('/region-map');
 let elsTab='files',calendarHalf=0,renderSequence=0;
 let favoriteDepartment='',favoriteGroup='',favoriteFunction='',favoriteRegions=[];
+let disposeCheckboxRanges=()=>{};
 let regionListMode=false;
 const masterSortPreferences={departments:{},groups:{},regions:{},regionList:{}};
 const groupMasterPreferences={department:'',regions:[],mode:'table',closed:[]};
@@ -59,9 +61,9 @@ const name=id=>[...state.people,...(state.archived_people||[])].find(p=>p.employ
 const normalizedName=value=>String(value??'').normalize('NFD').replace(/\p{M}/gu,'').toLocaleLowerCase('de-CH').replace(/ß/g,'ss');
 const matchesPersonSearch=p=>normalizedName(personSearch).trim().split(/\s+/).filter(Boolean).every(part=>normalizedName([p.name,p.first_name,p.last_name].filter(Boolean).join(' ')).includes(part));
 const cls=status=>({'vollständig besetzt':'full','teilweise besetzt':'partial','unbesetzt':'empty','kein Pikett erforderlich':'none'}[status]);
-function modal(html,handler){$('#form footer button[type=submit]').hidden=false;$('#form footer button[type=submit]').disabled=false;$('#form footer button[type=submit]').textContent='Speichern';$('#fields').innerHTML=html;$('#dialog').showModal();$('#form').onsubmit=safe(async e=>{e.preventDefault();const data=Object.fromEntries(new FormData(e.target));await handler(data);$('#dialog').close();await refresh();});}
+function modal(html,handler){disposeCheckboxRanges();disposeCheckboxRanges=()=>{};$('#form footer button[type=submit]').hidden=false;$('#form footer button[type=submit]').disabled=false;$('#form footer button[type=submit]').textContent='Speichern';$('#fields').innerHTML=html;$('#dialog').showModal();$('#form').onsubmit=safe(async e=>{e.preventDefault();const data=Object.fromEntries(new FormData(e.target));await handler(data);$('#dialog').close();await refresh();});}
 $('#cancel').onclick=()=>$('#dialog').close();
-$('#dialog').addEventListener('close',()=>{disposeDialogMap();disposeDialogMap=()=>{};$('#dialog').classList.remove('region-map-dialog');document.querySelectorAll('#dialog input[type=password]').forEach(input=>{input.value='';});});
+$('#dialog').addEventListener('close',()=>{disposeCheckboxRanges();disposeCheckboxRanges=()=>{};disposeDialogMap();disposeDialogMap=()=>{};$('#dialog').classList.remove('region-map-dialog');document.querySelectorAll('#dialog input[type=password]').forEach(input=>{input.value='';});});
 async function refresh(){const previousMapRevision=state?.map_revision;state=await api('/state');if(state.map_revision!==previousMapRevision)regionMapData=undefined;applyAccountAccess();if(planningGroup&&!state.groups.some(g=>g.id===planningGroup))planningGroup='';if(group&&!state.groups.some(g=>g.id===group))group='';if(personGroup&&!state.groups.some(g=>g.id===personGroup))personGroup='';if(selectedFavoriteId&&!state.favorites.some(f=>f.id===selectedFavoriteId))selectedFavoriteId='';if(functionFilter&&!state.functions.some(f=>f.id===functionFilter))functionFilter='';const board=$('.board'),scroll=board?{left:board.scrollLeft,top:board.scrollTop}:null;await render();if(scroll&&$('.board')){$('.board').scrollLeft=scroll.left;$('.board').scrollTop=scroll.top;}}
 const roleNames={admin:'Admin',planner:'Planer',user:'Benutzer'};
 function applyAccountAccess(){
@@ -349,7 +351,7 @@ function masterDialog(type,p){
  '<div id="weekly-fields"><div id="window-rows"></div><button type="button" id="add-window" class="secondary">+ Zeitfenster</button></div>'+
  label('Gültig ab · TT.MM.JJJJ (optional)',input('valid_from',swissDate(current.valid_from),'text',false))+label('Gültig bis · exklusiv · TT.MM.JJJJ (optional)',input('valid_until',swissDate(current.valid_until),'text',false))+
  '<p class="small muted">Eine gebietsspezifische Vorgabe ersetzt die allgemeine Vorgabe. Mehrere Wochentage pro Zeitfenster wählen. Endtag 0 ist derselbe Tag, 1 der Folgetag; 24:00 entspricht 00:00 am Folgetag.</p>';
- modal(`<h2>${masterTitles[type]} ${p?'bearbeiten':'anlegen'}</h2>`+fields+(p?'<p class="small muted">Funktionen, Gebiete und Gruppen können nur ohne laufende oder zukünftige Pikettdienste gelöscht werden. Vergangene Dienste bleiben erhalten.</p><button type="button" id="delete-master" class="danger">Löschen</button>':''),async d=>{
+ modal(`<h2>${masterTitles[type]} ${p?'bearbeiten':'anlegen'}</h2>`+(['groups','functions'].includes(type)?'<p class="small muted">Mit Shift-Klick ganze Bereiche innerhalb einer Auswahlliste markieren oder abwählen.</p>':'')+fields+(p?'<p class="small muted">Funktionen, Gebiete und Gruppen können nur ohne laufende oder zukünftige Pikettdienste gelöscht werden. Vergangene Dienste bleiben erhalten.</p><button type="button" id="delete-master" class="danger">Löschen</button>':''),async d=>{
    const next={...current,id:p?.id||d.id?.trim()||''};
    if(type!=='rules')next.name=d.name.trim();
    if(type==='regions'&&d.polygon_geo_id){if(d.polygon_geo_id==='auto')delete next.polygon_geo_id;else next.polygon_geo_id=d.polygon_geo_id==='none'?null:d.polygon_geo_id;}
@@ -392,6 +394,7 @@ function masterDialog(type,p){
    geo();$('[name=function_id]').onchange=geo;renderWindows();$('#add-window').onclick=()=>{readWindows();windows.push({weekdays:[1],start_time:'07:00',end_time:'19:00',end_day_offset:0});renderWindows();};
    const mode=()=>{$('#weekly-fields').hidden=$('[name=mode]').value!=='weekly';document.querySelectorAll('#weekly-fields input').forEach(x=>x.disabled=$('[name=mode]').value!=='weekly');};mode();$('[name=mode]').onchange=mode;
  }
+ if(['groups','functions'].includes(type))disposeCheckboxRanges=bindCheckboxRanges($('#fields'));
  if(p)$('#delete-master').onclick=safe(async()=>{await api(`/master/${type}/${encodeURIComponent(p.id)}`,'DELETE');$('#dialog').close();await refresh();});
 }
 function favoriteOrderButtons(f,list){
