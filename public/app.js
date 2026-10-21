@@ -337,7 +337,7 @@ function masterDialog(type,p){
  let windows=coverageWindowGroups(p?.windows?.length?p.windows:[{start_day:1,start_time:'12:00',end_day:1,end_time:'14:00'}]);
  let covers=Object.entries(p?.covers||{}).map(([whole,parts])=>({whole,parts:[...parts]}));
  const checkList=(rows,selected,name)=>rows.map(r=>`<label class="check-option"><input type="checkbox" name="${name}" value="${esc(r.id)}" ${selected.includes(r.id)?'checked':''}>${esc(r.name)} <small>${esc(r.id)}</small></label>`).join('');
- let fields=label(type==='regions'?'Geo_ID':'Kennung'+(p?'':' (optional, sonst automatisch)'),`<input name="id" value="${esc(current.id||'')}" ${p?'readonly':''} ${type==='regions'?'required':''}>`);
+ let fields=type==='regions'?label('Geo_ID',`<input name="id" value="${esc(current.id||'')}" ${p?'readonly':''} required>`):'';
  if(type!=='rules')fields+=label(type==='regions'?'Beschreibung':'Name',input('name',current.name||''));
  if(type==='regions'&&regionMapData)fields+=label('Kartenpolygon',`<select name="polygon_geo_id"><option value="auto" ${!Object.hasOwn(current,'polygon_geo_id')?'selected':''}>Automatisch über Geo-ID</option><option value="none" ${current.polygon_geo_id===null?'selected':''}>Kein Polygon</option>${options(polygonCatalog(regionMapData).map(p=>({...p,name:p.layer+' · '+p.name+' ('+p.id+')'})),'id','name',current.polygon_geo_id,false)}</select>`);
  if(type==='groups')fields+=label('Abteilung',`<select name="department_id">${options(state.departments,'id','name',current.department_id)}</select>`);
@@ -350,7 +350,7 @@ function masterDialog(type,p){
  label('Gültig ab · TT.MM.JJJJ (optional)',input('valid_from',swissDate(current.valid_from),'text',false))+label('Gültig bis · exklusiv · TT.MM.JJJJ (optional)',input('valid_until',swissDate(current.valid_until),'text',false))+
  '<p class="small muted">Eine gebietsspezifische Vorgabe ersetzt die allgemeine Vorgabe. Mehrere Wochentage pro Zeitfenster wählen. Endtag 0 ist derselbe Tag, 1 der Folgetag; 24:00 entspricht 00:00 am Folgetag.</p>';
  modal(`<h2>${masterTitles[type]} ${p?'bearbeiten':'anlegen'}</h2>`+fields+(p?'<p class="small muted">Funktionen, Gebiete und Gruppen können nur ohne laufende oder zukünftige Pikettdienste gelöscht werden. Vergangene Dienste bleiben erhalten.</p><button type="button" id="delete-master" class="danger">Löschen</button>':''),async d=>{
-   const next={...current,id:p?.id||d.id.trim()};
+   const next={...current,id:p?.id||d.id?.trim()||''};
    if(type!=='rules')next.name=d.name.trim();
    if(type==='regions'&&d.polygon_geo_id){if(d.polygon_geo_id==='auto')delete next.polygon_geo_id;else next.polygon_geo_id=d.polygon_geo_id==='none'?null:d.polygon_geo_id;}
    if(['functions','regions'].includes(type)){next.department_ids=[...document.querySelectorAll('[name=scope_departments]:checked')].map(x=>x.value);next.group_ids=[...document.querySelectorAll('[name=scope_groups]:checked')].map(x=>x.value);if(type==='regions')next.function_ids=[...document.querySelectorAll('[name=scope_functions]:checked')].map(x=>x.value);}
