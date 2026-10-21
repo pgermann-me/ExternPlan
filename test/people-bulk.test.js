@@ -1,0 +1,22 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {bulkPeopleOrganization,personOrganizationSnapshot} from '../people-bulk.js';
+import {permitted} from '../accounts.js';
+const state=()=>({people:[{employee_id:'1',name:'Eins',department_id:'A',group_ids:['GA'],contacts:[{type:'phone_mobile',value:'Test'}],birth_date:'1972-04-19'},{employee_id:'2',name:'Zwei',group_ids:[]}],departments:[{id:'A'},{id:'B'}],groups:[{id:'GA',department_id:'A'},{id:'GB',department_id:'B'},{id:'GA2',department_id:'A'}],regions:[],functions:[],assignments:[],favorites:[],audit:[]});
+const admin={role:'admin'},request=s=>({expected:s.people.map(personOrganizationSnapshot),department:{mode:'set',id:'B'},groups:{mode:'add',ids:['GB']}});
+test('Mehrere Personen atomar zuweisen; Ergänzen erhält andere Gruppen und Personendaten',()=>{
+ const s=state(),input=request(s);assert.equal(bulkPeopleOrganization(s,input,admin).updated,2);assert.deepEqual(s.people[0].group_ids,['GA','GB']);assert.equal(s.people[0].department_id,'B');assert.equal(s.people[0].contacts[0].value,'Test');assert.equal(s.people[0].birth_date,'1972-04-19');assert.equal(s.audit.length,2);
+ const repeat={...input,expected:s.people.map(personOrganizationSnapshot)};assert.equal(bulkPeopleOrganization(s,repeat,admin).updated,0);assert.equal(s.audit.length,2);
+});
+test('Ersetzen, Leeren und keine Änderung sind getrennte Aktionen',()=>{
+ const s=state();bulkPeopleOrganization(s,{expected:s.people.map(personOrganizationSnapshot),groups:{mode:'replace',ids:['GA2']}},admin);assert.deepEqual(s.people[0].group_ids,['GA2']);assert.equal(s.people[0].department_id,'A');bulkPeopleOrganization(s,{expected:s.people.map(personOrganizationSnapshot),department:{mode:'clear'},groups:{mode:'clear'}},admin);assert.equal(s.people[0].department_id,null);assert.deepEqual(s.people[0].group_ids,[]);assert.equal(s.people[0].group_id,null);
+});
+test('Konflikt oder ungültiger letzter Datensatz verhindert jede Teiländerung',()=>{
+ for(const alter of [input=>input.expected[1].group_ids=['GA'],input=>input.expected[1].employee_id='missing',input=>input.groups.ids=['unknown'],input=>input.groups.ids=['GA']]){const s=state(),before=structuredClone(s),input=request(s);alter(input);assert.throws(()=>bulkPeopleOrganization(s,input,admin));assert.deepEqual(s,before);}
+});
+test('Planer behalten verborgene Mitgliedschaften und können nur im eigenen Bereich zuweisen',()=>{
+ const s=state();s.people[0].group_ids=['GA','GB'];s.people[0].department_id='B';const user={role:'planner',access_scope:{group_ids:['GA','GA2']}};
+ bulkPeopleOrganization(s,{expected:[{employee_id:'1',department_id:null,group_ids:['GA']}],groups:{mode:'replace',ids:['GA','GA2']}},user);assert.deepEqual(s.people[0].group_ids,['GA','GA2','GB']);assert.equal(s.people[0].department_id,'B');
+ for(const body of [{expected:[personOrganizationSnapshot(s.people[1])]},{expected:[{employee_id:'1',department_id:null,group_ids:['GA','GA2']}],groups:{mode:'replace',ids:['GB']}}]){const before=structuredClone(s);assert.throws(()=>bulkPeopleOrganization(s,body,user),{status:403});assert.deepEqual(s,before);}
+ assert.equal(permitted('planner','POST','/api/people/bulk-organization'),true);assert.equal(permitted('user','POST','/api/people/bulk-organization'),false);
+});

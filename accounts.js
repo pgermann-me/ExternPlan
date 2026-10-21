@@ -18,6 +18,7 @@ export function permitted(role,method,path){
  if(method==='GET'&&['/api/state','/api/month','/api/person-month','/api/pikett-list','/api/swiss-time'].includes(path))return true;
  if(method==='POST'&&(path==='/api/planning/undo'||/^\/api\/assignments(?:\/[^/]+(?:\/transfer)?)?$/.test(path)||/^\/api\/favorites\/[^/]+\/(preview|apply)$/.test(path)))return true;
  if(['PUT','DELETE'].includes(method)&&/^\/api\/assignments\/[^/]+$/.test(path))return true;
+ if(role==='planner'&&method==='POST'&&path==='/api/people/bulk-organization')return true;
  return role==='planner'&&(['POST','PUT','DELETE'].includes(method)&&(/^\/api\/people(?:\/[^/]+(?:\/groups)?)?$/.test(path)||/^\/api\/favorites(?:\/[^/]+)?$/.test(path)));
 }
 export function installAccounts(app,db,{env=process.env,dataDir,recordAudit,getState}){
