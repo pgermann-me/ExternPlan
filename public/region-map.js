@@ -15,7 +15,7 @@ export function renderRegionMap(container,{layers},masterRegions=[],options={}){
  function bounds(id){const result=L.latLngBounds([]);polygons.eachLayer(layer=>{if(!id||key(layer.feature)===id)result.extend(layer.getBounds());});return result;}
  function details(){
   const region=regions.get(selected),record=masterRegions.find(r=>polygonId(r)===selected);
-  query('region-map-details').innerHTML=region?`<h2>${escape(region.name)}</h2><dl><dt>Geo-ID</dt><dd>${escape(selected)}</dd><dt>Teilflächen</dt><dd>${region.count}</dd>${record?`<dt>Stammdaten</dt><dd>${escape(record.name)}</dd>`:''}</dl>`:`<h2>${escape(current.name)}</h2><p>${regions.size} Regionen · ${current.geojson.features.length} Teilflächen</p><p class="small muted">Eine Region auswählen, um ihre Details anzuzeigen.</p>`;
+  query('region-map-details').innerHTML=region?`<h2>${escape(region.name)}</h2><dl><dt>Geo-ID</dt><dd>${escape(selected)}</dd><dt>Teilflächen</dt><dd>${region.count}</dd>${record?`<dt>Stammdaten</dt><dd>${escape(record.name)}</dd>`:''}</dl>`:`<h2>${escape(current.name)}</h2><p>${regions.size} Regionen · ${[...regions.values()].reduce((n,r)=>n+r.count,0)} Teilflächen</p><p class="small muted">Eine Region auswählen, um ihre Details anzuzeigen.</p>`;
   for(const button of query('region-map-legend').querySelectorAll('button'))button.setAttribute('aria-pressed',String(button.dataset.geoId===selected));
  }
  function choose(id,fit=true,popupAt){
@@ -27,7 +27,7 @@ export function renderRegionMap(container,{layers},masterRegions=[],options={}){
  }
  function showLayer(){
   if(polygons)map.removeLayer(polygons);map.closePopup();selected='';current=layers.find(l=>l.id===layerSelect.value);regions=new Map();
-  for(const feature of current.geojson.features){const id=key(feature);if(!regions.has(id))regions.set(id,{name:title(feature),count:0,color:palette[regions.size%palette.length]});regions.get(id).count++;}
+  for(const feature of current.geojson.features){const id=key(feature);if(!regions.has(id))regions.set(id,{name:title(feature),count:0,color:palette[regions.size%palette.length]});regions.get(id).count+=feature.geometry.type==='MultiPolygon'?feature.geometry.coordinates.length:1;}
   regionSelect.innerHTML='<option value="">Alle Regionen</option>'+[...regions].map(([id,r])=>`<option value="${escape(id)}">${escape(r.name)} (${escape(id)})</option>`).join('');
   query('region-map-legend').innerHTML=[...regions].map(([id,r])=>`<button type="button" data-geo-id="${escape(id)}" aria-pressed="false"><span class="map-color" style="background:${r.color}" aria-hidden="true"></span><span>${escape(r.name)}<small>${escape(id)}</small></span></button>`).join('');
   for(const button of query('region-map-legend').querySelectorAll('button'))button.onclick=()=>choose(button.dataset.geoId);
