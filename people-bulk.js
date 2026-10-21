@@ -1,4 +1,4 @@
-import {audit} from './domain.js';
+import {audit,change} from './domain.js';
 import {personGroupIds} from './public/organization.js';
 import {accessPolicy,restricted,scopedPersonInput} from './access-scope.js';
 export const personOrganizationSnapshot=p=>({employee_id:p.employee_id,department_id:p.department_id||null,group_ids:[...personGroupIds(p)].sort()});
@@ -32,4 +32,19 @@ export function bulkDeletePeople(s,ids,user,now=Date.now()){
  const policy=restricted(user)?accessPolicy(s,user):null;
  const people=ids.map(id=>{const p=s.people.find(p=>p.employee_id===id&&!p.deleted_at);if(!p)throw Error('Person nicht mehr vorhanden');if(policy&&(!policy.personAllowed(p)||!policy.personDeletable(p))){const error=Error('Person darf mit Ihrer Berechtigung nicht gelöscht werden');error.status=403;throw error;}if(s.assignments.some(a=>a.employee_id===id&&Date.parse(a.end_on)>now))throw Error('Löschen nicht möglich: '+p.name+' hat laufende oder zukünftige Dienste');return p;});
  for(const p of people){const before={...p};p.deleted_at=new Date(now).toISOString();audit(s,'person','delete',before,{...p});}return {deleted:people.length};
+}
+
+
+export function bulkDeletePersonDuties(s,input,user){
+ const {employee_ids:ids,expected}=input;
+ if(!Array.isArray(ids)||!ids.length||ids.length>1000||new Set(ids).size!==ids.length)throw Error('1 bis 1000 eindeutige Personen auswählen');
+ if(!Array.isArray(expected)||expected.length>100000||expected.some(a=>!a||typeof a.assignment_id!=='string'||!Number.isInteger(a.revision))||new Set(expected.map(a=>a.assignment_id)).size!==expected.length)throw Error('Ungültige Dienstliste; neu laden und erneut auswählen');
+ const policy=restricted(user)?accessPolicy(s,user):null;
+ for(const id of ids){const person=s.people.find(p=>p.employee_id===id&&!p.deleted_at);if(!person)throw Error('Person nicht mehr vorhanden');if(policy&&!policy.personAllowed(person)){const error=Error('Person ausserhalb Ihrer Berechtigung');error.status=403;throw error;}}
+ const selected=new Set(ids),duties=s.assignments.filter(a=>selected.has(a.employee_id));
+ if(policy&&duties.some(a=>!policy.assignmentAllowed(a))){const error=Error('Nicht alle Dienste dieser Personen liegen in Ihrer Berechtigung. Es wurde nichts gelöscht.');error.status=403;throw error;}
+ const revisions=new Map(expected.map(a=>[a.assignment_id,a.revision]));if(duties.length!==expected.length||duties.some(a=>revisions.get(a.assignment_id)!==a.revision)){const error=Error('Die Dienste wurden inzwischen geändert. Neu laden und erneut auswählen.');error.status=409;throw error;}
+ const deleted=new Set(duties.map(a=>a.assignment_id));s.assignments=s.assignments.filter(a=>!deleted.has(a.assignment_id));
+ for(const a of duties){change(s,'delete',{...a,revision:a.revision+1});audit(s,'assignment','delete',a,null);if(s.assignment_styles)delete s.assignment_styles[a.assignment_id];}
+ return {deleted_duties:duties.length,people:ids.length};
 }

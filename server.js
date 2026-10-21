@@ -1,6 +1,6 @@
 import {mergeContinuousDuties} from './continuous-migration.js';
 import {createStandingDuties,validateStandingFunction} from './standing-duties.js';
-import {bulkPeopleOrganization,bulkDeletePeople} from './people-bulk.js';
+import {bulkPeopleOrganization,bulkDeletePeople,bulkDeletePersonDuties} from './people-bulk.js';
 import {previewHunters,importHunters} from './hunter-import.js';
 import {bulkRegionScopes} from './region-bulk.js';
 import {inspectGeojson,mapGeojson,geojsonConflicts,prepareGeojsonImport} from './geojson-import.js';
@@ -66,6 +66,7 @@ app.post('/api/assignments/:id/transfer',(req,res)=>res.json(mutate(s=>planningC
 app.put('/api/assignments/:id',(req,res)=>res.json(mutate(s=>planningChange(s,()=>{const index=s.assignments.findIndex(x=>x.assignment_id===req.params.id);if(index<0)throw Error('Zuteilung nicht gefunden');const before=s.assignments[index];if(req.body.revision!==before.revision)throw Error('Zuteilung wurde inzwischen geändert. Neu laden.');validatePlanningGroup(s,req.body);const r=validateAssignment(s,req.body,before);s.assignments[index]=r.assignment;assignmentStyle(s,r.assignment,req.body);change(s,'update',r.assignment);audit(s,'assignment','update',before,r.assignment);return r;}))));
 app.delete('/api/assignments/:id',(req,res)=>res.json(mutate(s=>planningChange(s,()=>{const index=s.assignments.findIndex(x=>x.assignment_id===req.params.id);if(index<0)throw Error('Zuteilung nicht gefunden');const before=s.assignments[index];if(Number(req.query.revision)!==before.revision)throw Error('Revision stimmt nicht überein');s.assignments.splice(index,1);change(s,'delete',{...before,revision:before.revision+1});audit(s,'assignment','delete',before,null);return {ok:true};}))));
 function validPerson(s,p,previous){validatePersonAffiliations(s,p,previous);if(!p.employee_id||!p.name)throw Error('employee_id und Name erforderlich');if(p.department_id&&!s.departments.some(x=>x.id===p.department_id))throw Error('Abteilung unbekannt');if(personGroupIds(p).some(g=>!s.groups.some(x=>x.id===g&&(active(x)||personGroupIds(previous).includes(g)))))throw Error('Gruppe unbekannt');if(!Array.isArray(p.contacts)||p.contacts.some(c=>!c.type||!c.value||!Number.isInteger(c.priority)||c.priority<0))throw Error('Kontakte benötigen Typ, Wert und eine ganzzahlige Priorität ab 0');}
+app.post('/api/people/delete-duties',(req,res)=>res.json(mutate(s=>bulkDeletePersonDuties(s,req.body,req.user))));
 app.post('/api/people/delete-many',(req,res)=>res.json(mutate(s=>bulkDeletePeople(s,req.body.employee_ids,req.user))));
 app.post('/api/people/bulk-organization',(req,res)=>res.json(mutate(s=>bulkPeopleOrganization(s,req.body,req.user))));
 app.post('/api/people',(req,res)=>res.json(mutate(s=>{

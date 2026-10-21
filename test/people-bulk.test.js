@@ -25,3 +25,19 @@ import {bulkDeletePeople} from '../people-bulk.js';
 test('Sammellöschen ist atomar, geschützt durch zukünftige Dienste und Berechtigungen',()=>{
  const s=state();s.assignments=[{employee_id:'2',end_on:'2099-01-01T00:00Z'}];const before=structuredClone(s);assert.throws(()=>bulkDeletePeople(s,['1','2'],admin));assert.deepEqual(s,before);s.assignments=[];assert.throws(()=>bulkDeletePeople(s,['1','2'],{role:'planner',access_scope:{group_ids:['GA']}}),{status:403});assert(!s.people.some(p=>p.deleted_at));assert.equal(bulkDeletePeople(s,['1','2'],admin).deleted,2);assert(s.people.every(p=>p.deleted_at));assert.equal(s.audit.length,2);
 });
+
+import {bulkDeletePersonDuties} from '../people-bulk.js';
+test('Alle Dienste ausgewählter Personen löschen, mit Tombstones; Personen und fremde Dienste erhalten',()=>{
+ const s=state();s.outbox=[];s.assignments=[{assignment_id:'past',employee_id:'1',revision:2,start_on:'2000-01-01T00:00Z',end_on:'2000-01-02T00:00Z'},{assignment_id:'future',employee_id:'1',revision:1,start_on:'2099-01-01T00:00Z',end_on:'2099-01-02T00:00Z'},{assignment_id:'other',employee_id:'2',revision:1}];s.assignment_styles={past:{color:'#808080'},future:{color:'#123456'},other:{color:'#abcdef'}};const people=structuredClone(s.people),expected=s.assignments.slice(0,2).map(a=>({assignment_id:a.assignment_id,revision:a.revision}));
+ assert.equal(bulkDeletePersonDuties(s,{employee_ids:['1'],expected},admin).deleted_duties,2);assert.deepEqual(s.assignments.map(a=>a.assignment_id),['other']);assert.deepEqual(s.people,people);assert.deepEqual(s.outbox.map(a=>[a.action,a.revision]),[['delete',3],['delete',2]]);assert.deepEqual(s.assignment_styles,{other:{color:'#abcdef'}});assert.equal(s.audit.length,2);
+});
+test('Dienstlöschung bei Änderungen oder fehlender Berechtigung vollständig abbrechen',()=>{
+ const s=state();s.outbox=[];s.assignments=[{assignment_id:'one',employee_id:'1',revision:2},{assignment_id:'two',employee_id:'2',revision:1}];const before=structuredClone(s);
+ assert.throws(()=>bulkDeletePersonDuties(s,{employee_ids:['1'],expected:[{assignment_id:'one',revision:1}]},admin),{status:409});assert.deepEqual(s,before);
+ assert.throws(()=>bulkDeletePersonDuties(s,{employee_ids:['1','2'],expected:s.assignments}, {role:'planner',access_scope:{group_ids:['GA']}}),{status:403});assert.deepEqual(s,before);
+ assert.throws(()=>bulkDeletePersonDuties(s,{employee_ids:['1'],expected:[]},admin),{status:409});assert.deepEqual(s,before);
+ assert.equal(permitted('planner','POST','/api/people/delete-duties'),true);assert.equal(permitted('user','POST','/api/people/delete-duties'),false);
+});
+test('Dienste ausserhalb der regionalen Berechtigung können auch bei sichtbarer Person nicht gelöscht werden',()=>{
+ const s=state();s.regions=[{id:'N'},{id:'S'}];s.functions=[{id:'F',geo_ids:['N','S'],covers:{}}];s.assignments=[{assignment_id:'hidden',employee_id:'1',function_id:'F',geodependency:'S',revision:1}];s.outbox=[];const before=structuredClone(s);assert.throws(()=>bulkDeletePersonDuties(s,{employee_ids:['1'],expected:[]},{role:'planner',access_scope:{region_ids:['N']}}),{status:403});assert.deepEqual(s,before);
+});
