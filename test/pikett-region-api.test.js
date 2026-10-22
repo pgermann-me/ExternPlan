@@ -33,6 +33,7 @@ test('HTTP point queries and polygon map enforce authentication, roles, scopes a
   assert.equal((await call('/planning/always','POST',{employee_id:'HIDDEN',function_id:'W',geo_id:'R1',action:'add'},cookie)).status,403);
   assert.equal((await call('/people/P','PUT',{first_name:'Fremde Änderung'},cookie)).status,403);
   await ok('/planning/always','POST',{employee_id:'P2',function_id:'W',geo_id:'R1',action:'remove',expected_priority:1},cookie);
+  await ok('/master/functions','POST',{id:'W',name:'Jäger Immer',duty_time_model:'always',geo_ids:['R2'],covers:{}},admin);const permanent=(await ok(point,'GET',undefined,cookie)).data.rows.filter(r=>r.kind==='always');assert.deepEqual(permanent.map(r=>[r.employee_id,r.priority]),[['P',0]]);assert.ok(permanent.every(r=>r.region_ids.every(id=>id==='R1')));
   const after=(await ok('/state','GET',undefined,cookie)).data;assert.ok(!after.people.some(p=>p.employee_id==='P2'));assert.deepEqual(after.assignments,beforeDuties);
  }finally{await new Promise(resolve=>{if(server.exitCode!==null)return resolve();server.once('exit',resolve);server.kill();});rmSync(dir,{recursive:true,force:true});}
 });

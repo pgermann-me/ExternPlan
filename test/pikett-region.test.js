@@ -42,5 +42,18 @@ test('Point queries retain explicit offsets at the Swiss clock change',()=>{
 test('Permanent responsibilities also inherit regions through region groups and ignore legacy generated duties',()=>{
  const {state,mapData}=regionFixture();state.functions[1].geo_ids=[];state.region_groups=[{id:'RG',name:'Gebietsgruppe',function_ids:['W']}];state.regions[0].region_group_ids=['RG'];
  state.assignments.push({...state.assignments[0],assignment_id:'old-always',function_id:'W'});
- const result=pikettByRegion(state,mapData,at,47.3,9.4);assert.equal(result.rows.filter(r=>r.kind==='always').length,2);assert.ok(!result.rows.some(r=>r.assignment_id==='old-always'));
+ const result=pikettByRegion(state,mapData,at,47.3,9.4);assert.equal(result.rows.filter(r=>r.kind==='always').length,3);assert.ok(result.rows.some(r=>r.employee_id==='HIDDEN'&&r.kind==='always'));assert.ok(!result.rows.some(r=>r.assignment_id==='old-always'));
+});
+
+test('Explicit Immer responsibility remains visible when the function region choices change, while restrictions still apply',()=>{
+ const {state,mapData}=regionFixture();state.functions[1].geo_ids=[];
+ const entries=()=>pikettByRegion(publicState(state),mapData,at,47.3,9.4).rows.filter(r=>r.kind==='always');assert.deepEqual(entries().map(r=>r.priority),[1,1,2]);
+ state.functions[1].department_ids=['D'];assert.deepEqual(entries().map(r=>r.employee_id),['P2','P']);state.regions[0].function_ids=['F'];assert.equal(entries().length,0);assert.equal(state.assignments.length,4);
+});
+test('Regional list orders all functions alphabetically and each function by 1 through 9, with unranked zero last',()=>{
+ const {state,mapData}=regionFixture();state.assignments=[];
+ state.functions=[{id:'Z',name:'Zentrale',duty_time_model:'always',geo_ids:['R1'],covers:{}},{id:'A',name:'Amtsarzt',duty_time_model:'always',geo_ids:['R1'],covers:{}}];
+ state.people=[...Array.from({length:4},(_,i)=>({employee_id:'P'+i,first_name:'Test',last_name:String.fromCharCode(65+i),contacts:[],function_regions:[{function_id:'Z',geo_id:'R1',priority:[0,9,1,2][i]},{function_id:'A',geo_id:'R1',priority:[0,9,1,2][i]}]}))];
+ const before=JSON.stringify(state),result=pikettByRegion(state,mapData,at,47.3,9.4);assert.deepEqual(result.rows.map(r=>[r.function_name,r.priority]),[['Amtsarzt',1],['Amtsarzt',2],['Amtsarzt',9],['Amtsarzt',0],['Zentrale',1],['Zentrale',2],['Zentrale',9],['Zentrale',0]]);assert.ok(result.rows.every(r=>r.kind==='always'&&r.region_ids[0]==='R1'));assert.equal(JSON.stringify(state),before);
+ assert.deepEqual(pikettByRegion(state,mapData,'2040-01-01T00:00:00+01:00',47.3,9.4).rows,result.rows);
 });

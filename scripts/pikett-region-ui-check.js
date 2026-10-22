@@ -17,6 +17,7 @@ try{
  await page.locator('#pikett-region-at').fill('22.10.2026 12:00');await page.getByRole('button',{name:'Anzeigen',exact:true}).click();
  const clickMap=async()=>{const box=await page.locator('#pikett-region-map').boundingBox();await page.mouse.click(box.x+box.width/2,box.y+box.height/2);};
  await clickMap();await page.locator('[data-region-duty=scheduled]').first().waitFor();assert.equal(await page.locator('[data-region-duty=scheduled]').count(),2);assert.equal(await page.locator('[data-region-duty=always]').count(),2);assert.match(await page.locator('#pikett-region-results').innerText(),/Westgebiet/);assert.match(await page.locator('#pikett-region-results').innerText(),/Immer/);assert.ok(!(await page.locator('#pikett-region-results').innerText()).includes('hidden@example.invalid'));
+ assert.deepEqual(await page.locator('[data-region-duty=always] td:nth-child(4)').allTextContents(),['1','2']);assert.match(await page.locator('#pikett-region-results').innerText(),/Sortierung: Funktion A–Z, dann Priorität/);
  await page.screenshot({path:'/tmp/externplan-pikett-nach-region.png',fullPage:true});
  await page.locator('#pikett-region-at').fill('22.10.2026 18:00');await page.getByRole('button',{name:'Anzeigen',exact:true}).click();await page.waitForFunction(()=>document.querySelectorAll('[data-region-duty=scheduled]').length===1);assert.equal(await page.locator('[data-region-duty=always]').count(),2);
  // Late responses must not resurrect a map after switching back to the ordinary list.

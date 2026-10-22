@@ -19,7 +19,7 @@ export function pikettByRegion(state,mapData,at,lat,lng){
  }
  for(const person of state.people.filter(p=>!p.deleted_at))for(const affiliation of person.function_regions||[]){
   const fn=functions.get(affiliation.function_id),region=regions.find(r=>r.id===affiliation.geo_id);
-  if(!ids.has(affiliation.geo_id)||!fn||fn.deleted_at||fn.duty_time_model!=='always'||!fn.geo_ids.includes(affiliation.geo_id)||!personScopeAllows(state,fn,person,fn.id)||!personScopeAllows(state,region,person,fn.id))continue;
+  if(!ids.has(affiliation.geo_id)||!fn||fn.deleted_at||fn.duty_time_model!=='always'||!personScopeAllows(state,fn,person,fn.id)||!personScopeAllows(state,region,person,fn.id))continue;
   rows.push({kind:'always',function_id:fn.id,function_name:fn.name,employee_id:person.employee_id,person_name:personName(person),region_name:region.name,region_ids:[region.id],priority:affiliation.priority??0,start_on:null,end_on:null,contacts:listContacts(person.contacts)});
  }
  rows.sort((a,b)=>a.function_name.localeCompare(b.function_name,'de-CH')||priorityRank(a.priority)-priorityRank(b.priority)||a.region_name.localeCompare(b.region_name,'de-CH')||a.person_name.localeCompare(b.person_name,'de-CH'));

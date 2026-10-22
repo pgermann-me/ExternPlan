@@ -53,7 +53,13 @@ export function accessPolicy(s,user){
   const r=geo===null?null:s.regions.find(r=>r.id===geo);
   return contexts.some(c=>scopeAllows(f,c,s.groups)&&(geo===null?!selectedRegions.length:regionIds.has(geo)&&scopeAllows(r,{...c,function_id:f.id},s.groups)&&(!c.group_id||!Array.isArray(s.groups.find(g=>g.id===c.group_id)?.geo_ids)||s.groups.find(g=>g.id===c.group_id).geo_ids.includes(geo))));
  };
- const functions=s.functions.filter(f=>organizationCompatible(f)&&(f.geo_ids.length?f.geo_ids.some(id=>targetAllowed(f,id)):targetAllowed(f,null)));
+ // Existing permanent responsibilities remain readable when configuration choices change.
+ const standingRegions=new Map();
+ const standingFunctions=new Set(s.functions.filter(f=>!f.deleted_at&&f.duty_time_model==='always').map(f=>f.id));
+ for(const person of s.people)if(!person.deleted_at&&personAllowed(person))for(const row of person.function_regions||[])if(standingFunctions.has(row.function_id)){
+  if(!standingRegions.has(row.function_id))standingRegions.set(row.function_id,new Set());standingRegions.get(row.function_id).add(row.geo_id);
+ }
+ const functions=s.functions.filter(f=>{const ids=[...f.geo_ids,...(standingRegions.get(f.id)||[])];return organizationCompatible(f)&&(ids.length?ids.some(id=>targetAllowed(f,id)):targetAllowed(f,null));});
  const functionIds=new Set(functions.map(f=>f.id));
  const assignmentAllowed=(a,{covering=false}={})=>{
   const p=s.people.find(p=>p.employee_id===a.employee_id),f=s.functions.find(f=>f.id===a.function_id);
