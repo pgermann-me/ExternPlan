@@ -222,7 +222,7 @@ th.sortable-heading{padding:0}.table-sort-button{display:block;width:100%;paddin
 .person-affiliation-row{display:grid;grid-template-columns:minmax(150px,1fr) minmax(180px,1.5fr) 80px auto;gap:8px;align-items:end;margin:8px 0}.person-affiliation-row label{min-width:0}.person-affiliation-row select{width:100%}@media(max-width:650px){.person-affiliation-row{grid-template-columns:1fr 1fr}}
 
 /* Non-blocking status, also above modal dialogs through the popover top layer. */
-.busy-indicator{position:fixed;inset:18px 18px auto auto;margin:0;padding:12px 16px;display:flex;align-items:center;gap:10px;background:#fff;color:#193342;border:1px solid #b9c8d1;border-radius:8px;box-shadow:0 3px 16px #18364730;font:500 14px/1.4 system-ui,sans-serif;z-index:2147483647;pointer-events:none}
+.busy-indicator{position:fixed;inset:18px auto auto 50%;transform:translateX(-50%);margin:0;padding:12px 16px;display:flex;align-items:center;gap:10px;background:#fff;color:#193342;border:1px solid #b9c8d1;border-radius:8px;box-shadow:0 3px 16px #18364730;font:500 14px/1.4 system-ui,sans-serif;z-index:2147483647;pointer-events:none}
 .busy-indicator[hidden]{display:none}
 .busy-indicator::backdrop{background:transparent;pointer-events:none}
 .busy-spinner{width:22px;height:22px;flex:none;border:3px solid #d8e4e9;border-top-color:#176b91;border-radius:50%;animation:busy-spin .8s linear infinite}
