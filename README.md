@@ -258,3 +258,26 @@ Unter **Planung → Immer** werden die dauerhaften Personen-/Funktions-/Gebietsz
 Die Standardpriorität ist **0 = gleichrangig / keine Priorität**. In der Immer-Planung sind Werte von 0 bis 9 zulässig: **1 ist die höchste, 9 die tiefste Priorität**. Einträge ohne Priorität erhalten keinen Vorrang. Die Regionsauswahl beim Hinzufügen wird alphabetisch nach Schweizer Sortierung angezeigt. Die regionale Pikettliste stellt positive Prioritäten vor unpriorisierten Einträgen dar. Personen-Stammdaten und Jäger-Import akzeptieren ebenfalls Priorität 0. Bei zeitlich geplanten Diensten verwendet eine unpriorisierte Personen-Zuordnung weiterhin den positiven Standard der Dienstplanung; bestehende Dienste werden nicht geändert.
 
 `POST /api/planning/always` ändert gezielt eine Immer-Zuordnung und prüft die gleichen Datenberechtigungen wie die Planung. Die Änderung ist allen Rollen mit Zugriff auf die Planung möglich; allgemeine Personen-Stammdaten bleiben für Benutzer gesperrt. Fremde oder ausgeblendete Zuordnungen und andere Personenfelder bleiben erhalten. Bearbeiten und Entfernen prüfen die erwartete bisherige Priorität gegen zwischenzeitliche Änderungen. Die Aktion erzeugt keine zeitlichen Dienste und keine ELS-Exportaufträge. Browserprüfung: `node scripts/always-planning-ui-check.js`.
+
+### Wildhut-Gebietskennungen
+
+Beim App-Start werden vorhandene Wildhut-Geo_IDs automatisch wie folgt umgestellt:
+
+| Bisher | Neu |
+| --- | --- |
+| WH10 | WH_AI_Oegg |
+| WH09 | WH_AI_App |
+| WH08 | WH_AR |
+| WH01 | WH_SG_1 |
+| WH02 | WH_SG_2 |
+| WH03 | WH_SG_3 |
+| WH04 | WH_SG_4 |
+| WH05 | WH_SG_5 |
+| WH06 | WH_SG_6 |
+| WH07 | WH_SG_7 |
+
+Die Umstellung umfasst aktive und archivierte Gebietsdatensätze, Polygonverknüpfungen und importierte Kartenpolygone, Funktions-/Gruppenbezüge, Personen-Zuordnungen, Soll-Abdeckungen, Favoriten, gespeicherte Dienste und regionale Benutzerrechte. Andere Kennungen (z. B. Personen- oder Funktionskennungen mit demselben Text), Beschreibungen, Gruppenmitgliedschaften, Prioritäten und Dienstzeiten bleiben erhalten. Bestehende Rückgängig-Einträge werden auf die neuen Geo_IDs übertragen.
+
+Die Migration läuft vor dem Start des HTTP-Servers in einer gemeinsamen Datenbanktransaktion. Vor Änderungen entsteht im Datenverzeichnis eine private Datei `backup-before-wildhut-geo-rename-*.json` mit dem ursprünglichen Zustand, den importierten Karten und den bisherigen Benutzerberechtigungen (Dateirechte 0600, keine Passwortdaten). Eine Wiederholung ohne weitere alte Kennungen ändert nichts und erzeugt keine weitere Sicherung. Vorhandene Zielkennungen oder widersprüchliche Zuordnungen werden nicht stillschweigend zusammengeführt.
+
+Historische Protokolle, bereits generierte Exportdateien und ELS-Bestätigungen bleiben unverändert. Betroffene gespeicherte Dienste erhalten eine neue Revision und eine aktuelle Exportvormerkung, damit künftige Exporte die neuen Gebietskennungen verwenden. Der Ausschluss von Immer-Funktionen aus dem ELS-Export bleibt bestehen.

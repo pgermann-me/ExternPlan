@@ -1,3 +1,4 @@
+import {migrateWildhutGeoIds,wildhutMigrationId} from './wildhut-geo-migration.js';
 import {changeAlwaysAffiliation} from './always-planning.js';
 import {pikettRegionMap} from './public/region-point.js';
 import {pikettByRegion} from './public/pikett-region-data.js';
@@ -48,9 +49,10 @@ installAccounts(app,db,{dataDir,getState:read,recordAudit:(action,before,after,a
 app.use('/api',(req,res,next)=>{if(restricted(req.user)){const p=accessPolicy(read(),req.user);for(const [key,ids] of [['department_id',p.departmentIds],['group_id',p.groupIds],['function_id',p.functionIds],['region_id',p.regionIds],['planning_department_id',p.departmentIds],['planning_group_id',p.groupIds]])for(const value of [].concat(req.query[key]||req.body?.[key]||[]))if(value&&!ids.has(value))return res.status(403).json({error:'Dieser Filter liegt ausserhalb Ihrer Berechtigung'});}next();});
 app.post('/api/planning/always',(req,res)=>res.json(mutate(s=>changeAlwaysAffiliation(s,req.body,req.user))));
 app.post('/api/planning/undo',(req,res)=>res.json(mutate(s=>undoPlanning(s,req.body.token))));
-app.get('/api/state',(req,res)=>{const state=publicState(scopedState(read(),req.user));if(req.user.role!=='admin')for(const key of ['audit','exports','person_exports','outbox','els'])delete state[key];res.json({...state,current_user:req.user,allowed_views:roleViews[req.user.role],...(req.user.role==='admin'?{map_revision:db.prepare('SELECT COUNT(*) AS n FROM imported_map_layers').get().n}:{})});});
+app.get('/api/state',(req,res)=>{const state=publicState(scopedState(read(),req.user));if(req.user.role!=='admin')for(const key of ['audit','exports','person_exports','outbox','els'])delete state[key];res.json({...state,current_user:req.user,allowed_views:roleViews[req.user.role],...(req.user.role==='admin'?{map_revision:db.prepare('SELECT COUNT(*) AS n FROM imported_map_layers').get().n+':'+(state.migrations||[]).filter(m=>m.id===wildhutMigrationId).length}:{})});});
 const regionMapLayers=[['amtsarzt','Amtsarzt','Amtsarzt_Gebiete.geojson'],['ua','Untersuchungsämter','UA_Regionen.geojson'],['wildhut','Wildhut','Wildhut_Kanton_SG.geojson']].map(([id,name,filename])=>({id,name,filename,geojson:JSON.parse(readFileSync(new URL('./map-data/'+filename,import.meta.url),'utf8'))}));
 db.exec('CREATE TABLE IF NOT EXISTS imported_map_layers (id TEXT PRIMARY KEY, data TEXT NOT NULL)');
+const wildhutRename=migrateWildhutGeoIds(db,{dataDir});if(wildhutRename)console.log('Wildhut-Geo_IDs aktualisiert; Sicherung: '+wildhutRename.backup);
 const mapLayers=()=>[...regionMapLayers,...db.prepare('SELECT data FROM imported_map_layers ORDER BY rowid').all().map(r=>JSON.parse(r.data))];
 app.get('/api/region-map',(req,res)=>res.json({layers:mapLayers()}));
 app.post('/api/geojson/preview',(req,res)=>{if(!req.body.mapping)return res.json(inspectGeojson(req.body.geojson));const {geojson,...preview}=mapGeojson(req.body.geojson,req.body.mapping);res.json({...preview,conflicts:geojsonConflicts(mapLayers(),preview)});});
