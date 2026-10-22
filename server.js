@@ -1,3 +1,4 @@
+import {recoverHunterPeople} from './hunter-recovery.js';
 import {recoverRegionState} from './region-recovery.js';
 import {migrateWildhutGeoIds} from './wildhut-geo-migration.js';
 import {changeAlwaysAffiliation} from './always-planning.js';
@@ -56,6 +57,7 @@ db.exec('CREATE TABLE IF NOT EXISTS imported_map_layers (id TEXT PRIMARY KEY, da
 const wildhutRename=migrateWildhutGeoIds(db,{dataDir});if(wildhutRename)console.log('Wildhut-Geo_IDs aktualisiert; Sicherung: '+wildhutRename.backup);
 const mapLayers=()=>[...regionMapLayers,...db.prepare('SELECT data FROM imported_map_layers ORDER BY rowid').all().map(r=>JSON.parse(r.data))];
 mutate(s=>{const original=JSON.stringify(s),catalog=JSON.parse(readFileSync(new URL('./map-data/hunter-regions.json',import.meta.url),'utf8'));const result=recoverRegionState(s,catalog,mapLayers());if(result.recovered||result.linked){const backup=resolve(dataDir,'backup-before-region-recovery-'+id()+'.json');writeFileSync(backup,original,{mode:0o600,flag:'wx'});console.log('Gebiete wiederhergestellt / Polygone verknüpft; Sicherung: '+backup);}return result;});
+mutate(s=>{const original=JSON.stringify(s),result=recoverHunterPeople(s);if(result.changed){const backup=resolve(dataDir,'backup-before-hunter-people-recovery-'+id()+'.json');writeFileSync(backup,original,{mode:0o600,flag:'wx'});console.log('Jäger-Personen wiederhergestellt; Sicherung: '+backup);}return result;});
 app.get('/api/region-map',(req,res)=>res.json({layers:mapLayers()}));
 app.post('/api/geojson/preview',(req,res)=>{if(!req.body.mapping)return res.json(inspectGeojson(req.body.geojson));const {geojson,...preview}=mapGeojson(req.body.geojson,req.body.mapping);res.json({...preview,conflicts:geojsonConflicts(mapLayers(),preview)});});
 app.post('/api/geojson/import',(req,res)=>res.json(mutate(s=>{const {layer,summary}=prepareGeojsonImport(s,mapLayers(),req.body);db.prepare('INSERT INTO imported_map_layers (id,data) VALUES (?,?)').run(layer.id,JSON.stringify(layer));return summary;})));

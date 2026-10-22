@@ -17,12 +17,12 @@ test('Vorschau ändert keine Daten; fehlende Gebiete erfordern Zustimmung',()=>{
 });
 test('Wiederholter Import aktualisiert statt Duplikate und bewahrt fremde Zuordnungen',()=>{
  const s=state();importHunters(s,xml(),true);const p=s.people[0],fn=s.functions[0];p.group_ids=['G'];p.group_id='G';p.department_id='D';p.external_id='ALT';p.function_regions.push({function_id:'ANDERE',geo_id:'X',priority:2});p.contacts.push({type:'email',value:'test@example.invalid',priority:1});s.departments.push({id:'D'});s.groups.push({id:'G',department_id:'D'});
- const result=importHunters(s,xml().replace('Anna','Anne'),true);assert.equal(result.updated,1);assert.equal(s.people.length,1);assert.equal(s.functions.length,1);assert.equal(s.people[0].first_name,'Anne');assert(s.people[0].group_ids.includes('G'));assert(s.people[0].group_ids.includes(s.groups.find(g=>g.hunter_geo_id==='J012').id));assert.equal(s.people[0].external_id,'ALT');assert.equal(s.people[0].function_regions.length,2);assert.equal(s.people[0].contacts.length,3);assert.equal(controlFunctions(s,'G','D')[0].id,fn.id);
+ const result=importHunters(s,xml().replace('Anna','Anne'),true);assert.equal(result.updated,1);assert.equal(s.people.length,1);assert.equal(s.functions.length,1);assert.equal(s.people[0].first_name,'Anne');assert(s.people[0].group_ids.includes('G'));assert(s.people[0].group_ids.includes(s.groups.find(g=>g.hunter_geo_id==='J012').id));assert.equal(s.people[0].external_id,'ALT');assert.equal(s.people[0].function_regions.length,2);assert.equal(s.people[0].contacts.length,3);assert.equal(s.functions[0].duty_time_model,'always');assert.deepEqual(controlFunctions(s,'G','D'),[]);
  const edit=manualPerson({first_name:'Anni',last_name:'Test'},s.people[0]);assert.equal(edit.birth_date,'1972-04-19');assert.deepEqual(edit.function_regions,s.people[0].function_regions);
 });
 test('Unsichere/ungültige XML, doppelte Kennungen, Daten und Prioritäten abweisen',()=>{
  for(const bad of ['<!DOCTYPE foo>'+xml(),xml().slice(0,-10),'<OTHER/>',xml().replace('19.04.1972','31.02.1972'),xml('abc'),xml().replace('<REV_PRIO>3','<REV_PRIO>-1'),xml().replace('</PERSONEN>',xml().match(/<PERSON>.*<\/PERSON>/s)[0]+'</PERSONEN>')])assert.throws(()=>parseHunters(bad));
- const s=state();s.people.push({employee_id:'00042',source:'SAP'});assert.throws(()=>previewHunters(s,xml()),/reserviert/);s.people=[];s.regions.push({id:'J012',deleted_at:'2026-01-01'});assert.throws(()=>previewHunters(s,xml()),/reserviert/);
+ const s=state();s.people.push({employee_id:'00042',source:'SAP'});assert.throws(()=>previewHunters(s,xml()),/reserviert/);s.people=[];s.regions.push({id:'J012',deleted_at:'2026-01-01'});assert.deepEqual(previewHunters(s,xml()).restored_regions,['J012']);
  assert.throws(()=>manualPerson({first_name:'A',last_name:'B',birth_date:'2026-02-30'},null,'P'),/Geburtsdatum/);
 });
 
@@ -51,4 +51,10 @@ test('Jäger-Import erzeugt Gebietsgruppen in Abteilung Jäger, nutzt Beschreibu
 
 test('Jäger import retains priority zero as an unranked affiliation',()=>{
  const s=state();importHunters(s,xml().replace('<REV_PRIO>3','<REV_PRIO>0'),true);assert.equal(s.people[0].function_regions[0].priority,0);
+});
+
+test('XML-Import reaktiviert archivierte Personen und Gebiete mit ursprünglicher Kennung und Priorität',()=>{
+ const s=state();importHunters(s,xml(),true);const fn=s.functions[0];fn.duty_time_model='scheduled';fn.duty_color='#112233';s.people[0].deleted_at='2026-10-21';s.regions[0].deleted_at='2026-10-21';fn.deleted_at='2026-10-21';s.departments[0].deleted_at='2026-10-21';s.groups[0].deleted_at='2026-10-21';
+ const preview=previewHunters(s,xml());assert.equal(preview.restored,1);assert.equal(s.people[0].deleted_at,'2026-10-21');
+ const result=importHunters(s,xml());assert.equal(result.restored,1);assert.equal(result.restored_regions,1);assert.equal(s.people.length,1);assert.equal(s.people[0].employee_id,'00042');assert.equal(s.people[0].deleted_at,undefined);assert.equal(s.people[0].function_regions[0].priority,3);assert.equal(s.regions[0].deleted_at,undefined);assert.equal(fn.duty_time_model,'always');assert.equal(fn.duty_color,undefined);assert.equal(fn.deleted_at,undefined);assert.equal(s.functions.length,1);assert.equal(s.departments.length,1);assert.equal(s.departments[0].deleted_at,undefined);assert.equal(s.groups.length,1);assert.equal(s.groups[0].deleted_at,undefined);assert.equal(s.assignments.length,0);
 });
