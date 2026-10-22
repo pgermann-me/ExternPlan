@@ -22,7 +22,7 @@ export function parseHunters(content){
   for(const rev of list(r.JAGDREVIERE?.JAGDREVIER)){
    const number=text(rev.REV_NUMMER,'REV_NUMMER');if(!/^\d+$/.test(number)||!Number.isSafeInteger(Number(number)))throw Error('Ungültige REV_NUMMER bei '+employee_id);
    if(Number(number)>999){skipped_regions++;continue;}
-   const value=text(rev.REV_PRIO,'REV_PRIO'),priority=Number(value);if(!/^\d+$/.test(value)||!Number.isSafeInteger(priority)||priority<1)throw Error('Ungültige REV_PRIO bei '+employee_id);
+   const value=text(rev.REV_PRIO,'REV_PRIO'),priority=Number(value);if(!/^\d+$/.test(value)||!Number.isSafeInteger(priority)||priority<0)throw Error('Ungültige REV_PRIO bei '+employee_id);
    const geo_id='J'+String(Number(number)).padStart(3,'0');if(regions.has(geo_id)&&regions.get(geo_id)!==priority)throw Error('Widersprüchliche Revierpriorität bei '+employee_id);regions.set(geo_id,priority);const description=text(rev.REV_NAME,'REV_NAME');if(description&&!descriptions[geo_id])descriptions[geo_id]=description;
   }
   return {employee_id,first_name,last_name,birth_date:date?.toISODate()||null,business_address:{type:'BusinessStandort',street:get('STRASSE'),streetNumber:get('HAUSNR'),zipCode:get('PLZ'),city:get('ORT')},contacts,regions:[...regions].map(([geo_id,priority])=>({geo_id,priority}))};

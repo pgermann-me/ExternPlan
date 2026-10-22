@@ -61,4 +61,4 @@ export function validateScopeRestrictions(s,type,p){
  if(p.department_ids?.length&&p.group_ids?.some(id=>!s.groups.some(g=>g.id===id&&p.department_ids.includes(g.department_id))))throw Error('Gruppen müssen zu einer ausgewählten Abteilung gehören');
 }
 
-export const personRegionPriority=(person,functionId,geoId,fallback=1)=>person?.function_regions?.find(r=>r.function_id===functionId&&r.geo_id===geoId)?.priority??fallback;
+export const personRegionPriority=(person,functionId,geoId,fallback=1)=>{const priority=person?.function_regions?.find(r=>r.function_id===functionId&&r.geo_id===geoId)?.priority;return priority>0?priority:fallback;};

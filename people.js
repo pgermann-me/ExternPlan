@@ -49,8 +49,8 @@ export function personDetails(input,previous){
  if(rows===undefined)return {birth_date};
  if(!Array.isArray(rows)||rows.length>1000)throw Error('Funktions-/Gebietszuordnungen müssen eine Liste sein (höchstens 1000)');
  const keys=new Set(),function_regions=rows.map(r=>{
-  if(!r||typeof r.function_id!=='string'||!r.function_id||!(r.geo_id===null||typeof r.geo_id==='string'&&r.geo_id)||!Number.isSafeInteger(r.priority)||r.priority<1)throw Error('Zuordnung benötigt Funktion, Gebiet und positive ganzzahlige Priorität');
-  const key=JSON.stringify([r.function_id,r.geo_id]);if(keys.has(key))throw Error('Funktion und Gebiet dürfen pro Person nur einmal zugeordnet werden');keys.add(key);return {function_id:r.function_id,geo_id:r.geo_id,priority:r.priority};
+  if(!r||typeof r.function_id!=='string'||!r.function_id||!(r.geo_id===null||typeof r.geo_id==='string'&&r.geo_id)||!Number.isSafeInteger(r.priority??0)||(r.priority??0)<0)throw Error('Zuordnung benötigt Funktion, Gebiet und ganzzahlige Priorität ab 0');
+  const key=JSON.stringify([r.function_id,r.geo_id]);if(keys.has(key))throw Error('Funktion und Gebiet dürfen pro Person nur einmal zugeordnet werden');keys.add(key);return {function_id:r.function_id,geo_id:r.geo_id,priority:r.priority??0};
  });return {birth_date,function_regions};
 }
 export function validatePersonAffiliations(s,p,previous){

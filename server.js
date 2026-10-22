@@ -1,3 +1,4 @@
+import {changeAlwaysAffiliation} from './always-planning.js';
 import {pikettRegionMap} from './public/region-point.js';
 import {pikettByRegion} from './public/pikett-region-data.js';
 import {withRegionGroups,regionGroupIds} from './public/region-groups.js';
@@ -45,6 +46,7 @@ const app=express();if(process.env.TRUST_PROXY==='1')app.set('trust proxy',1);ap
 app.use((req,res,next)=>{res.setHeader('X-Content-Type-Options','nosniff');if(!['GET','HEAD'].includes(req.method)&&req.headers.origin&&req.headers.origin!==`${req.protocol}://${req.headers.host}`)return res.status(403).json({error:'Fremder Ursprung nicht zugelassen'});next();});
 installAccounts(app,db,{dataDir,getState:read,recordAudit:(action,before,after,actor)=>{const s=read();audit(s,'user',action,before,after);if(actor)s.audit.at(-1).actor=actor;db.prepare('UPDATE state SET data=? WHERE id=1').run(JSON.stringify(s));}});
 app.use('/api',(req,res,next)=>{if(restricted(req.user)){const p=accessPolicy(read(),req.user);for(const [key,ids] of [['department_id',p.departmentIds],['group_id',p.groupIds],['function_id',p.functionIds],['region_id',p.regionIds],['planning_department_id',p.departmentIds],['planning_group_id',p.groupIds]])for(const value of [].concat(req.query[key]||req.body?.[key]||[]))if(value&&!ids.has(value))return res.status(403).json({error:'Dieser Filter liegt ausserhalb Ihrer Berechtigung'});}next();});
+app.post('/api/planning/always',(req,res)=>res.json(mutate(s=>changeAlwaysAffiliation(s,req.body,req.user))));
 app.post('/api/planning/undo',(req,res)=>res.json(mutate(s=>undoPlanning(s,req.body.token))));
 app.get('/api/state',(req,res)=>{const state=publicState(scopedState(read(),req.user));if(req.user.role!=='admin')for(const key of ['audit','exports','person_exports','outbox','els'])delete state[key];res.json({...state,current_user:req.user,allowed_views:roleViews[req.user.role],...(req.user.role==='admin'?{map_revision:db.prepare('SELECT COUNT(*) AS n FROM imported_map_layers').get().n}:{})});});
 const regionMapLayers=[['amtsarzt','Amtsarzt','Amtsarzt_Gebiete.geojson'],['ua','Untersuchungsämter','UA_Regionen.geojson'],['wildhut','Wildhut','Wildhut_Kanton_SG.geojson']].map(([id,name,filename])=>({id,name,filename,geojson:JSON.parse(readFileSync(new URL('./map-data/'+filename,import.meta.url),'utf8'))}));

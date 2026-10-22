@@ -26,5 +26,13 @@ test('HTTP point queries and polygon map enforce authentication, roles, scopes a
   assert.equal((await ok('/pikett-by-region?lat=47.65&lng=9.85','GET',undefined,cookie)).data.rows.length,0);
   for(const url of ['/pikett-by-region','/pikett-by-region?lat=abc&lng=9','/pikett-by-region?lat=91&lng=9','/pikett-by-region?lat=47&lng=9&at=2026-03-29T02:30'])assert.equal((await call(url,'GET',undefined,cookie)).status,400);
   assert.equal((await ok('/pikett-by-region?lat=47&lng=9&at=2026-10-25T02:30','GET',undefined,cookie)).data.at,'2026-10-25T00:30:00.000Z');
+  const beforeDuties=(await ok('/state','GET',undefined,cookie)).data.assignments;
+  await ok('/planning/always','POST',{employee_id:'P',function_id:'W',geo_id:'R1',action:'update',priority:0,expected_priority:2},cookie);
+  assert.deepEqual((await ok(point,'GET',undefined,cookie)).data.rows.filter(r=>r.kind==='always').map(r=>r.priority),[1,0]);
+  assert.equal((await call('/planning/always','POST',{employee_id:'P',function_id:'W',geo_id:'R2',action:'add'},cookie)).status,403);
+  assert.equal((await call('/planning/always','POST',{employee_id:'HIDDEN',function_id:'W',geo_id:'R1',action:'add'},cookie)).status,403);
+  assert.equal((await call('/people/P','PUT',{first_name:'Fremde Änderung'},cookie)).status,403);
+  await ok('/planning/always','POST',{employee_id:'P2',function_id:'W',geo_id:'R1',action:'remove',expected_priority:1},cookie);
+  const after=(await ok('/state','GET',undefined,cookie)).data;assert.ok(!after.people.some(p=>p.employee_id==='P2'));assert.deepEqual(after.assignments,beforeDuties);
  }finally{await new Promise(resolve=>{if(server.exitCode!==null)return resolve();server.once('exit',resolve);server.kill();});rmSync(dir,{recursive:true,force:true});}
 });

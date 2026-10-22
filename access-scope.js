@@ -81,7 +81,11 @@ export function assertScopedMutation(before,after,user){
   const old=new Map((before[type]||[]).map(r=>[r[key],r])),now=new Map((after[type]||[]).map(r=>[r[key],r]));
   for(const id of new Set([...old.keys(),...now.keys()])){const a=old.get(id),b=now.get(id);if(same(a,b))continue;
    if(type==='favorites'&&a&&b&&same({...a,sort_order:0},{...b,sort_order:0}))continue;
-   if(a&&!allows(a,p)||b&&!allows(b,next))denied();
+   // Removing the last visible affiliation may make a person disappear from a region-scoped view.
+   // Permit that transition only when every changed affiliation was visible and all other fields stay equal.
+   const affiliationTransition=type==='people'&&a&&b&&same({...a,function_regions:null},{...b,function_regions:null})&&
+    [...(a.function_regions||[]),...(b.function_regions||[])].filter(r=>!(a.function_regions||[]).some(x=>same(x,r))||!(b.function_regions||[]).some(x=>same(x,r))).every(r=>p.functionIds.has(r.function_id)&&p.targetAllowed(before.functions.find(f=>f.id===r.function_id),r.geo_id));
+   if(a&&!allows(a,p)||b&&!allows(b,next)&&!affiliationTransition)denied();
    if(type==='people'){
     if(a&&!a.deleted_at&&b?.deleted_at){if(!p.personDeletable(a))denied();}
     if(b&&personGroupIds(b).some(id=>!p.groupIds.has(id)&&!personGroupIds(a).includes(id)))denied();

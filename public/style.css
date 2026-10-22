@@ -234,3 +234,5 @@ th.sortable-heading{padding:0}.table-sort-button{display:block;width:100%;paddin
 #pikett-region-results{min-width:0}#pikett-region-results h2{margin-top:0}
 #pikett-region-results .pikett-list td{white-space:normal;min-width:85px}
 @media(max-width:950px){.pikett-region-layout{grid-template-columns:1fr}#pikett-region-map{height:420px}}
+.always-planning-table{width:100%;background:#fff}.always-planning-table>tbody>tr>th,.always-planning-table>tbody>tr>td{vertical-align:top}
+.always-affiliations{width:100%;min-width:430px;margin:0}.always-affiliations .actions{flex-wrap:nowrap}

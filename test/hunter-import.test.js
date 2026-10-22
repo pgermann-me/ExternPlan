@@ -21,7 +21,7 @@ test('Wiederholter Import aktualisiert statt Duplikate und bewahrt fremde Zuordn
  const edit=manualPerson({first_name:'Anni',last_name:'Test'},s.people[0]);assert.equal(edit.birth_date,'1972-04-19');assert.deepEqual(edit.function_regions,s.people[0].function_regions);
 });
 test('Unsichere/ungültige XML, doppelte Kennungen, Daten und Prioritäten abweisen',()=>{
- for(const bad of ['<!DOCTYPE foo>'+xml(),xml().slice(0,-10),'<OTHER/>',xml().replace('19.04.1972','31.02.1972'),xml('abc'),xml().replace('<REV_PRIO>3','<REV_PRIO>0'),xml().replace('</PERSONEN>',xml().match(/<PERSON>.*<\/PERSON>/s)[0]+'</PERSONEN>')])assert.throws(()=>parseHunters(bad));
+ for(const bad of ['<!DOCTYPE foo>'+xml(),xml().slice(0,-10),'<OTHER/>',xml().replace('19.04.1972','31.02.1972'),xml('abc'),xml().replace('<REV_PRIO>3','<REV_PRIO>-1'),xml().replace('</PERSONEN>',xml().match(/<PERSON>.*<\/PERSON>/s)[0]+'</PERSONEN>')])assert.throws(()=>parseHunters(bad));
  const s=state();s.people.push({employee_id:'00042',source:'SAP'});assert.throws(()=>previewHunters(s,xml()),/reserviert/);s.people=[];s.regions.push({id:'J012',deleted_at:'2026-01-01'});assert.throws(()=>previewHunters(s,xml()),/reserviert/);
  assert.throws(()=>manualPerson({first_name:'A',last_name:'B',birth_date:'2026-02-30'},null,'P'),/Geburtsdatum/);
 });
@@ -47,4 +47,8 @@ test('Revierzuordnungen respektieren regionale Zugriffsrechte und erscheinen in 
 test('Jäger-Import erzeugt Gebietsgruppen in Abteilung Jäger, nutzt Beschreibung und bleibt wiederholbar',()=>{
  const s=state();s.regions.push({id:'J012',name:'Gebiet aus Stammdaten'});const first=importHunters(s,xml(),true);assert.equal(first.created_departments,1);assert.equal(first.created_groups,1);const department=s.departments.find(d=>d.name==='Jäger'),group=s.groups.find(g=>g.hunter_geo_id==='J012');assert.equal(group.name,'J012 · Gebiet aus Stammdaten');assert.equal(group.department_id,department.id);assert.deepEqual(group.geo_ids,['J012']);assert.deepEqual(s.people[0].group_ids,[group.id]);assert.equal(s.people[0].department_id,department.id);const second=importHunters(s,xml(),true);assert.equal(second.created_groups,0);assert.equal(second.created_departments,0);assert.equal(s.groups.length,1);
  const fallback=state();importHunters(fallback,xml(),true);assert.equal(fallback.groups[0].name,'J012 · Ignorieren');importHunters(fallback,xml('1000'),true);assert.deepEqual(fallback.people[0].group_ids,[]);assert.deepEqual(fallback.people[0].function_regions,[]);
+});
+
+test('Jäger import retains priority zero as an unranked affiliation',()=>{
+ const s=state();importHunters(s,xml().replace('<REV_PRIO>3','<REV_PRIO>0'),true);assert.equal(s.people[0].function_regions[0].priority,0);
 });

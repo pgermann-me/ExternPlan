@@ -1,0 +1,30 @@
+import {chromium} from '@playwright/test';
+import {spawn} from 'node:child_process';
+import {mkdtempSync,rmSync} from 'node:fs';
+import {DatabaseSync} from 'node:sqlite';
+import assert from 'node:assert/strict';
+import {regionFixture} from './fixtures/pikett-region.js';
+const dir=mkdtempSync('/tmp/externplan-always-ui-'),{state}=regionFixture();state.people[1].function_regions=[];
+const db=new DatabaseSync(dir+'/externplan.sqlite');db.exec('CREATE TABLE state(id INTEGER PRIMARY KEY,data TEXT NOT NULL)');db.prepare('INSERT INTO state VALUES(1,?)').run(JSON.stringify(state));db.close();
+const server=spawn(process.execPath,['server.js'],{env:{...process.env,NODE_ENV:'test',EXTERNPLAN_TEST_FIXTURES:'1',PORT:'0',DATA_DIR:dir},stdio:['ignore','pipe','pipe']});let browser;
+try{
+ const port=await new Promise((resolve,reject)=>{let log='';const timer=setTimeout(()=>reject(Error(log)),15000);server.stdout.on('data',data=>{log+=data;const match=log.match(/Port (\d+)/);if(match){clearTimeout(timer);resolve(match[1]);}});server.stderr.on('data',data=>log+=data);server.once('exit',()=>{clearTimeout(timer);reject(Error(log));});});
+ const base='http://127.0.0.1:'+port;browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH||'/usr/bin/chromium',headless:true,args:['--no-sandbox']});const page=await browser.newPage({viewport:{width:1500,height:1000}}),errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto(base);
+ await page.getByRole('button',{name:'Planung',exact:true}).click();await page.locator('.timeline-board').waitFor();await page.getByRole('tab',{name:'Immer',exact:true}).click();await page.locator('.always-planning-table').waitFor();
+ assert.deepEqual(await page.locator('#person-function option').evaluateAll(options=>options.map(o=>o.value)),['','W']);
+ await page.locator('#person-department').selectOption('D');await page.locator('#person-group').selectOption('G');await page.locator('#person-function').selectOption('W');await page.locator('#person-month').fill('2026-12');await page.locator('#person-month').dispatchEvent('change');
+ await page.waitForFunction(()=>document.querySelectorAll('[data-always-person]').length===2);assert.match(await page.locator('[data-always-person=P2]').innerText(),/Keine Zuordnung/);
+ assert.deepEqual(await page.locator('#person-group option').evaluateAll(options=>options.map(o=>o.value)),['','G']);
+ await page.locator('.region-filter summary').click();await page.locator('[data-person-region=R2]').uncheck();await page.waitForFunction(()=>!document.querySelector('[data-person-region=R2]').checked);
+ await page.locator('[data-always-add=P2]').click();assert.equal(await page.locator('[name=always_priority]').inputValue(),'0');assert.equal(await page.locator('[name=always_geo_id]').inputValue(),'R1');
+ await page.locator('#form button[type=submit]').click();await page.waitForFunction(()=>!document.querySelector('dialog').open);await page.locator('[data-always-person=P2] [data-always-edit]').waitFor();
+ let saved=await (await page.request.get(base+'/api/state')).json();assert.equal(saved.people.find(p=>p.employee_id==='P2').function_regions[0].priority,0);assert.equal(saved.assignments.length,state.assignments.length);assert.equal(saved.outbox.length,0);
+ await page.locator('[data-always-person=P2] [data-always-edit]').click();await page.locator('[name=always_priority]').fill('1');await page.locator('#form button[type=submit]').click();await page.waitForFunction(()=>!document.querySelector('dialog').open);await page.waitForFunction(()=>document.querySelector('[data-always-person=P2] .always-affiliations tbody tr td:nth-child(3)').textContent==='1');
+ await page.screenshot({path:'/tmp/externplan-immer-planung.png',fullPage:true});
+ await page.locator('[data-always-person=P2] [data-always-remove]').click();await page.locator('#form button[type=submit]').click();await page.waitForFunction(()=>!document.querySelector('dialog').open);await page.waitForFunction(()=>!document.querySelector('[data-always-person=P2] [data-always-edit]'));assert.equal(await page.locator('[data-always-person]').count(),2);
+ await page.getByRole('tab',{name:'Zeitlich geplante Dienste',exact:true}).click();await page.locator('.timeline-board').waitFor();assert.equal(await page.locator('#person-month').inputValue(),'2026-12');assert.equal(await page.locator('#person-department').inputValue(),'D');
+ // Even when only Immer functions exist, the second planning tab must remain reachable.
+ await page.request.post(base+'/api/master/functions',{data:{...state.functions[0],duty_time_model:'always'}});await page.reload();await page.getByRole('button',{name:'Planung',exact:true}).click();await page.getByText('Keine Funktionen für diese Filter verfügbar.').waitFor();await page.getByRole('tab',{name:'Immer',exact:true}).click();await page.locator('.always-planning-table').waitFor();
+ saved=await (await page.request.get(base+'/api/state')).json();assert.equal(saved.assignments.length,state.assignments.length);assert.equal(saved.people.find(p=>p.employee_id==='P2').function_regions.length,0);assert.deepEqual(errors,[]);
+ console.log('Immer-Planungsprüfung bestanden: gemeinsame Filter, Personen ohne Zuordnung, Priorität 0, Hinzufügen/Bearbeiten/Entfernen und reine Immer-Konfiguration.');
+}finally{await browser?.close();await new Promise(resolve=>{if(server.exitCode!==null)return resolve();server.once('exit',resolve);server.kill();});rmSync(dir,{recursive:true,force:true});}
