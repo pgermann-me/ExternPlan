@@ -38,6 +38,16 @@ test('HTTP: region-group CRUD, atomic bulk assignment, inherited planning and ra
   assert.equal((await api('/master/regions','POST',{id:'INVALID',name:'Ungültig',region_group_ids:['missing']})).status,400);
   assert.equal((await api('/import/commit','POST',{type:'regions',rows:[{id:'NORD',name:'Importname'}],mapping:{id:'id',name:'name'}})).status,200);
   assert.deepEqual((await api('/state')).data.regions.find(r=>r.id==='NORD').region_group_ids,['RG']);
+  const direct={id:'DIRECT',name:'Direkte Gebietsgruppenauswahl',geo_ids:[],region_group_ids:['RG'],covers:{}};
+  assert.equal((await api('/master/functions','POST',{...direct,region_group_ids:['missing']})).status,400);
+  assert.equal((await api('/master/functions','POST',direct)).status,200);
+  assert.deepEqual((await api('/state')).data.functions.find(f=>f.id==='DIRECT').geo_ids,['NORD','SÜD']);
+  assert.ok((await api('/state')).data.region_groups.find(g=>g.id==='RG').function_ids.includes('DIRECT'));
+  assert.equal((await api('/master/regions','POST',{id:'LATER',name:'Später hinzugefügt',region_group_ids:['RG']})).status,200);
+  assert.deepEqual((await api('/state')).data.functions.find(f=>f.id==='DIRECT').geo_ids,['NORD','SÜD','LATER']);
+  assert.equal((await api('/assignments','POST',{...duty,function_id:'DIRECT',geodependency:'LATER'})).status,200);
+  assert.equal((await api('/master/functions','POST',{...direct,region_group_ids:[]})).status,400);
+  assert.ok((await api('/state')).data.region_groups.find(g=>g.id==='RG').function_ids.includes('DIRECT'));
   const db=new DatabaseSync(dir+'/externplan.sqlite'),raw=JSON.parse(db.prepare('SELECT data FROM state').get().data);db.close();
   assert.deepEqual(raw.functions.find(f=>f.id==='DEMO-ORT').geo_ids,[]);assert.ok(!raw.regions[0].region_group_scopes);assert.equal(raw.region_groups.find(g=>g.id==='RG').name,'Umbenannt');
  }finally{await new Promise(resolve=>{if(server.exitCode!==null)return resolve();server.once('exit',resolve);server.kill();});rmSync(dir,{recursive:true,force:true});}
