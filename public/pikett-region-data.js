@@ -22,6 +22,6 @@ export function pikettByRegion(state,mapData,at,lat,lng){
   if(!ids.has(affiliation.geo_id)||!fn||fn.deleted_at||fn.duty_time_model!=='always'||!personScopeAllows(state,fn,person,fn.id)||!personScopeAllows(state,region,person,fn.id))continue;
   rows.push({kind:'always',function_id:fn.id,function_name:fn.name,employee_id:person.employee_id,person_name:personName(person),region_name:region.name,region_ids:[region.id],priority:affiliation.priority??0,start_on:null,end_on:null,contacts:listContacts(person.contacts)});
  }
- rows.sort((a,b)=>a.function_name.localeCompare(b.function_name,'de-CH')||priorityRank(a.priority)-priorityRank(b.priority)||a.region_name.localeCompare(b.region_name,'de-CH')||a.person_name.localeCompare(b.person_name,'de-CH'));
+ rows.sort((a,b)=>Number(a.kind==='always')-Number(b.kind==='always')||a.function_name.localeCompare(b.function_name,'de-CH')||priorityRank(a.priority)-priorityRank(b.priority)||a.region_name.localeCompare(b.region_name,'de-CH')||a.person_name.localeCompare(b.person_name,'de-CH'));
  return {at:new Date(time).toISOString(),point:{lat,lng},regions:regions.map(r=>({id:r.id,name:r.name,polygon_geo_id:polygonId(r)})),rows};
 }
