@@ -1,3 +1,4 @@
+import {withBusy} from './busy.js';
 import {downloadPersonPdf} from './person-pdf.js';
 import {personIcal} from './person-ical.js';
 import {groupDayDuties} from './group-day-duties.js';
@@ -21,7 +22,7 @@ function listTable(assignments,days,inDay){
  const regions=[...new Set(matching.map(a=>a.geodependency??null))].sort((a,b)=>regionName(a).localeCompare(regionName(b),'de-CH'));
  return `<table class="person-duty-list"><thead><tr><th scope="col">Tag</th>${regions.map(id=>`<th scope="col">${esc(regionName(id))}</th>`).join('')}</tr></thead><tbody>${days.map(day=>{const weekday=new Date(day+'T12:00:00Z').getUTCDay();return `<tr class="${weekday===0||weekday===6?'calendar-weekend':''}"><th scope="row">${['So','Mo','Di','Mi','Do','Fr','Sa'][weekday]}, ${swissDate(day).slice(0,6)}</th>${regions.map(region=>`<td>${groupDayDuties(matching.filter(a=>(a.geodependency??null)===region&&inDay(a,day)),day).map(group=>listDuty(group,true)).join('')}</td>`).join('')}</tr>`;}).join('')}</tbody></table>`;
 }
-async function load(){
+async function load(){return withBusy(async()=>{
  const request=++sequence;$('#print-calendar').disabled=true;$('#export-ical').disabled=true;
  try{
   const month=$('#calendar-month').value;if(!/^\d{4}-\d{2}$/.test(month))throw Error('Bitte einen Monat wählen');
@@ -39,12 +40,12 @@ async function load(){
   const matching=assignments.filter(a=>days.some(day=>inDay(a,day)));$('#calendar-message').textContent=matching.length?`${matching.length} Pikettdienste im gewählten Monat`:'Keine Pikettdienste im gewählten Monat.';
   document.querySelectorAll('[data-duty]').forEach(button=>button.onclick=()=>{const ids=button.dataset.dutyIds?JSON.parse(button.dataset.dutyIds):[button.dataset.duty],originals=assignments.filter(a=>ids.includes(a.assignment_id));$('#duty-content').innerHTML=`<h2>${esc(title(originals[0]))}</h2><p>${esc(person.name)}</p>${originals.map(a=>`<section class="original-duty"><p>${esc(swissTime(a.start_on))} → ${esc(swissTime(a.end_on))}</p><p>Priorität ${a.priority}</p></section>`).join('')}`;$('#duty-details').showModal();});
  }catch(error){if(request===sequence){$('#calendar-message').textContent=error.message;$('#person-calendar').replaceChildren();}}
-}
+});}
 function moveMonth(delta){const date=new Date($('#calendar-month').value+'-01T12:00:00Z');if(!Number.isFinite(date.getTime()))return;date.setUTCMonth(date.getUTCMonth()+delta);$('#calendar-month').value=date.toISOString().slice(0,7);load();}
 $('#print-calendar').onclick=async()=>{
  const controls=[...document.querySelectorAll('.toolbar button,.toolbar input')].map(element=>({element,disabled:element.disabled})),message=$('#calendar-message').textContent;
  controls.forEach(({element})=>element.disabled=true);$('#calendar-message').textContent='PDF wird erstellt …';
- try{await downloadPersonPdf(document.querySelector('main'),`pikett-${listView?'listenansicht':'kalenderansicht'}-${displayedMonth}.pdf`);$('#calendar-message').textContent=message;}catch(error){$('#calendar-message').textContent='PDF konnte nicht erstellt werden: '+error.message;}finally{controls.forEach(({element,disabled})=>element.disabled=disabled);}
+ try{await withBusy(()=>downloadPersonPdf(document.querySelector('main'),`pikett-${listView?'listenansicht':'kalenderansicht'}-${displayedMonth}.pdf`));$('#calendar-message').textContent=message;}catch(error){$('#calendar-message').textContent='PDF konnte nicht erstellt werden: '+error.message;}finally{controls.forEach(({element,disabled})=>element.disabled=disabled);}
 };
 $('#export-ical').onclick=()=>{try{const file=new Blob([personIcal(state,employeeId,displayedMonth)],{type:'text/calendar;charset=utf-8'}),url=URL.createObjectURL(file),link=document.createElement('a');link.href=url;link.download=`pikett-${displayedMonth}.ics`;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);}catch(error){$('#calendar-message').textContent=error.message;}};
 $('#calendar-view').onclick=()=>{listView=!listView;try{localStorage.setItem('externplan.personCalendarView',listView?'list':'calendar');}catch{}load();};

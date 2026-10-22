@@ -234,3 +234,9 @@ Ausdrücklich zugewiesene Funktionen erhalten automatisch alle aktiven Gebiete d
 Die Vererbung wird zur Laufzeit aufgelöst, ohne feste Kopien in den Funktionsstammdaten zu speichern. Änderungen, welche bestehende Dienste, Soll-Abdeckungen oder Gesamtgebietsbeziehungen durch den Entzug einer Funktionsregion ungültig machen würden, werden atomar abgewiesen. Gebietsgruppen können erst gelöscht werden, wenn ihnen keine aktiven Gebiete mehr zugeordnet sind. Der bestehende Gebietsimport erhält bereits gesetzte Gebietsgruppen.
 
 Zusätzliche Browserprüfung: `node scripts/region-groups-ui-check.js`.
+
+### Ladeanzeige
+
+Aktionen und Datenabfragen zeigen nach einer Sekunde ein drehendes Rad mit „Bitte warten …“. Kurze Vorgänge bleiben ohne Ladeanzeige. Die gemeinsame Anzeige berücksichtigt parallele und verschachtelte Vorgänge und wird auch bei Fehlern aufgeräumt. Sie ist in Hauptansicht, Anmeldung und Personen-Dienstfenster einschliesslich PDF-Erstellung eingebunden. Ein manueller Popover hält sie über offenen Dialogen sichtbar, ohne Eingaben zu blockieren. Beim Drucken wird sie ausgeblendet; die Einstellung für reduzierte Bewegung wird respektiert.
+
+Browserprüfung mit kontrolliert verzögerten Antworten: `node scripts/busy-ui-check.js`.

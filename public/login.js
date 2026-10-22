@@ -1,5 +1,6 @@
+import {withBusy} from './busy.js';
 const $=selector=>document.querySelector(selector);let mode='login';
-async function request(path,body){const response=await fetch('/api/auth/'+path,{method:body?'POST':'GET',headers:{'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});const data=await response.json();if(!response.ok)throw Error(data.error||'Anmeldung fehlgeschlagen');return data;}
+async function request(path,body){return withBusy(async()=>{const response=await fetch('/api/auth/'+path,{method:body?'POST':'GET',headers:{'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});const data=await response.json();if(!response.ok)throw Error(data.error||'Anmeldung fehlgeschlagen');return data;});}
 function showMode(next,source){
  mode=next;const setup=mode==='setup',change=mode==='change';$('#setup-fields').hidden=!setup;$('#email-field').hidden=change;$('#login-email').required=!change;$('#new-password-fields').hidden=!change;$('#new-password').required=change;$('#confirm-password').required=change;
  for(const id of ['setup-secret','first-name','last-name'])$('#'+id).required=setup;

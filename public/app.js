@@ -1,3 +1,4 @@
+import {withBusy} from './busy.js';
 import {regionGroupIds} from './region-groups.js';
 import {bindPersonAffiliations} from './person-affiliations.js';
 import {bindPeopleBulk} from './people-bulk.js';
@@ -54,9 +55,9 @@ function bindMonthNavigation(getMonth,setMonth){
 const pendingFavoritePlans=new Set();
 let personPlanningEmployeeIds=[],disposeSplitPanel=()=>{};
 const personFavoriteMatches=f=>favoriteMatchesContext(state,f,{function_id:personFunction,group_id:personGroup,department_id:personDepartment,region_ids:personRegions||[],employee_ids:personPlanningEmployeeIds});
-const api=async(path,method='GET',body)=>{const r=await fetch('/api'+path,{method,headers:{'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)});const data=await r.json();if(r.status===401&&!path.startsWith('/auth/password')){location.replace('/login.html');throw Error(data.error||'Anmeldung erforderlich');}if(!r.ok)throw Error(data.error);if(data.undo_token)lastPlanningUndo=data.undo_token;return data;};
+const api=(path,method='GET',body)=>withBusy(async()=>{const r=await fetch('/api'+path,{method,headers:{'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)});const data=await r.json();if(r.status===401&&!path.startsWith('/auth/password')){location.replace('/login.html');throw Error(data.error||'Anmeldung erforderlich');}if(!r.ok)throw Error(data.error);if(data.undo_token)lastPlanningUndo=data.undo_token;return data;});
 function message(text,error=false){$('#message').textContent=text;$('#message').className=error?'error':'';if(error&&$('#dialog').open){let field=$('#dialog-error');if(!field){field=document.createElement('p');field.id='dialog-error';field.setAttribute('role','alert');$('#fields').append(field);}field.textContent=text;}}
-const safe=fn=>async(...args)=>{try{await fn(...args);}catch(e){message(e.message,true);}};
+const safe=fn=>async(...args)=>{try{await withBusy(()=>fn(...args));}catch(e){message(e.message,true);}};
 const options=(rows,key='id',label='name',selected='',blank=true)=>(blank?'<option value="">— wählen —</option>':'')+rows.map(x=>`<option value="${esc(x[key])}" ${x[key]===selected?'selected':''}>${esc(x[label])}</option>`).join('');
 const label=(text,html)=>`<label>${text}</label>${html}`;const input=(name,value='',type='text',required=true)=>`<input name="${name}" type="${type}" value="${esc(value)}" ${required?'required':''}>`;
 const masterRecord=(type,id)=>state[type].find(x=>x.id===id)||state.archived_master?.[type]?.find(x=>x.id===id);
