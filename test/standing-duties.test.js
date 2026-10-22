@@ -1,27 +1,22 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {DateTime} from 'luxon';
-import {createStandingDuties,standingDefaults,validateStandingFunction} from '../standing-duties.js';
-const fixture=()=>({people:[{employee_id:'P1',function_regions:[{function_id:'J',geo_id:'J012',priority:3}]},{employee_id:'P2',function_regions:[{function_id:'J',geo_id:'J012',priority:1}]}],functions:[{id:'J',name:'Jäger',geo_ids:['J012'],covers:{},duty_time_model:'always'}],regions:[{id:'J012'}],groups:[],departments:[],assignments:[],outbox:[],audit:[]});
-const duration=a=>DateTime.fromISO(a.end_on).toMillis()-DateTime.fromISO(a.start_on).toMillis();
-test('Ständige Dienste für alle zugeordneten Personen mit Gebietspriorität und grauer Standardfarbe',()=>{
- const s=fixture(),result=createStandingDuties(s,'J',{from:'2026-10-21',to:'2026-10-22'});assert.equal(result.created,2);assert.equal(result.people,2);assert.equal(s.assignments[0].start_on,'2026-10-21T00:00:00+02:00');assert.equal(s.assignments[0].end_on,'2026-10-22T23:59:00+02:00');assert.deepEqual(s.assignments.map(a=>a.priority),[3,1]);assert(s.assignments.every(a=>s.assignment_styles[a.assignment_id].color==='#808080'));assert.equal(s.outbox.length,2);
- const original=structuredClone(s.assignments);assert.equal(createStandingDuties(s,'J',{from:'2026-10-21',to:'2026-10-22'}).created,0);assert.deepEqual(s.assignments,original);
+import {validateStandingFunction} from '../standing-duties.js';
+import {demo,validateAssignment,makeExport,instant} from '../domain.js';
+import {availableFunctions,controlFunctions} from '../public/organization.js';
+import {personMonth} from '../person-planning.js';
+import {saveFavorite} from '../favorites.js';
+const setup=()=>{const s=demo(),a=validateAssignment(s,{employee_id:'DEMO-001',function_id:'DEMO-KTD',geodependency:'NORD',priority:3,start_on:'2026-10-22T00:00+02:00',end_on:'2026-12-31T23:59+01:00'}).assignment;s.assignments.push(a);s.functions[0].duty_time_model='always';return {s,a};};
+test('Immer benötigt nur den Zeitbereich, keine Dienstfarbe; ungültiges Modell ablehnen',()=>{
+ assert.doesNotThrow(()=>validateStandingFunction({duty_time_model:'always'}));assert.throws(()=>validateStandingFunction({duty_time_model:'weekly'}));
 });
-test('Schweizer Vorgabe heute bis Jahresende; Jahresgrenze nach Schweizer Datum',()=>{
- assert.deepEqual(standingDefaults(Date.parse('2026-12-31T23:30:00Z')),{from:'2027-01-01',to:'2027-12-31'});const s=fixture();const result=createStandingDuties(s,'J',{},Date.parse('2026-12-30T12:00Z'));assert.equal(result.created,2);assert.equal(result.to,'2026-12-31');
+test('Immer aus Kontrollansicht und Planungsfiltern entfernen; alte Dienste nicht als Balken darstellen',()=>{
+ const {s,a}=setup(),before=structuredClone(s.assignments);assert(!availableFunctions(s).some(f=>f.id===a.function_id));assert(!controlFunctions(s).some(f=>f.id===a.function_id));assert.throws(()=>personMonth(s,'2026-10',a.function_id),/unbekannt/);
+ const result=personMonth(s,'2026-10');assert(result.rows.every(row=>row.bars.every(bar=>bar.function_id!==a.function_id)));assert.deepEqual(s.assignments,before);
 });
-test('Immer bleibt über Sommer- und Winterzeit ein durchgehender Dienst',()=>{
- const s=fixture();s.people=s.people.slice(0,1);createStandingDuties(s,'J',{from:'2026-10-24',to:'2026-10-26',color:'#123456'});assert.equal(s.assignments.length,1);assert.equal(s.assignments[0].start_on,'2026-10-24T00:00:00+02:00');assert.equal(s.assignments[0].end_on,'2026-10-26T23:59:00+01:00');assert.equal(duration(s.assignments[0]),(73*60-1)*60000);
- const spring=fixture();spring.people=spring.people.slice(0,1);createStandingDuties(spring,'J',{from:'2026-03-29',to:'2026-03-30'});assert.equal(duration(spring.assignments[0]),(47*60-1)*60000);
+test('Weder manuelle Zuteilungen noch Favoriten dürfen Immer-Funktionen planen',()=>{
+ const {s,a}=setup();assert.throws(()=>validateAssignment(s,{...a,start_on:'2027-01-01T00:00+01:00',end_on:'2027-01-02T00:00+01:00'}),/keine Dienste/);assert.throws(()=>saveFavorite(s,{name:'Nicht planen',scope_type:'function',scope_id:a.function_id,function_id:a.function_id,region_ids:['NORD'],start_time:'07:00',duration_minutes:60,priority:1}),/keine Dienste/);
 });
-test('Nur Lücken ergänzen; bestehende Dienste weder überschreiben noch überlappen',()=>{
- const s=fixture();s.people=s.people.slice(0,1);s.assignments.push({assignment_id:'existing',employee_id:'P1',function_id:'J',geodependency:'J012',priority:5,start_on:'2026-10-21T08:00:00+02:00',end_on:'2026-10-21T12:00:00+02:00',revision:1});createStandingDuties(s,'J',{from:'2026-10-21',to:'2026-10-21'});assert.equal(s.assignments.length,3);assert.equal(s.assignments[0].priority,5);assert.equal(s.assignments[1].end_on,s.assignments[0].start_on);assert.equal(s.assignments[2].start_on,s.assignments[0].end_on);
-});
-test('Ungültige Daten, Farben und Zuordnungen schreiben keine Teilmenge',()=>{
- for(const input of [{from:'2026-02-30',to:'2026-03-01'},{from:'2026-10-22',to:'2026-10-21'},{from:'2026-01-01',to:'2027-01-02'},{color:'red'}]){const s=fixture(),before=structuredClone(s);assert.throws(()=>createStandingDuties(s,'J',input));assert.deepEqual(s,before);}
- const s=fixture();s.people[1].function_regions[0].geo_id='missing';const before=structuredClone(s);assert.throws(()=>createStandingDuties(s,'J',{from:'2026-10-21',to:'2026-10-22'}));assert.deepEqual(s,before);assert.throws(()=>validateStandingFunction({duty_time_model:'weekly'}));
-});
-test('Historische Dienste als Zuordnung nur für Personen ohne explizite Importzuordnungen',()=>{
- const s=fixture();s.people=[{employee_id:'legacy'},{employee_id:'removed',function_regions:[]}];for(const p of s.people)s.assignments.push({employee_id:p.employee_id,function_id:'J',geodependency:'J012',priority:2,start_on:'2020-01-01T00:00:00+01:00',end_on:'2020-01-02T00:00:00+01:00'});const result=createStandingDuties(s,'J',{from:'2026-10-21',to:'2026-10-21'});assert.equal(result.created,1);assert.equal(result.people,1);assert.equal(s.assignments.at(-1).employee_id,'legacy');
+test('Immer aus beiden ELS-Exportmodi ausschliessen, auch frühere Exportdaten nicht erneut übermitteln',()=>{
+ const {s,a}=setup(),now=instant('2026-10-22T00:00+02:00');s.functions[0].duty_time_model='scheduled';makeExport(s,'snapshot',now);s.functions[0].duty_time_model='always';s.outbox.push({action:'delete',...a,revision:2});const before=structuredClone(s.assignments);
+ for(const mode of ['delta','snapshot'])assert.equal(makeExport(s,mode,now).changes.length,0);assert.deepEqual(s.assignments,before);
 });

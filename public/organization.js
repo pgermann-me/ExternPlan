@@ -47,7 +47,7 @@ export function personScopeAllows(s,record,p,functionId){
  if(record.group_ids?.length)return groups.some(g=>record.group_ids.includes(g.id)&&(!record.department_ids?.length||record.department_ids.includes(g.department_id)));
  return !record.department_ids?.length||personDepartmentIds(p,s.groups).some(id=>record.department_ids.includes(id));
 }
-export function availableFunctions(s,groupId,departmentId){return s.functions.filter(f=>!f.deleted_at&&scopeAllows(f,{group_id:groupId,department_id:departmentId},s.groups));}
+export function availableFunctions(s,groupId,departmentId){return s.functions.filter(f=>!f.deleted_at&&f.duty_time_model!=='always'&&scopeAllows(f,{group_id:groupId,department_id:departmentId},s.groups));}
 export function validateScopeRestrictions(s,type,p){
  for(const [key,collection] of [['department_ids','departments'],['group_ids','groups'],...(type==='regions'?[['function_ids','functions']]:[])]){
   if(p[key]!=null&&(!Array.isArray(p[key])||new Set(p[key]).size!==p[key].length||p[key].some(id=>!s[collection].some(x=>x.id===id&&!x.deleted_at))))throw Error('Ungültige Einschränkung: '+key);

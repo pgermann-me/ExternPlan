@@ -7,7 +7,7 @@ const planningName=p=>p.last_name&&p.first_name?`${p.last_name} ${p.first_name}`
 export function personMonth(state, month, functionId, selectedRegions,groupId,departmentId) {
  if(!/^\d{4}-\d{2}$/.test(month||''))throw Error('Monat als YYYY-MM');
  const start=DateTime.fromISO(month+'-01',{zone});if(!start.isValid)throw Error('Ungültiger Monat');
- const functions=functionId?[state.functions.find(f=>f.id===functionId&&!f.deleted_at)]:availableFunctions(state,groupId,departmentId);if(functionId&&!functions[0])throw Error('Funktion unbekannt');
+ const functions=functionId?[state.functions.find(f=>f.id===functionId&&!f.deleted_at&&f.duty_time_model!=='always')]:availableFunctions(state,groupId,departmentId);if(functionId&&!functions[0])throw Error('Funktion unbekannt');
  const group=state.groups.find(g=>g.id===groupId&&!g.deleted_at);if(groupId&&!group)throw Error('Gruppe unbekannt');
  const organizationPeople=planningPeople(state,groupId,departmentId);
  const allowed=[...new Set(functions.flatMap(fn=>allowedFunctionRegions(fn,group,state.regions,departmentId,state.groups)))];
