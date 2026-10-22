@@ -7,7 +7,7 @@ const fail=(message,status=400)=>{const error=Error(message);error.status=status
 export function changeAlwaysAffiliation(state,input,user){
  const {employee_id,function_id,geo_id,action}=input,priority=input.priority??0;
  if(!['add','update','remove'].includes(action))fail('Ungültige Zuordnungsänderung');
- if(!Number.isSafeInteger(priority)||priority<0)fail('Priorität als ganze Zahl ab 0 eingeben');
+ if(!Number.isSafeInteger(priority)||priority<0||priority>9)fail('Priorität als ganze Zahl von 0 bis 9 eingeben');
  const person=state.people.find(p=>p.employee_id===employee_id&&!p.deleted_at),s=withRegionGroups(state),fn=s.functions.find(f=>f.id===function_id&&!f.deleted_at);
  if(!person||!fn||fn.duty_time_model!=='always')fail('Person oder Immer-Funktion nicht gefunden');
  if(!(geo_id===null||typeof geo_id==='string'&&geo_id))fail('Region wählen');

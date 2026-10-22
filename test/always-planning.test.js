@@ -15,7 +15,7 @@ test('Permanent planning adds zero-priority affiliations, updates and removes wi
  assert.deepEqual(state.assignments,assignments);assert.equal(state.outbox.length,0);assert.equal(state.people[0].contacts.length,2);assert.equal(state.people[0].function_regions.find(r=>r.function_id==='F').priority,4);assert.equal(state.audit.length,3);
 });
 test('Validation rejects negative priorities, non-permanent functions, invalid regions and people outside the selected group',()=>{
- for(const patch of [{priority:-1},{priority:1.5},{function_id:'F'},{geo_id:'UNKNOWN'},{employee_id:'HIDDEN',planning_group_id:'G'}]){
+ for(const patch of [{priority:-1},{priority:10},{priority:1.5},{function_id:'F'},{geo_id:'UNKNOWN'},{employee_id:'HIDDEN',planning_group_id:'G'}]){
   const {state}=regionFixture(),before=structuredClone(state);assert.throws(()=>changeAlwaysAffiliation(state,{...input,...patch},admin));assert.deepEqual(state,before);
  }
 });
