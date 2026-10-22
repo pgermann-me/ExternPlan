@@ -3,8 +3,11 @@ const zone='Europe/Zurich',stamp=ms=>DateTime.fromMillis(ms,{zone}).toISO({suppr
 const same=(a,b)=>a&&b&&['employee_id','function_id','geodependency','priority','start_on','end_on','source_assignment_id','source_revision'].every(k=>a[k]===b[k]);
 export function projectEls(s,mode,now=Date.now()){
  const start=now,end=DateTime.fromMillis(now,{zone}).plus({days:5}).toMillis(),known=new Map(),owners=new Map(),sources=[],changes=[],activeIds=new Set();
- for(const e of s.exports)for(const c of e.payload.changes){if(c.source_assignment_id)owners.set(c.assignment_id,c.source_assignment_id);const old=known.get(c.assignment_id);if(!old||old.revision<=c.revision)known.set(c.assignment_id,c);}
- const excludedFunctions=new Set(s.functions.filter(f=>f.duty_time_model==='always').map(f=>f.id)),excludedSources=new Set([...s.assignments,...s.outbox,...s.exports.flatMap(e=>e.payload.changes)].filter(a=>excludedFunctions.has(a.function_id)).map(a=>a.source_assignment_id||a.assignment_id));
+ const excludedFunctions=new Set(s.functions.filter(f=>f.duty_time_model==='always').map(f=>f.id)),excludedSources=new Set();
+ const exclude=a=>{if(excludedFunctions.has(a.function_id))excludedSources.add(a.source_assignment_id||a.assignment_id);};
+ for(const a of s.assignments)exclude(a);
+ for(const a of s.outbox)exclude(a);
+ for(const e of s.exports)for(const c of e.payload.changes){exclude(c);if(c.source_assignment_id)owners.set(c.assignment_id,c.source_assignment_id);const old=known.get(c.assignment_id);if(!old||old.revision<=c.revision)known.set(c.assignment_id,c);}
  const deletes=new Map(s.outbox.filter(c=>c.action==='delete'&&!excludedSources.has(c.assignment_id)).map(c=>[c.assignment_id,c])),current=new Map(s.assignments.map(a=>[a.assignment_id,a]));
  const version=row=>{const previous=known.get(row.assignment_id);return previous?Math.max(row.source_revision||1,previous.revision+(previous.action==='delete'||!same(previous,row)?1:0)):row.source_revision||1;};
  for(const a of s.assignments){
@@ -38,11 +41,12 @@ export function projectEls(s,mode,now=Date.now()){
  return {changes,sources,scope:{type:'rolling_five_days',from:stamp(start),until:stamp(end),replacement:false,description:'Nächste fünf Tage ab Exportzeitpunkt; maximal 24 Stunden pro Teilstück. Löschungen nur explizit.'}};
 }
 export function finishElsProjection(s,e){
- const expectedById=new Map(e.payload.changes.map(c=>[c.assignment_id,c]));
+ const expectedById=new Map(e.payload.changes.map(c=>[c.assignment_id,c])),confirmed=new Map();
  for(const source of e.sources||[]){
   const a=source.assignment;if(!source.ids.every(id=>{const expected=expectedById.get(id),ack=s.els.projection_receipts?.[id]||s.els.assignments[id];return ack&&(!expected||ack.revision>=expected.revision)&&!!ack.deleted===source.deleted;}))continue;
   const existing=s.els.assignments[a.assignment_id];if(existing?.projection_summary&&existing.revision>a.revision)continue;
   s.els.assignments[a.assignment_id]={...a,revision:a.revision,projection_summary:true,deleted:source.deleted,status:'Import bestätigt',export_window:e.payload.scope};
-  s.outbox=s.outbox.filter(c=>!(c.assignment_id===a.assignment_id&&c.revision<=a.revision));
+  confirmed.set(a.assignment_id,Math.max(confirmed.get(a.assignment_id)||0,a.revision));
  }
+ if(confirmed.size)s.outbox=s.outbox.filter(c=>!confirmed.has(c.assignment_id)||c.revision>confirmed.get(c.assignment_id));
 }

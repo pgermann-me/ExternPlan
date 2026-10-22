@@ -54,14 +54,34 @@ function ruleIntervals(rule,a,b) {
     }
   } return merge(out);
 }
+// Request-local index: never retain mutable state or another user's scoped data.
+const coverageIndex=Symbol('coverageIndex');
+export function prepareCoverage(s,a=-Infinity,b=Infinity) {
+ const functions=new Map(s.functions.map(f=>[f.id,f])),rules=new Map(),assignments=new Map();
+ for(const rule of s.rules){if(!rules.has(rule.function_id))rules.set(rule.function_id,[]);rules.get(rule.function_id).push(rule);}
+ for(const assignment of s.assignments){
+  const interval=[instant(assignment.start_on),instant(assignment.end_on)];
+  if(!overlap(interval,[a,b]))continue;
+  const fn=functions.get(assignment.function_id);
+  if(!assignments.has(assignment.function_id))assignments.set(assignment.function_id,new Map());
+  const regions=assignments.get(assignment.function_id);
+  const entry={assignment,interval};
+  for(const geo of new Set([assignment.geodependency,...(fn?.covers[assignment.geodependency]||[])])){
+   if(!regions.has(geo))regions.set(geo,[]);regions.get(geo).push(entry);
+  }
+ }
+ return {...s,[coverageIndex]:{rules,assignments}};
+}
 export function coverage(s,function_id,geo,a,b) {
-  const matching=s.rules.filter(r=>r.function_id===function_id);
+  const index=s[coverageIndex];
+  const matching=index?(index.rules.get(function_id)||[]):s.rules.filter(r=>r.function_id===function_id);
   const specific=matching.filter(r=>r.geo_id===geo);
   const rules=specific.length?specific:matching.filter(r=>r.geo_id===null);
   const required=merge(rules.flatMap(r=>ruleIntervals(r,a,b)));
   const f=s.functions.find(f=>f.id===function_id);
-  const assignments=s.assignments.filter(x=>x.function_id===function_id && (x.geodependency===geo || (f?.covers[x.geodependency]||[]).includes(geo)) && overlap([instant(x.start_on),instant(x.end_on)],[a,b]));
-  const missing=gaps(required,assignments.map(x=>[instant(x.start_on),instant(x.end_on)]));
+  const entries=(index?.assignments.get(function_id)?.get(geo)||[]).filter(x=>overlap(x.interval,[a,b]));
+  const assignments=index?entries.map(x=>x.assignment):s.assignments.filter(x=>x.function_id===function_id && (x.geodependency===geo || (f?.covers[x.geodependency]||[]).includes(geo)) && overlap([instant(x.start_on),instant(x.end_on)],[a,b]));
+  const missing=gaps(required,index?entries.map(x=>x.interval):assignments.map(x=>[instant(x.start_on),instant(x.end_on)]));
   const total=required.reduce((n,[a,b])=>n+b-a,0),open=missing.reduce((n,[a,b])=>n+b-a,0);
   return {status:!total?'kein Pikett erforderlich':!open?'vollständig besetzt':open===total?'unbesetzt':'teilweise besetzt',gaps:missing.map(([a,b])=>({start_on:iso(a),end_on:iso(b)})),assignments};
 }
