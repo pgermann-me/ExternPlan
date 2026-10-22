@@ -1,0 +1,26 @@
+import {chromium} from '@playwright/test';
+import {spawn} from 'node:child_process';
+import {mkdtempSync,rmSync} from 'node:fs';
+import assert from 'node:assert/strict';
+const dir=mkdtempSync('/tmp/externplan-region-groups-ui-'),server=spawn(process.execPath,['server.js'],{env:{...process.env,NODE_ENV:'test',EXTERNPLAN_TEST_FIXTURES:'1',PORT:'0',DATA_DIR:dir},stdio:['ignore','pipe','pipe']});let browser;
+try{
+ const port=await new Promise((resolve,reject)=>{let log='';const timer=setTimeout(()=>reject(Error(log)),15000);server.stdout.on('data',data=>{log+=data;const match=log.match(/Port (\d+)/);if(match){clearTimeout(timer);resolve(match[1]);}});server.stderr.on('data',data=>log+=data);server.once('exit',()=>{clearTimeout(timer);reject(Error(log));});});
+ const base='http://127.0.0.1:'+port;browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH||'/usr/bin/chromium',headless:true,args:['--no-sandbox']});const page=await browser.newPage(),errors=[];
+ page.on('pageerror',e=>errors.push(e.message));await page.route('https://tile.openstreetmap.org/**',r=>r.abort());await page.goto(base);
+ await page.getByRole('button',{name:'Stammdaten & Soll-Abdeckung',exact:true}).click();
+ await page.getByRole('tab',{name:'Gebietsgruppen',exact:true}).click();await page.locator('[data-master-new=region_groups]').click();
+ await page.locator('[name=name]').fill('Browsergebiete');await page.locator('[name=scope_departments][value=demo-abteilung]').check();await page.locator('[name=scope_groups][value=demo-gruppe]').check();await page.locator('[name=scope_functions][value=DEMO-ORT]').check();await page.locator('#form button[type=submit]').click();await page.waitForFunction(()=>!document.querySelector('dialog').open);
+ const state=await (await page.request.get(base+'/api/state')).json(),group=state.region_groups.find(g=>g.name==='Browsergebiete');assert.ok(group);
+ await page.getByRole('tab',{name:'Gebiete',exact:true}).click();await page.locator('#region-list-view').click();
+ await page.locator('[data-region-select=NORD]').click();await page.locator('[data-region-select="SÜD"]').click({modifiers:['Shift']});assert.equal(await page.locator('[data-region-select]:checked').count(),2);
+ const second=(await (await page.request.post(base+'/api/master/region_groups',{data:{name:'Zweite Gebietsgruppe',department_ids:['demo-abteilung'],group_ids:['demo-gruppe'],function_ids:['DEMO-ORT']}})).json());await page.reload();await page.getByRole('button',{name:'Stammdaten & Soll-Abdeckung',exact:true}).click();await page.getByRole('tab',{name:'Gebiete',exact:true}).click();await page.locator('#region-list-view').click();await page.locator('[data-region-select=NORD]').click();await page.locator('[data-region-select="SÜD"]').click({modifiers:['Shift']});
+ await page.locator('#region-bulk-group').click();await page.locator('[name=region_group_ids]').selectOption([group.id,second.id]);await page.locator('#form button[type=submit]').click();await page.waitForFunction(()=>!document.querySelector('dialog').open);
+ await page.waitForFunction(()=>[...document.querySelectorAll('#region-bulk-rows td')].filter(td=>td.textContent==='Browsergebiete, Zweite Gebietsgruppe').length===2);
+ await page.getByRole('tab',{name:'Funktionen',exact:true}).click();await page.locator('[data-master=functions][data-id=DEMO-ORT]').click();assert.equal(await page.locator('#independent').isDisabled(),true);assert.equal(await page.locator('#independent').isChecked(),false);assert.match(await page.locator('#fields').innerText(),/Über Gebietsgruppen zugeordnet/);
+ await page.locator('[name=name]').fill('Browserfunktion');await page.locator('#form button[type=submit]').click();await page.waitForFunction(()=>!document.querySelector('dialog').open);
+ const updated=await (await page.request.get(base+'/api/state')).json();assert.deepEqual(updated.functions.find(f=>f.id==='DEMO-ORT').configured_geo_ids,[]);
+ await page.getByRole('tab',{name:'Gebietsgruppen',exact:true}).click();await page.locator('[data-master=region_groups][data-id="'+group.id+'"]').click();await page.locator('#delete-master').click();await page.locator('#dialog-error').filter({hasText:'verwendet'}).waitFor();await page.locator('#cancel').click();
+ await page.getByRole('button',{name:'Planung',exact:true}).click();await page.locator('#person-function').selectOption('DEMO-ORT');await page.locator('#person-group').selectOption('demo-gruppe');await page.locator('[data-person-region=NORD]').waitFor({state:'attached'});assert.equal(await page.locator('[data-person-region]').count(),2);
+ const final=await (await page.request.get(base+'/api/state')).json();assert.deepEqual(final.regions.find(r=>r.id==='NORD').region_group_ids,[group.id,second.id]);
+ assert.deepEqual(errors,[]);console.log('Gebietsgruppen-Browserprüfung bestanden: Anlegen, Mehrfachzuweisung mit Shift, Funktionsbearbeitung ohne feste Kopien, Löschschutz und Planungsfilter.');
+}finally{await browser?.close();await new Promise(resolve=>{if(server.exitCode!==null)return resolve();server.once('exit',resolve);server.kill();});rmSync(dir,{recursive:true,force:true});}

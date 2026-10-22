@@ -1,3 +1,4 @@
+import {withRegionGroups} from './public/region-groups.js';
 import {favoriteSchedule,favoriteWeeklyWindows} from './public/favorite-time.js';
 import {personRegionPriority,personGroupIds,personDepartmentIds,allowedFunctionRegions,validatePlanningGroup,scopeAllows} from './public/organization.js';
 import {DateTime} from 'luxon';
@@ -14,6 +15,7 @@ function continuousDuration(p){
  return days*1440-1;
 }
 export function validateFavorite(s,p){
+ s=withRegionGroups(s);
  if(typeof p.name!=='string'||!p.name.trim())throw Error('Name des Favoritendienstes erforderlich');
  const collection=scopeTypes[p.scope_type];
  if(!collection||!s[collection].some(x=>x.id===p.scope_id&&live(x)))throw Error('Funktion, Abteilung oder Gruppe für den Favoriten wählen');

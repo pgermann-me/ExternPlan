@@ -1,0 +1,44 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {spawn} from 'node:child_process';
+import {mkdtempSync,rmSync} from 'node:fs';
+import {DatabaseSync} from 'node:sqlite';
+test('HTTP: region-group CRUD, atomic bulk assignment, inherited planning and raw persistence',async()=>{
+ const dir=mkdtempSync('/tmp/externplan-region-groups-'),server=spawn(process.execPath,['server.js'],{env:{...process.env,NODE_ENV:'test',EXTERNPLAN_TEST_FIXTURES:'1',PORT:'0',DATA_DIR:dir},stdio:['ignore','pipe','pipe']});
+ try{
+  const port=await new Promise((resolve,reject)=>{let output='';const timer=setTimeout(()=>reject(Error(output)),10000);server.stdout.on('data',data=>{output+=data;const m=output.match(/Port (\d+)/);if(m){clearTimeout(timer);resolve(m[1]);}});server.stderr.on('data',data=>output+=data);server.once('exit',()=>{clearTimeout(timer);reject(Error(output));});});
+  const api=async(path,method='GET',body)=>{const r=await fetch(`http://127.0.0.1:${port}/api`+path,{method,headers:{'content-type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)});return {status:r.status,data:await r.json()};};
+  const group={id:'RG',name:'Testgebiete',department_ids:['demo-abteilung'],group_ids:['demo-gruppe'],function_ids:['DEMO-ORT']};
+  assert.equal((await api('/master/region_groups','POST',{...group,group_ids:['missing']})).status,400);
+  assert.equal((await api('/master/region_groups','POST',group)).status,200);
+  const patch={ids:['NORD','SÜD'],region_group_ids:['RG'],expected:[{id:'NORD',region_group_ids:[]},{id:'SÜD',region_group_ids:[]}]};
+  assert.equal((await api('/regions/assign-group','POST',{...patch,ids:['NORD','missing']})).status,400);
+  assert.ok(!(await api('/state')).data.regions.find(r=>r.id==='NORD').region_group_ids?.length);
+  assert.equal((await api('/regions/assign-group','POST',patch)).data.updated,2);
+  assert.equal((await api('/regions/assign-group','POST',patch)).status,409);
+  let state=(await api('/state')).data;assert.deepEqual(state.functions.find(f=>f.id==='DEMO-ORT').geo_ids,['NORD','SÜD']);
+  const planned=(await api('/person-month?month=2026-10&function_id=DEMO-ORT&group_id=demo-gruppe&department_id=demo-abteilung')).data;
+  assert.deepEqual(planned.region_ids,['NORD','SÜD']);
+  assert.equal((await api('/master/functions','POST',{id:'DEMO-ORT',name:'Unabhängig via Gebietsgruppe',geo_ids:[],covers:{}})).status,200);
+  const duty={employee_id:'DEMO-EXT-001',function_id:'DEMO-ORT',geodependency:'NORD',priority:1,start_on:'2026-10-01T07:00',end_on:'2026-10-02T07:00'};
+  assert.equal((await api('/assignments','POST',duty)).status,200);
+  assert.equal((await api('/assignments','POST',{...duty,employee_id:'DEMO-001'})).status,400);
+  assert.equal((await api('/master/region_groups/RG','DELETE')).status,400);
+  assert.equal((await api('/regions/assign-group','POST',{...patch,region_group_ids:[],expected:patch.ids.map(id=>({id,region_group_ids:['RG']}))})).status,400);
+  state=(await api('/state')).data;assert.ok(state.regions.filter(r=>patch.ids.includes(r.id)).every(r=>r.region_group_ids?.includes('RG')));
+  assert.equal((await api('/master/region_groups','POST',{...group,name:'Umbenannt'})).status,200);
+  assert.equal((await api('/master/region_groups','POST',{id:'EMPTY',name:'Leer'})).status,200);
+  assert.equal((await api('/master/region_groups/EMPTY','DELETE')).status,200);
+  assert.equal((await api('/master/region_groups','POST',{...group,id:'SECOND',name:'Zweite'})).status,200);
+  const one={ids:['NORD'],region_group_ids:['SECOND'],expected:[{id:'NORD',region_group_ids:['RG']}]};
+  assert.equal((await api('/regions/assign-group','POST',{...one,mode:'add'})).data.updated,1);
+  assert.deepEqual((await api('/state')).data.regions.find(r=>r.id==='NORD').region_group_ids,['RG','SECOND']);
+  assert.equal((await api('/regions/assign-group','POST',{...one,mode:'remove',expected:[{id:'NORD',region_group_ids:['RG','SECOND']}]})).data.updated,1);
+  assert.deepEqual((await api('/state')).data.regions.find(r=>r.id==='NORD').region_group_ids,['RG']);
+  assert.equal((await api('/master/regions','POST',{id:'INVALID',name:'Ungültig',region_group_ids:['missing']})).status,400);
+  assert.equal((await api('/import/commit','POST',{type:'regions',rows:[{id:'NORD',name:'Importname'}],mapping:{id:'id',name:'name'}})).status,200);
+  assert.deepEqual((await api('/state')).data.regions.find(r=>r.id==='NORD').region_group_ids,['RG']);
+  const db=new DatabaseSync(dir+'/externplan.sqlite'),raw=JSON.parse(db.prepare('SELECT data FROM state').get().data);db.close();
+  assert.deepEqual(raw.functions.find(f=>f.id==='DEMO-ORT').geo_ids,[]);assert.ok(!raw.regions[0].region_group_scopes);assert.equal(raw.region_groups.find(g=>g.id==='RG').name,'Umbenannt');
+ }finally{await new Promise(resolve=>{if(server.exitCode!==null)return resolve();server.once('exit',resolve);server.kill();});rmSync(dir,{recursive:true,force:true});}
+});

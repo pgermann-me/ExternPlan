@@ -1,3 +1,4 @@
+import {withRegionGroups} from './public/region-groups.js';
 import {DateTime} from 'luxon';
 import {audit,instant,iso} from './domain.js';
 import {personGroupIds,personScopeAllows} from './public/organization.js';
@@ -53,6 +54,7 @@ export function personDetails(input,previous){
  });return {birth_date,function_regions};
 }
 export function validatePersonAffiliations(s,p,previous){
+ s=withRegionGroups(s);
  for(const r of p.function_regions||[]){
   const unchanged=(previous?.function_regions||[]).some(old=>old.function_id===r.function_id&&old.geo_id===r.geo_id&&old.priority===r.priority);
   const fn=s.functions.find(f=>f.id===r.function_id&&!f.deleted_at),region=s.regions.find(g=>g.id===r.geo_id&&!g.deleted_at);

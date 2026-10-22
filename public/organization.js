@@ -1,3 +1,4 @@
+import {withRegionGroups} from './region-groups.js';
 export const personGroupIds=p=>Array.isArray(p?.group_ids)?p.group_ids:(p?.group_id?[p.group_id]:[]);
 export const personDepartmentIds=(p,groups)=>[...new Set([p.department_id,...groups.filter(g=>!g.deleted_at&&personGroupIds(p).includes(g.id)).map(g=>g.department_id)].filter(Boolean))];
 export const allowedFunctionRegions=(fn,group,regions,departmentId,groups=[])=>fn.geo_ids.filter(id=>regions.some(r=>r.id===id&&!r.deleted_at&&scopeAllows(r,{group_id:group?.id,department_id:departmentId||group?.department_id,function_id:fn.id},groups.length?groups:group?[group]:[]))&&(!Array.isArray(group?.geo_ids)||group.geo_ids.includes(id)));
@@ -14,9 +15,10 @@ export function controlFunctions(s,groupId,departmentId){
  if(!groupId&&!departmentId)return active;
  const members=new Set(planningPeople(s,groupId,departmentId).map(p=>p.employee_id));
  const functions=new Set([...s.assignments.filter(a=>members.has(a.employee_id)),...s.people.filter(p=>members.has(p.employee_id)).flatMap(p=>p.function_regions||[])].map(a=>a.function_id));
- return active.filter(f=>functions.has(f.id)||f.department_ids?.length||f.group_ids?.length);
+ return active.filter(f=>functions.has(f.id)||f.department_ids?.length||f.group_ids?.length||(s.region_groups||[]).some(g=>!g.deleted_at&&g.function_ids?.includes(f.id)&&scopeAllows(g,{department_id:departmentId,group_id:groupId,function_id:f.id},s.groups)));
 }
 export function validatePlanningGroup(s,input){
+ s=withRegionGroups(s);
  const context={department_id:input.planning_department_id,group_id:input.planning_group_id,function_id:input.function_id};
  const fnRecord=s.functions.find(f=>f.id===input.function_id);
  if(fnRecord&&!scopeAllows(fnRecord,context,s.groups))throw Error('Funktion ist für die gewählte Abteilung oder Gruppe nicht zulässig');
@@ -33,6 +35,7 @@ export function validatePlanningGroup(s,input){
 }
 // Missing or empty restrictions mean unrestricted. All configured dimensions apply.
 export function scopeAllows(record,{department_id,group_id,function_id}={},groups=[]){
+ if(record.region_group_scopes?.length&&!record.region_group_scopes.some(scope=>scopeAllows(scope,{department_id,group_id,function_id},groups)))return false;
  const dep=department_id||groups.find(g=>g.id===group_id)?.department_id;
  if(record.department_ids?.length&&dep&&!record.department_ids.includes(dep))return false;
  if(record.group_ids?.length&&group_id&&!record.group_ids.includes(group_id))return false;
@@ -41,6 +44,9 @@ export function scopeAllows(record,{department_id,group_id,function_id}={},group
  return true;
 }
 export function personScopeAllows(s,record,p,functionId){
+ const region=s.regions.includes(record);s=withRegionGroups(s);
+ if(region)record=s.regions.find(r=>r.id===record.id)||record;
+ if(record?.region_group_scopes?.length&&!record.region_group_scopes.some(scope=>personScopeAllows(s,scope,p,functionId)))return false;
  if(!record)return false;
  if(record.function_ids?.length&&!record.function_ids.includes(functionId))return false;
  const groups=s.groups.filter(g=>!g.deleted_at&&personGroupIds(p).includes(g.id));

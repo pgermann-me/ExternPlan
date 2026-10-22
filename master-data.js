@@ -1,10 +1,12 @@
+import {withRegionGroups,regionGroupIds} from './public/region-groups.js';
 import {personGroupIds} from './public/organization.js';
 import { audit, instant, iso } from './domain.js';
 import {orderedFavorites} from './favorites.js';
 export const active = item => !item.deleted_at;
 export function publicState(s){
+ s=withRegionGroups(s);
  const {planning_undo,...visible}=s;
- const types=['functions','regions','groups','rules','favorites'];
+ const types=['functions','regions','region_groups','groups','rules','favorites'];
  return {...visible,people:s.people.filter(active),archived_people:s.people.filter(p=>!active(p)),...Object.fromEntries(types.map(t=>[t,(s[t]||[]).filter(active)])),favorites:orderedFavorites(s),archived_master:Object.fromEntries(types.map(t=>[t,(s[t]||[]).filter(x=>!active(x))]))};
 }
 export function assertRegionDeletable(s,key){
@@ -13,8 +15,9 @@ export function assertRegionDeletable(s,key){
  return record;
 }
 export function deleteMaster(s,type,key,now=Date.now()){
- if(!['functions','regions','groups','departments','rules'].includes(type))throw Error('Unbekannte Stammdaten');
- const record=s[type].find(x=>x.id===key&&active(x));if(!record)throw Error('Stammdatensatz nicht gefunden');
+ if(!['functions','regions','region_groups','groups','departments','rules'].includes(type))throw Error('Unbekannte Stammdaten');
+ const record=(s[type]||[]).find(x=>x.id===key&&active(x));if(!record)throw Error('Stammdatensatz nicht gefunden');
+ if(type==='region_groups'&&s.regions.some(r=>active(r)&&regionGroupIds(r).includes(key)))throw Error('Gebietsgruppe wird noch von Gebieten verwendet');
  const current=s.assignments.filter(a=>instant(a.end_on)>now);
  let used=false;
  if(type==='functions')used=current.some(a=>a.function_id===key);

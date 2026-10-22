@@ -1,3 +1,4 @@
+import {withRegionGroups} from './public/region-groups.js';
 import {personGroupIds,allowedFunctionRegions,planningPeople,personScopeAllows,availableFunctions} from './public/organization.js';
 import { DateTime } from 'luxon';
 import {timelineBars} from './timeline.js';
@@ -5,6 +6,7 @@ import { instant, overlap, iso, zone, coverage, prepareCoverage } from './domain
 const planningName=p=>p.last_name&&p.first_name?`${p.last_name} ${p.first_name}`:p.name;
 // Active people remain available for planning in empty months; archived people appear only with historical duties.
 export function personMonth(state, month, functionId, selectedRegions,groupId,departmentId) {
+ state=withRegionGroups(state);
  if(!/^\d{4}-\d{2}$/.test(month||''))throw Error('Monat als YYYY-MM');
  const start=DateTime.fromISO(month+'-01',{zone});if(!start.isValid)throw Error('Ungültiger Monat');
  const functions=functionId?[state.functions.find(f=>f.id===functionId&&!f.deleted_at&&f.duty_time_model!=='always')]:availableFunctions(state,groupId,departmentId);if(functionId&&!functions[0])throw Error('Funktion unbekannt');
