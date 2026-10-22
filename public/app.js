@@ -10,7 +10,7 @@ import {bindTableSort} from './table-sort.js';
 import {bindGroupMasterView} from './group-master-view.js';
 import {bindRegionBulkList} from './region-bulk-list.js';
 import {geojsonImportPanel} from './geojson-import.js';
-import {polygonId,polygonCatalog,regionPolygonLayers} from './region-geometry.js';
+import {polygonId,regionPolygonLayers} from './region-geometry.js';
 import {renderRegionMap,bindRegionPreviews} from './region-map.js';
 import {auditEntryTitle,auditEntryDetails,auditText} from './audit-text.js';
 import {shiftMonth,movePeriod,toggleHalfMonth,halfMonthResult} from './month-navigation.js';
@@ -371,7 +371,7 @@ function masterDialog(type,p){
  let fields=type==='regions'?label('Geo_ID',`<input name="id" value="${esc(current.id||'')}" ${p?'readonly':''} required>`):'';
  if(type!=='rules')fields+=label(type==='regions'?'Beschreibung':'Name',input('name',current.name||''));
  if(type==='regions')fields+=`<fieldset><legend>Gebietsgruppen</legend>${checkList(state.region_groups,regionGroupIds(current),'region_group_ids')||'<p>Zuerst Gebietsgruppen anlegen.</p>'}</fieldset>`;
- if(type==='regions'&&regionMapData)fields+=label('Kartenpolygon',`<select name="polygon_geo_id"><option value="auto" ${!Object.hasOwn(current,'polygon_geo_id')?'selected':''}>Automatisch über Geo-ID</option><option value="none" ${current.polygon_geo_id===null?'selected':''}>Kein Polygon</option>${options(polygonCatalog(regionMapData).map(p=>({...p,name:p.layer+' · '+p.name+' ('+p.id+')'})),'id','name',current.polygon_geo_id,false)}</select>`);
+ if(type==='regions'&&regionMapData)fields+=label('Gebietspolygon',`<input aria-label="Gebietspolygon" readonly value="${regionPolygonLayers(regionMapData,current).length?'Vorhanden · automatisch über Geo_ID verknüpft':'Kein Polygon für diese Geo_ID vorhanden'}">`);
  if(type==='groups')fields+=label('Abteilung',`<select name="department_id">${options(state.departments,'id','name',current.department_id)}</select>`);
  if(type==='groups')fields+=`<label class="check-option"><input type="checkbox" id="group-all-regions" ${!Array.isArray(p?.geo_ids)?'checked':''}>Alle Regionen zulassen</label><fieldset><legend>Zulässige Regionen bei eingeschränkter Auswahl</legend>${checkList([...state.regions,...(state.archived_master?.regions||[]).filter(r=>p?.geo_ids?.includes(r.id))],p?.geo_ids||[],'group_geo_ids')}</fieldset>`;
  if(type==='functions')fields+=`<fieldset><legend>Gebietsgruppen</legend>${checkList(state.region_groups,state.region_groups.filter(g=>g.function_ids?.includes(current.id)).map(g=>g.id),'region_group_ids')||'<p>Zuerst Gebietsgruppen anlegen.</p>'}<p class="small muted">Alle Gebiete der ausgewählten Gebietsgruppen sind automatisch für diese Funktion verfügbar, auch später hinzugefügte Gebiete.</p></fieldset><label class="check-option"><input type="checkbox" id="independent" ${!p?.geo_ids?.length&&!inheritedGeos.length?'checked':''} ${inheritedGeos.length?'disabled':''}>Ortsunabhängige Funktion</label><fieldset id="geo-options"><legend>Zulässige Gebiete</legend>${checkList([...state.regions,...(state.archived_master?.regions||[]).filter(r=>p?.geo_ids?.includes(r.id)).map(r=>({...r,name:r.name+' (gelöscht)'}))],p?.geo_ids||[],'geo_ids')||'<p>Zuerst Gebiete anlegen.</p>'}</fieldset><h3>Gesamtgebiet und abgedeckte Teilgebiete</h3><p class="small muted">Diese Beziehungen gelten nur für diese Funktion. Sie werden nicht aus Namen abgeleitet.</p><div id="cover-rows"></div><button type="button" id="add-cover" class="secondary">+ Gesamtgebiet-Beziehung</button>`;
@@ -387,7 +387,6 @@ function masterDialog(type,p){
    const next={...current,id:p?.id||d.id?.trim()||''};
    if(type!=='rules')next.name=d.name.trim();
    if(type==='regions'){next.region_group_ids=[...document.querySelectorAll('[name=region_group_ids]:checked')].map(x=>x.value);delete next.region_group_id;}
-   if(type==='regions'&&d.polygon_geo_id){if(d.polygon_geo_id==='auto')delete next.polygon_geo_id;else next.polygon_geo_id=d.polygon_geo_id==='none'?null:d.polygon_geo_id;}
    if(['functions','regions','region_groups'].includes(type)){next.department_ids=[...document.querySelectorAll('[name=scope_departments]:checked')].map(x=>x.value);next.group_ids=[...document.querySelectorAll('[name=scope_groups]:checked')].map(x=>x.value);if(['regions','region_groups'].includes(type))next.function_ids=[...document.querySelectorAll('[name=scope_functions]:checked')].map(x=>x.value);}
    if(type==='groups'){next.department_id=d.department_id||null;next.geo_ids=$('#group-all-regions').checked?null:[...document.querySelectorAll('[name=group_geo_ids]:checked')].map(x=>x.value);}
    if(type==='functions'){

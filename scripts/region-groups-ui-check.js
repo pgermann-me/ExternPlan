@@ -27,5 +27,10 @@ try{
  await page.getByRole('tab',{name:'Gebietsgruppen',exact:true}).click();await page.locator('[data-master=region_groups][data-id="'+group.id+'"]').click();await page.locator('#delete-master').click();await page.locator('#dialog-error').filter({hasText:'verwendet'}).waitFor();await page.locator('#cancel').click();
  await page.getByRole('button',{name:'Planung',exact:true}).click();await page.locator('#person-function').selectOption('DEMO-ORT');await page.locator('#person-group').selectOption('demo-gruppe');await page.locator('[data-person-region=NORD]').waitFor({state:'attached'});assert.equal(await page.locator('[data-person-region]').count(),2);
  const final=await (await page.request.get(base+'/api/state')).json();assert.deepEqual(final.regions.find(r=>r.id==='NORD').region_group_ids,[group.id,second.id]);
+ await page.request.post(base+'/api/master/regions',{data:{id:'AMA89',name:'Gebiet mit Polygon',polygon_geo_id:null}});await page.reload();
+ await page.getByRole('button',{name:'Stammdaten & Soll-Abdeckung',exact:true}).click();await page.getByRole('tab',{name:'Gebiete',exact:true}).click();await page.locator('[data-master=regions][data-id=AMA89]').click();
+ assert.equal(await page.getByLabel('Gebietspolygon',{exact:true}).getAttribute('readonly'),'');assert.match(await page.getByLabel('Gebietspolygon',{exact:true}).inputValue(),/Vorhanden/);assert.equal(await page.locator('select[name=polygon_geo_id]').count(),0);
+ await page.locator('[name=name]').fill('Gebiet mit automatischem Polygon');await page.locator('#form button[type=submit]').click();await page.waitForFunction(()=>!document.querySelector('dialog').open);
+ assert.equal((await (await page.request.get(base+'/api/state')).json()).regions.find(r=>r.id==='AMA89').polygon_geo_id,'AMA89');
  assert.deepEqual(errors,[]);console.log('Gebietsgruppen-Browserprüfung bestanden: Anlegen, Mehrfachzuweisung mit Shift, Funktionsbearbeitung ohne feste Kopien, Löschschutz und Planungsfilter.');
 }finally{await browser?.close();await new Promise(resolve=>{if(server.exitCode!==null)return resolve();server.once('exit',resolve);server.kill();});rmSync(dir,{recursive:true,force:true});}

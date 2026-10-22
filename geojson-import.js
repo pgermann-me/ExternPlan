@@ -1,3 +1,4 @@
+import {linkRegionPolygons} from './region-recovery.js';
 import {id,audit} from './domain.js';
 const fail=message=>{throw Error(message);};
 export function inspectGeojson(input){
@@ -38,5 +39,6 @@ export function prepareGeojsonImport(state,layers,input){
  const filename=input.filename.split(/[\\/]/).at(-1);let created=0,existing=0;
  for(const r of result.regions){const previous=state.regions.find(x=>x.id===r.id);if(previous){existing++;continue;}if(input.create_regions){const region={id:r.id,name:r.name};state.regions.push(region);audit(state,'regions','create',null,region);created++;}}
  const layer={id:'imported-'+id(),name:input.name.trim(),filename,geojson:result.geojson};
+ linkRegionPolygons(state,[...layers,layer]);
  const summary={layer_id:layer.id,name:layer.name,filename,feature_count:result.feature_count,polygon_count:result.polygon_count,region_count:result.regions.length,created,existing};audit(state,'geojson','import',null,summary);return {layer,summary};
 }

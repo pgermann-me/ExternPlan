@@ -1,4 +1,5 @@
-import {migrateWildhutGeoIds,wildhutMigrationId} from './wildhut-geo-migration.js';
+import {recoverRegionState} from './region-recovery.js';
+import {migrateWildhutGeoIds} from './wildhut-geo-migration.js';
 import {changeAlwaysAffiliation} from './always-planning.js';
 import {pikettRegionMap} from './public/region-point.js';
 import {pikettByRegion} from './public/pikett-region-data.js';
@@ -49,11 +50,12 @@ installAccounts(app,db,{dataDir,getState:read,recordAudit:(action,before,after,a
 app.use('/api',(req,res,next)=>{if(restricted(req.user)){const p=accessPolicy(read(),req.user);for(const [key,ids] of [['department_id',p.departmentIds],['group_id',p.groupIds],['function_id',p.functionIds],['region_id',p.regionIds],['planning_department_id',p.departmentIds],['planning_group_id',p.groupIds]])for(const value of [].concat(req.query[key]||req.body?.[key]||[]))if(value&&!ids.has(value))return res.status(403).json({error:'Dieser Filter liegt ausserhalb Ihrer Berechtigung'});}next();});
 app.post('/api/planning/always',(req,res)=>res.json(mutate(s=>changeAlwaysAffiliation(s,req.body,req.user))));
 app.post('/api/planning/undo',(req,res)=>res.json(mutate(s=>undoPlanning(s,req.body.token))));
-app.get('/api/state',(req,res)=>{const state=publicState(scopedState(read(),req.user));if(req.user.role!=='admin')for(const key of ['audit','exports','person_exports','outbox','els'])delete state[key];res.json({...state,current_user:req.user,allowed_views:roleViews[req.user.role],...(req.user.role==='admin'?{map_revision:db.prepare('SELECT COUNT(*) AS n FROM imported_map_layers').get().n+':'+(state.migrations||[]).filter(m=>m.id===wildhutMigrationId).length}:{})});});
+app.get('/api/state',(req,res)=>{const state=publicState(scopedState(read(),req.user));if(req.user.role!=='admin')for(const key of ['audit','exports','person_exports','outbox','els'])delete state[key];res.json({...state,current_user:req.user,allowed_views:roleViews[req.user.role],...(req.user.role==='admin'?{map_revision:db.prepare('SELECT COUNT(*) AS n FROM imported_map_layers').get().n+':'+(state.migrations||[]).length}:{})});});
 const regionMapLayers=[['amtsarzt','Amtsarzt','Amtsarzt_Gebiete.geojson'],['ua','Untersuchungsämter','UA_Regionen.geojson'],['wildhut','Wildhut','Wildhut_Kanton_SG.geojson']].map(([id,name,filename])=>({id,name,filename,geojson:JSON.parse(readFileSync(new URL('./map-data/'+filename,import.meta.url),'utf8'))}));
 db.exec('CREATE TABLE IF NOT EXISTS imported_map_layers (id TEXT PRIMARY KEY, data TEXT NOT NULL)');
 const wildhutRename=migrateWildhutGeoIds(db,{dataDir});if(wildhutRename)console.log('Wildhut-Geo_IDs aktualisiert; Sicherung: '+wildhutRename.backup);
 const mapLayers=()=>[...regionMapLayers,...db.prepare('SELECT data FROM imported_map_layers ORDER BY rowid').all().map(r=>JSON.parse(r.data))];
+mutate(s=>{const original=JSON.stringify(s),catalog=JSON.parse(readFileSync(new URL('./map-data/hunter-regions.json',import.meta.url),'utf8'));const result=recoverRegionState(s,catalog,mapLayers());if(result.recovered||result.linked){const backup=resolve(dataDir,'backup-before-region-recovery-'+id()+'.json');writeFileSync(backup,original,{mode:0o600,flag:'wx'});console.log('Gebiete wiederhergestellt / Polygone verknüpft; Sicherung: '+backup);}return result;});
 app.get('/api/region-map',(req,res)=>res.json({layers:mapLayers()}));
 app.post('/api/geojson/preview',(req,res)=>{if(!req.body.mapping)return res.json(inspectGeojson(req.body.geojson));const {geojson,...preview}=mapGeojson(req.body.geojson,req.body.mapping);res.json({...preview,conflicts:geojsonConflicts(mapLayers(),preview)});});
 app.post('/api/geojson/import',(req,res)=>res.json(mutate(s=>{const {layer,summary}=prepareGeojsonImport(s,mapLayers(),req.body);db.prepare('INSERT INTO imported_map_layers (id,data) VALUES (?,?)').run(layer.id,JSON.stringify(layer));return summary;})));
@@ -93,6 +95,7 @@ function validMaster(s,type,p){
  if(type==='regions'&&p.region_group_ids!==undefined&&(!Array.isArray(p.region_group_ids)||new Set(p.region_group_ids).size!==p.region_group_ids.length||p.region_group_ids.some(id=>!(s.region_groups||[]).some(g=>g.id===id&&!g.deleted_at))))throw Error('Unbekannte oder doppelte Gebietsgruppe');
  if(type==='functions')validateStandingFunction(p);if(typeof p.id!=='string'||!p.id.trim()||p.id==='undefined')throw Error('ID erforderlich');if(type!=='rules'&&!p.name)throw Error('Name erforderlich');
  if(['functions','regions'].includes(type))validateScopeRestrictions(s,type,p);
+ if(type==='regions'&&mapLayers().some(l=>l.geojson.features.some(f=>String(f.properties.GEO_ID)===p.id)))p.polygon_geo_id=p.id;
  if(type==='regions'&&p.polygon_geo_id!=null&&(typeof p.polygon_geo_id!=='string'||!mapLayers().some(l=>l.geojson.features.some(f=>f.properties.GEO_ID===p.polygon_geo_id))))throw Error('Unbekanntes Kartenpolygon');
  if(type==='groups'&&p.department_id&&!s.departments.some(d=>d.id===p.department_id))throw Error('Abteilung unbekannt');
  if(type==='groups'&&p.geo_ids!=null&&(!Array.isArray(p.geo_ids)||new Set(p.geo_ids).size!==p.geo_ids.length||p.geo_ids.some(g=>!s.regions.some(r=>r.id===g&&(active(r)||s.groups.find(x=>x.id===p.id)?.geo_ids?.includes(g))))))throw Error('Gruppenregionen enthalten unbekannte oder doppelte Kennungen');

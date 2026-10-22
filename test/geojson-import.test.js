@@ -16,6 +16,6 @@ test('Ungültige Geometrie, Projektion und fehlende Werte verhindern den Import'
 });
 test('Neue Gebiete sind optional; bestehende Stammdaten bleiben erhalten und Polygone werden nicht überschrieben',()=>{
  const state={regions:[{id:'G1',name:'Eigener Name',polygon_geo_id:null}],audit:[]},input={geojson:collection([feature(),feature('G2','Zwei')]),mapping,name:'Neue Karte',filename:'regionen.geojson',create_regions:true};
- const result=prepareGeojsonImport(state,[],input);assert.equal(result.summary.created,1);assert.equal(result.summary.existing,1);assert.equal(state.regions[0].name,'Eigener Name');assert.equal(state.regions[0].polygon_geo_id,null);assert.equal(state.regions[1].id,'G2');assert(!JSON.stringify(state.audit).includes('coordinates'));
+ const result=prepareGeojsonImport(state,[],input);assert.equal(result.summary.created,1);assert.equal(result.summary.existing,1);assert.equal(state.regions[0].name,'Eigener Name');assert.equal(state.regions[0].polygon_geo_id,'G1');assert.equal(state.regions[1].id,'G2');assert(!JSON.stringify(state.audit).includes('coordinates'));
  assert.throws(()=>prepareGeojsonImport(state,[result.layer],input),/bereits Polygone/);const separate={regions:[],audit:[]};prepareGeojsonImport(separate,[],{...input,create_regions:false});assert.equal(separate.regions.length,0);
 });
