@@ -1,0 +1,30 @@
+import {chromium} from '@playwright/test';
+import {spawn} from 'node:child_process';
+import {mkdtempSync,rmSync} from 'node:fs';
+import {DatabaseSync} from 'node:sqlite';
+import assert from 'node:assert/strict';
+import {regionFixture} from './fixtures/pikett-region.js';
+const dir=mkdtempSync('/tmp/externplan-point-ui-'),{state,mapData}=regionFixture(),db=new DatabaseSync(dir+'/externplan.sqlite');
+db.exec('CREATE TABLE state (id INTEGER PRIMARY KEY, data TEXT NOT NULL); CREATE TABLE imported_map_layers (id TEXT PRIMARY KEY, data TEXT NOT NULL)');db.prepare('INSERT INTO state VALUES(1,?)').run(JSON.stringify(state));db.prepare('INSERT INTO imported_map_layers VALUES(?,?)').run('test-map',JSON.stringify(mapData.layers[0]));db.close();
+const server=spawn(process.execPath,['server.js'],{env:{...process.env,NODE_ENV:'test',EXTERNPLAN_TEST_FIXTURES:'1',PORT:'0',DATA_DIR:dir},stdio:['ignore','pipe','pipe']});let browser;
+try{
+ const port=await new Promise((resolve,reject)=>{let log='';const timer=setTimeout(()=>reject(Error(log)),15000);server.stdout.on('data',data=>{log+=data;const match=log.match(/Port (\d+)/);if(match){clearTimeout(timer);resolve(match[1]);}});server.stderr.on('data',data=>log+=data);server.once('exit',()=>{clearTimeout(timer);reject(Error(log));});});
+ browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH||'/usr/bin/chromium',headless:true,args:['--no-sandbox']});const page=await browser.newPage({viewport:{width:1600,height:1050}}),errors=[];
+ page.on('pageerror',error=>errors.push(error.message));await page.route('https://tile.openstreetmap.org/**',route=>route.abort());await page.goto('http://127.0.0.1:'+port);
+ await page.getByRole('button',{name:'Pikettliste',exact:true}).click();await page.locator('#pikett-list-results h2').waitFor();assert.equal(await page.getByRole('heading',{name:'Pikettliste',exact:true}).count(),1);
+ await page.getByRole('tab',{name:'Pikett nach Region',exact:true}).click();await page.locator('#pikett-region-map .leaflet-overlay-pane path').first().waitFor();
+ assert.match(await page.locator('#pikett-region-at').inputValue(),/^\d{2}\.\d{2}\.\d{4} \d{2}:\d{2}$/);
+ await page.locator('#pikett-region-at').fill('22.10.2026 12:00');await page.getByRole('button',{name:'Anzeigen',exact:true}).click();
+ const clickMap=async()=>{const box=await page.locator('#pikett-region-map').boundingBox();await page.mouse.click(box.x+box.width/2,box.y+box.height/2);};
+ await clickMap();await page.locator('[data-region-duty=scheduled]').first().waitFor();assert.equal(await page.locator('[data-region-duty=scheduled]').count(),2);assert.equal(await page.locator('[data-region-duty=always]').count(),2);assert.match(await page.locator('#pikett-region-results').innerText(),/Westgebiet/);assert.match(await page.locator('#pikett-region-results').innerText(),/Immer/);assert.ok(!(await page.locator('#pikett-region-results').innerText()).includes('hidden@example.invalid'));
+ await page.screenshot({path:'/tmp/externplan-pikett-nach-region.png',fullPage:true});
+ await page.locator('#pikett-region-at').fill('22.10.2026 18:00');await page.getByRole('button',{name:'Anzeigen',exact:true}).click();await page.waitForFunction(()=>document.querySelectorAll('[data-region-duty=scheduled]').length===1);assert.equal(await page.locator('[data-region-duty=always]').count(),2);
+ // Late responses must not resurrect a map after switching back to the ordinary list.
+ let release,started;const gate=new Promise(resolve=>release=resolve),requestStarted=new Promise(resolve=>started=resolve);
+ await page.route('**/api/pikett-by-region?**',async route=>{started();await gate;await route.continue();});await clickMap();await requestStarted;
+ await page.getByRole('tab',{name:'Pikettliste',exact:true}).click();await page.locator('#pikett-list-results h2').waitFor();const response=page.waitForResponse(r=>r.url().includes('/api/pikett-by-region?'));release();await response;assert.equal(await page.locator('#pikett-region-map').count(),0);
+ await page.getByRole('tab',{name:'Pikett nach Region',exact:true}).click();await page.locator('#pikett-region-map .leaflet-overlay-pane path').first().waitFor();assert.equal(await page.locator('.leaflet-container').count(),1);
+ await page.setViewportSize({width:720,height:1000});assert.equal(await page.locator('.pikett-region-layout').evaluate(e=>getComputedStyle(e).gridTemplateColumns.split(' ').length),1);
+ await page.getByRole('button',{name:'Organisation & Personen',exact:true}).click();await page.locator('#new-person').waitFor();assert.equal(await page.locator('#pikett-region-map').count(),0);assert.deepEqual(errors,[]);
+ console.log('Pikett-nach-Region-Browserprüfung bestanden: Reiter, Karte, Klickpunkt, Zeitwahl, Immer-Zuordnungen, mobile Ansicht und Kartenbereinigung.');
+}finally{await browser?.close();await new Promise(resolve=>{if(server.exitCode!==null)return resolve();server.once('exit',resolve);server.kill();});rmSync(dir,{recursive:true,force:true});}

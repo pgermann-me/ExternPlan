@@ -240,3 +240,13 @@ Zusätzliche Browserprüfung: `node scripts/region-groups-ui-check.js`.
 Aktionen und Datenabfragen zeigen nach einer Sekunde ein drehendes Rad mit „Bitte warten …“. Kurze Vorgänge bleiben ohne Ladeanzeige. Die gemeinsame Anzeige berücksichtigt parallele und verschachtelte Vorgänge und wird auch bei Fehlern aufgeräumt. Sie ist in Hauptansicht, Anmeldung und Personen-Dienstfenster einschliesslich PDF-Erstellung eingebunden. Ein manueller Popover hält sie über offenen Dialogen sichtbar, ohne Eingaben zu blockieren. Beim Drucken wird sie ausgeblendet; die Einstellung für reduzierte Bewegung wird respektiert.
 
 Browserprüfung mit kontrolliert verzögerten Antworten: `node scripts/busy-ui-check.js`.
+
+### Pikett nach Region
+
+Der Hauptreiter **Pikettliste** enthält neben der bisherigen Liste den Reiter **Pikett nach Region**. Die OpenStreetMap-Karte startet mit dem Kanton St. Gallen; Datum und Uhrzeit sind mit der aktuellen Schweizer Zeit vorbelegt. Nach einem Kartenklick werden alle verknüpften Gebiete an diesem Punkt markiert. Mit **Anzeigen** kann derselbe Punkt für eine selbst eingegebene Zeit (`TT.MM.JJJJ HH:mm`) abgefragt werden; **Jetzt** setzt die aktuelle Zeit.
+
+Die Ortsabfrage zeigt ausschliesslich zu diesem Zeitpunkt laufende Dienste (Beginn inklusive, Ende exklusiv), einschliesslich expliziter Gesamtgebietsabdeckungen. Funktionen mit Zeitbereich **Immer** erscheinen aus den aktiven Personen-/Funktions-/Gebietszuordnungen mit ihrer gebietsspezifischen Priorität. Dafür werden keine Dienste angelegt und keine zusätzlichen ELS-Exporte erzeugt. Angezeigt werden nur Telefonnummern. Bei mehreren zuständigen Gebieten oder Personen werden alle passenden Einträge berücksichtigt.
+
+Die Gebietspolygone werden über die vorhandene Geo-ID-/Polygonverknüpfung bestimmt, inklusive importierter GeoJSON, MultiPolygone und Aussparungen. Grenzpunkte zählen zu beiden angrenzenden Gebieten. Gebiete ohne verknüpftes Polygon und ortsunabhängige Dienste können keinem Kartenpunkt zugeordnet werden. Die Karte funktioniert bei ausgefallenem OpenStreetMap-Hintergrund weiterhin anhand der geladenen Gebietsflächen.
+
+Die neuen lesenden Endpunkte `/api/pikett-region-map` und `/api/pikett-by-region` sind für alle drei Rollen verfügbar und nach den bestehenden Datenberechtigungen eingeschränkt. Die umfassende administrative Regionenkarte bleibt Admins vorbehalten. Browserprüfung: `node scripts/pikett-region-ui-check.js`.
