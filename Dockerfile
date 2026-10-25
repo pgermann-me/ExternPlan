@@ -1,5 +1,11 @@
 # syntax=docker/dockerfile:1
-FROM node:24-bookworm-slim
+FROM node:24.22.1-bookworm-slim
+# Rebuild without cache to refresh Debian security updates and CA certificates.
+RUN apt-get update \
+    && apt-get upgrade -y \
+    && apt-get install -y --no-install-recommends ca-certificates \
+    && update-ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 ENV NODE_ENV=production HOST=0.0.0.0 PORT=3000 DATA_DIR=/app/data
 WORKDIR /app
 COPY package.json package-lock.json ./

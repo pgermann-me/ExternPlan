@@ -45,7 +45,7 @@ if(!testFixtures&&cleanupNeeded(read()))mutate(s=>{
  const result=removeKtdAndExamplePeople(s);console.log('KTD-/Beispielbereinigung abgeschlossen; Sicherung: '+backup);return result;
 });
 if(read().regions.some(r=>r.name==='region Wil/Uzwil/Gossau'))mutate(s=>{for(const r of s.regions.filter(r=>r.name==='region Wil/Uzwil/Gossau')){const before={...r};r.name='Region Wil/Uzwil/Gossau';audit(s,'regions','update',before,{...r});}});
-const app=express();if(process.env.TRUST_PROXY==='1')app.set('trust proxy',1);app.disable('x-powered-by');app.use(express.json({limit:'10mb'}));
+const app=express();if(process.env.TRUST_PROXY==='1')app.set('trust proxy',1);app.disable('x-powered-by');app.use(express.json({limit:'10mb',inflate:false}));
 app.use((req,res,next)=>{res.setHeader('X-Content-Type-Options','nosniff');if(!['GET','HEAD'].includes(req.method)&&req.headers.origin&&req.headers.origin!==`${req.protocol}://${req.headers.host}`)return res.status(403).json({error:'Fremder Ursprung nicht zugelassen'});next();});
 installAccounts(app,db,{dataDir,getState:read,recordAudit:(action,before,after,actor)=>{const s=read();audit(s,'user',action,before,after);if(actor)s.audit.at(-1).actor=actor;db.prepare('UPDATE state SET data=? WHERE id=1').run(JSON.stringify(s));}});
 app.use('/api',(req,res,next)=>{if(restricted(req.user)){const p=accessPolicy(read(),req.user);for(const [key,ids] of [['department_id',p.departmentIds],['group_id',p.groupIds],['function_id',p.functionIds],['region_id',p.regionIds],['planning_department_id',p.departmentIds],['planning_group_id',p.groupIds]])for(const value of [].concat(req.query[key]||req.body?.[key]||[]))if(value&&!ids.has(value))return res.status(403).json({error:'Dieser Filter liegt ausserhalb Ihrer Berechtigung'});}next();});
