@@ -1,5 +1,18 @@
 import {swissTime,localDateTime} from './time.js';
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// Group labels by function and actual region IDs; every person's original entry remains.
+function dutyTableRows(rows){
+ const groups=new Map();
+ for(const row of rows){
+  const key=JSON.stringify([row.kind,row.function_id]),regionKey=JSON.stringify([...row.region_ids].sort());
+  if(!groups.has(key))groups.set(key,{name:row.function_name,regions:new Map(),count:0});const group=groups.get(key);
+  if(!group.regions.has(regionKey))group.regions.set(regionKey,{name:row.region_name,rows:[]});group.regions.get(regionKey).rows.push(row);group.count++;
+ }
+ return [...groups.values()].map(group=>{let first=true;return `<tbody>${[...group.regions.values()].map(region=>region.rows.map((row,i)=>{
+  const functionCell=first?`<td class="region-duty-function" rowspan="${group.count}">${esc(group.name)}</td>`:'';first=false;
+  return `<tr data-region-duty="${esc(row.kind)}">${functionCell}${i===0?`<td class="region-duty-region" rowspan="${region.rows.length}">${esc(region.name)}</td>`:''}<td>${esc(row.person_name)}</td><td class="region-duty-priority" title="${row.priority?'Priorität '+esc(row.priority):'Keine Priorität (0)'}">${row.priority?esc(row.priority):'—'}</td><td>${row.kind==='always'?'<span class="badge">Immer</span>':esc(swissTime(row.start_on))+' → '+esc(swissTime(row.end_on))}</td><td>${row.contacts.map(esc).join('<br>')||'—'}</td></tr>`;
+ }).join('')).join('')}</tbody>`;}).join('');
+}
 export async function renderPikettRegion(root,{api,safe,registerDispose}){
  root.innerHTML=`<form id="pikett-region-filter" class="toolbar"><label for="pikett-region-at">Datum / Uhrzeit</label><input id="pikett-region-at" type="text" value="${esc(swissTime(new Date()))}" placeholder="TT.MM.JJJJ HH:mm" data-time-format="datetime" inputmode="numeric" required><button type="submit">Anzeigen</button><button type="button" id="pikett-region-now" class="secondary">Jetzt</button><button type="button" id="pikett-region-reset" class="secondary">Kanton anzeigen</button></form><p class="small muted">Einen Punkt auf der Karte anklicken. Angezeigt werden laufende Pikettdienste und zuständige Personen mit Zeitbereich Immer.</p><div class="pikett-region-layout"><div><div id="pikett-region-map" role="region" aria-label="Karte Kanton St. Gallen"></div><p id="pikett-region-map-status" class="small muted" role="status">Gebiete werden geladen …</p></div><section id="pikett-region-results" aria-live="polite"><p>Bitte einen Punkt auf der Karte wählen.</p></section></div>`;
  const q=id=>root.querySelector('#'+id),L=window.L;if(!L)throw Error('Die Kartenbibliothek konnte nicht geladen werden');
@@ -15,7 +28,7 @@ export async function renderPikettRegion(root,{api,safe,registerDispose}){
  const draw=data=>{
   at=data.at;selected=new Set(data.regions.map(r=>r.polygon_geo_id));polygons?.setStyle(style);
   q('pikett-region-at').value=swissTime(data.at);
-  q('pikett-region-results').innerHTML=`<h2>Pikett nach Region</h2><p>${esc(swissTime(data.at))} · Schweizer Zeit</p><p class="small">Kartenpunkt: ${data.point.lat.toFixed(5)}, ${data.point.lng.toFixed(5)}</p><p>${data.regions.length?'Gebiete: '+data.regions.map(r=>esc(r.name)).join(', '):'Für diesen Punkt sind keine verknüpften Gebiete vorhanden.'}</p>${data.rows.length?`<p role="status">${data.rows.length} zuständige Einträge</p><p class="small muted">Sortierung: Zeitbereich vor Immer; jeweils Funktion A–Z, dann Priorität (1 zuerst; 0 = keine Priorität am Schluss).</p><div class="pikett-list-board"><table class="pikett-list"><thead><tr><th>Pikett</th><th>Region</th><th>Name</th><th>Prio</th><th>Dienstzeit</th><th>Kontaktdaten</th></tr></thead><tbody>${data.rows.map(row=>`<tr data-region-duty="${esc(row.kind)}"><td>${esc(row.function_name)}</td><td>${esc(row.region_name)}</td><td>${esc(row.person_name)}</td><td title="${row.priority?'Priorität '+esc(row.priority):'Keine Priorität (0)'}">${row.priority?esc(row.priority):'—'}</td><td>${row.kind==='always'?'<span class="badge">Immer</span>':esc(swissTime(row.start_on))+' → '+esc(swissTime(row.end_on))}</td><td>${row.contacts.map(esc).join('<br>')||'—'}</td></tr>`).join('')}</tbody></table></div>`:'<p>Keine zuständigen Pikettdienste für diesen Punkt und Zeitpunkt gefunden.</p>'}`;
+  q('pikett-region-results').innerHTML=`<h2>Pikett nach Region</h2><p>${esc(swissTime(data.at))} · Schweizer Zeit</p><p class="small">Kartenpunkt: ${data.point.lat.toFixed(5)}, ${data.point.lng.toFixed(5)}</p><p>${data.regions.length?'Gebiete: '+data.regions.map(r=>esc(r.name)).join(', '):'Für diesen Punkt sind keine verknüpften Gebiete vorhanden.'}</p>${data.rows.length?`<p role="status">${data.rows.length} zuständige Einträge</p><p class="small muted">Sortierung: Zeitbereich vor Immer; jeweils Funktion A–Z, Region gruppiert, dann Priorität (1 zuerst; 0 = keine Priorität am Schluss).</p><div class="pikett-list-board"><table class="pikett-list"><thead><tr><th>Pikett</th><th>Region</th><th>Name</th><th>Prio</th><th>Dienstzeit</th><th>Kontaktdaten</th></tr></thead>${dutyTableRows(data.rows)}</table></div>`:'<p>Keine zuständigen Pikettdienste für diesen Punkt und Zeitpunkt gefunden.</p>'}`;
  };
  const load=async()=>{
   if(!point)return;const request=++sequence;
