@@ -1,7 +1,8 @@
+import {personAffiliationProblem} from './public/person-affiliation-rules.js';
 import {withRegionGroups} from './public/region-groups.js';
 import {DateTime} from 'luxon';
 import {audit,instant,iso} from './domain.js';
-import {personGroupIds,personScopeAllows} from './public/organization.js';
+import {personGroupIds} from './public/organization.js';
 function businessAddress(value){
  if(value==null)return null;
  if(typeof value!=='object'||Array.isArray(value))throw Error('Geschäftliche Adresse muss ein Objekt sein');
@@ -57,7 +58,7 @@ export function validatePersonAffiliations(s,p,previous){
  s=withRegionGroups(s);
  for(const r of p.function_regions||[]){
   const unchanged=(previous?.function_regions||[]).some(old=>old.function_id===r.function_id&&old.geo_id===r.geo_id&&old.priority===r.priority);
-  const fn=s.functions.find(f=>f.id===r.function_id&&!f.deleted_at),region=s.regions.find(g=>g.id===r.geo_id&&!g.deleted_at);
-  if((!fn||!personScopeAllows(s,fn,p,fn.id)||(fn.geo_ids.length?!fn.geo_ids.includes(r.geo_id)||!region||!personScopeAllows(s,region,p,fn.id):r.geo_id!==null))&&!unchanged)throw Error('Funktion/Gebiet der Person ist nicht zulässig');
+  if(unchanged)continue;
+  const problem=personAffiliationProblem(s,p,r);if(problem)throw Error(problem);
  }
 }
