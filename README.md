@@ -297,3 +297,13 @@ Falls Personen auch aus dem Änderungsprotokoll vollständig fehlen, kann die ur
 ### Sicherheitsupdates und Render-Neubau
 
 Die Laufzeit benötigt Node.js **24.22.1 oder neuer innerhalb 24.x**. Das Docker-Image enthält die Sicherheitsaktualisierung für Node.js sowie einen beim Build aktualisierten System-Zertifikatsspeicher. Bei Sicherheitsupdates in Render **Manual Deploy → Clear build cache & deploy** verwenden. Details zur Prüfung vom 25.10.2026, den HTTP-Parser-Änderungen und weiteren Updates stehen in [SECURITY.md](SECURITY.md).
+
+### Immer-Planung nach Funktion und Region
+
+Unter **Planung → Immer** öffnet standardmäßig die kompakte Ansicht **Funktionen / Regionen**. Sie zeigt alle durch die Filter ausgewählten Funktion-/Region-Kombinationen, auch ohne Besetzung. Zugewiesene Personen erscheinen mit Nachname/Vorname, Telefonnummern und Pikettpriorität (1 zuerst, 0 zuletzt). Die bisherige Darstellung kann über **Personen** gewählt werden; Filter bleiben beim Wechsel erhalten.
+
+**Person hinzufügen** bietet vorhandene, passende Personen an. Die Auswahl kann nach Name oder Telefonnummer durchsucht werden. **Ersetzen** überträgt gezielt eine einzelne Funktion-/Regionszuordnung auf eine andere Person; deren bisherige Pikettpriorität ist vorbelegt. Andere Zuordnungen, Kontaktdaten und zeitlich geplante Dienste bleiben erhalten. Bereits zugeordnete Zielpersonen werden nicht doppelt eingetragen. Gleichzeitige Änderungen werden über die erwartete bisherige Priorität erkannt und mit HTTP 409 abgelehnt. Entfernen und Hinzufügen werden gemeinsam in einer Datenbanktransaktion gespeichert.
+
+**Person erstellen** erfasst Vorname, Nachname, Telefon-/E-Mail-Kontakte und Priorität direkt aus einer Tabellenzeile. Die aktive Abteilung und Gruppe werden übernommen; Funktion und Region kommen aus der gewählten Zeile. **Person erstellen und ersetzen** ist auch im Ersetzen-Dialog verfügbar. Die neue Personenkennung entsteht automatisch. Auch hier werden Personenerstellung und Zuordnungswechsel gemeinsam gespeichert. Es entstehen keine zeitlichen Dienste oder ELS-Exportvormerkungen.
+
+`POST /api/planning/always` unterstützt zusätzlich `action: replace`, `replacement_employee_id` und `expected_priority`. `POST /api/planning/always/person` erstellt ausschließlich eine neue manuelle Person samt einer Immer-Zuordnung; optional ersetzt `replace_employee_id` eine bisherige Zuordnung mit `expected_priority`. Beide Vorgänge stehen allen Rollen mit Planungszugriff innerhalb ihrer Datenberechtigung zur Verfügung. Der allgemeine Personenverwaltungszugriff wird dadurch nicht erweitert. Der Server prüft Abteilung, Gruppe, Funktion, Region und Priorität; zusätzliche Funktionszuordnungen lassen sich über den Erstellungsendpunkt nicht einschleusen.
