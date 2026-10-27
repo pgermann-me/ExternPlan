@@ -230,10 +230,10 @@ th.sortable-heading{padding:0}.table-sort-button{display:block;width:100%;paddin
 @media(prefers-reduced-motion:reduce){.busy-spinner{animation:none}}
 @media print{.busy-indicator{display:none!important}}
 .pikett-region-layout{display:grid;grid-template-columns:minmax(340px,1fr) minmax(360px,1fr);gap:18px;align-items:start}
-#pikett-region-map{cursor:crosshair;height:560px;min-height:340px;border:1px solid #bdcbd1;border-radius:8px;background:#e8eef0}
+#pikett-region-map{cursor:crosshair;height:747px;min-height:340px;border:1px solid #bdcbd1;border-radius:8px;background:#e8eef0}
 #pikett-region-results{min-width:0}#pikett-region-results h2{margin-top:0}
 #pikett-region-results .pikett-list td{white-space:normal;min-width:85px}
-@media(max-width:950px){.pikett-region-layout{grid-template-columns:1fr}#pikett-region-map{height:420px}}
+@media(max-width:950px){.pikett-region-layout{grid-template-columns:1fr}#pikett-region-map{height:560px}}
 .always-planning-table{width:100%;background:#fff}.always-planning-table>tbody>tr>th,.always-planning-table>tbody>tr>td{vertical-align:top}
 .always-affiliations{width:100%;min-width:430px;margin:0}.always-affiliations .actions{flex-wrap:nowrap}
 
