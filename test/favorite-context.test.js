@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {demo} from '../domain.js';
-import {favoriteMatchesContext as matches,favoriteDefinitionMatches as definitionMatches} from '../public/favorite-context.js';
+import {favoriteMatchesContext as matches,favoriteDefinitionMatches as definitionMatches,favoriteContextProblem} from '../public/favorite-context.js';
 const favorite=(extra={})=>({scope_type:'function',scope_id:'DEMO-KTD',function_id:'DEMO-KTD',region_ids:['NORD'],...extra});
 const context=(extra={})=>({function_id:'DEMO-KTD',group_id:'demo-gruppe',region_ids:['NORD'],employee_ids:[],...extra});
 test('Favoriten müssen Funktion und sämtliche gewählten Regionen erfüllen',()=>{
@@ -48,4 +48,15 @@ test('Favoritendefinitionen filtern Abteilung, Gruppe, Funktion und mehrere Regi
  assert.equal(definitionMatches(s,favorite({scope_type:'department',scope_id:'OTHER'}),{group_id:'demo-gruppe'}),false);
  s.groups[0].geo_ids=['SÜD'];assert.equal(definitionMatches(s,f,{group_id:'demo-gruppe'}),false);
  assert.equal(definitionMatches(s,favorite({region_ids:['SÜD']}),{group_id:'demo-gruppe'}),true);
+});
+
+import {publicState} from '../master-data.js';
+test('JUGA and Staatsanwälte can share a region group across departments without a function favorite inheriting a department',()=>{
+ const s=demo();s.departments.push({id:'JUGA-D',name:'Jugendanwaltschaft'});s.groups.push({id:'JUGA-G',name:'JUGA',department_id:'JUGA-D',geo_ids:['NORD']});s.functions.push({id:'JUGA',name:'JUGA Pikett',geo_ids:[],covers:{}});s.region_groups=[{id:'UA',name:'UA-Gebiete',function_ids:['DEMO-KTD','JUGA']}];s.regions[0].region_group_ids=['UA'];
+ const f={...favorite(),function_id:'JUGA',scope_id:'JUGA'},ctx={...context(),function_id:'JUGA',department_id:'JUGA-D',group_id:'JUGA-G'};
+ assert.equal(matches(s,f,ctx),true);assert.equal(matches(publicState(s),f,ctx),true);
+ assert.match(favoriteContextProblem(s,{...f,region_ids:[]},ctx),/gebietsabhängig.*keine Regionen/);
+ assert.match(favoriteContextProblem(s,{...f,scope_type:'department',scope_id:'demo-abteilung'},ctx),/noch an die Abteilung/);
+ s.region_groups[0].department_ids=['demo-abteilung'];assert.match(favoriteContextProblem(s,f,ctx),/UA-Gebiete/);assert.equal(matches(s,f,ctx),false);
+ s.region_groups[0].department_ids=[];s.functions.at(-1).department_ids=['demo-abteilung'];assert.match(favoriteContextProblem(s,f,ctx),/Funktion „JUGA Pikett“.*nicht freigegeben/);
 });
