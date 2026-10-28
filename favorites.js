@@ -60,7 +60,20 @@ export function previewFavorite(s,key,input,now=Date.now()){
  const date=input.date||today;const d=DateTime.fromISO(date,{zone});
  if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||!d.isValid)throw Error('Ungültiges Dienst-Datum');
 
- const windows=f.schedule_mode==='weekly'?favoriteWeeklyWindows(f.weekly_windows).flatMap(w=>w.weekdays.map(day=>({...w,date:d.startOf('week').plus({days:day-1})}))):[{...f,date:f.schedule_mode==='continuous'?DateTime.fromISO(f.start_date,{zone}):f.start_weekday?d.startOf('week').plus({days:f.start_weekday-1}):d}];
+ const range=Object.hasOwn(input,'date_from')||Object.hasOwn(input,'date_to');let rangeStart,rangeEnd;
+ if(range){
+  for(const key of ['date_from','date_to'])if(!/^\d{4}-\d{2}-\d{2}$/.test(input[key]||'')||!DateTime.fromISO(input[key],{zone}).isValid)throw Error('Gültiges Von- und Bis-Datum erforderlich');
+  rangeStart=DateTime.fromISO(input.date_from,{zone});rangeEnd=DateTime.fromISO(input.date_to,{zone});
+  if(rangeEnd<rangeStart||rangeEnd.diff(rangeStart,'days').days>=366)throw Error('Datumsbereich muss 1 bis 366 Kalendertage umfassen');
+ }
+ let windows;
+ if(range){
+  if(f.schedule_mode==='continuous'){f={...f,start_date:input.date_from,end_date:input.date_to};f.duration_minutes=continuousDuration(f);windows=[{...f,date:rangeStart}];}
+  else{
+   const definitions=f.schedule_mode==='weekly'?favoriteWeeklyWindows(f.weekly_windows):[{...f,weekdays:f.start_weekday?[f.start_weekday]:[1,2,3,4,5,6,7]}];
+   windows=[];for(let day=rangeStart;day<=rangeEnd;day=day.plus({days:1}))for(const w of definitions)if(w.weekdays.includes(day.weekday))windows.push({...w,date:day});
+  }
+ }else windows=f.schedule_mode==='weekly'?favoriteWeeklyWindows(f.weekly_windows).flatMap(w=>w.weekdays.map(day=>({...w,date:d.startOf('week').plus({days:day-1})}))):[{...f,date:f.schedule_mode==='continuous'?DateTime.fromISO(f.start_date,{zone}):f.start_weekday?d.startOf('week').plus({days:f.start_weekday-1}):d}];
  const segments=[];let overallStart=Infinity,overallEnd=-Infinity;
  for(const window of windows){
  const time=(!['weekly','continuous'].includes(f.schedule_mode)&&input.start_time)||window.start_time;if(!/^([01]\d|2[0-3]):[0-5]\d$/.test(time))throw Error('Beginn als HH:mm erforderlich');
@@ -76,13 +89,13 @@ export function previewFavorite(s,key,input,now=Date.now()){
  for(let from=start;from<end;){
   // Immer is stored as one interval; other time models retain their existing pieces.
   const to=f.schedule_mode==='continuous'?end:Math.min(from+86400000,end);
-  if(segments.length>=(f.schedule_mode==='continuous'?368:366))throw Error('Zu viele Teilstücke pro Region');
+  if(segments.length>=(range?10000:f.schedule_mode==='continuous'?368:366))throw Error('Zu viele Teilstücke pro Region');
   segments.push({start_on:iso(from),end_on:iso(to)});from=to;
  }
  }
- const regions=f.region_ids.length?f.region_ids:[null];const working={...s,assignments:[...s.assignments]};const assignments=[],warnings=[];let already_planned=0;
- for(const geo of regions)for(const segment of segments){if(['weekly','continuous'].includes(f.schedule_mode)&&s.assignments.some(a=>a.employee_id===person.employee_id&&a.function_id===f.function_id&&a.geodependency===geo&&a.priority===personRegionPriority(person,f.function_id,geo,f.priority)&&instant(a.start_on)===instant(segment.start_on)&&instant(a.end_on)===instant(segment.end_on))){already_planned++;continue;}const result=validateAssignment(working,{employee_id:person.employee_id,function_id:f.function_id,geodependency:geo,priority:personRegionPriority(person,f.function_id,geo,f.priority),...segment});assignments.push(result.assignment);working.assignments.push(result.assignment);warnings.push(...result.warnings);}
- return {favorite_id:f.id,start_on:iso(overallStart),end_on:iso(overallEnd),segments_per_region:segments.length,already_planned,assignments,warnings:[...new Set(warnings)]};
+ const regions=f.region_ids.length?f.region_ids:[null];if(range&&regions.length*segments.length>10000)throw Error('Höchstens 10000 Dienste pro Planung; Zeitraum verkleinern');const working={...s,assignments:[...s.assignments]};const assignments=[],warnings=[];let already_planned=0;
+ for(const geo of regions)for(const segment of segments){if((range||['weekly','continuous'].includes(f.schedule_mode))&&s.assignments.some(a=>a.employee_id===person.employee_id&&a.function_id===f.function_id&&a.geodependency===geo&&a.priority===personRegionPriority(person,f.function_id,geo,f.priority)&&instant(a.start_on)===instant(segment.start_on)&&instant(a.end_on)===instant(segment.end_on))){already_planned++;continue;}const result=validateAssignment(working,{employee_id:person.employee_id,function_id:f.function_id,geodependency:geo,priority:personRegionPriority(person,f.function_id,geo,f.priority),...segment});assignments.push(result.assignment);working.assignments.push(result.assignment);warnings.push(...result.warnings);}
+ return {favorite_id:f.id,start_on:segments.length?iso(overallStart):null,end_on:segments.length?iso(overallEnd):null,segments_per_region:segments.length,already_planned,assignments,warnings:[...new Set(warnings)]};
 }
 export function applyFavorite(s,key,input,now=Date.now()){
  const result=previewFavorite(s,key,input,now);
