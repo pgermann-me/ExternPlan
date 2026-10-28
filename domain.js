@@ -41,7 +41,7 @@ export function gaps(required, covered) {
 }
 function ruleIntervals(rule,a,b) {
   const validA=rule.valid_from?DateTime.fromISO(rule.valid_from,{zone}).startOf('day').toMillis():-Infinity;
-  const validB=rule.valid_until?DateTime.fromISO(rule.valid_until,{zone}).startOf('day').toMillis():Infinity;
+  const validB=rule.valid_until?DateTime.fromISO(rule.valid_until,{zone}).startOf('day').plus({days:1}).toMillis():Infinity;
   a=Math.max(a,validA);b=Math.min(b,validB);if(a>=b)return [];
   if(rule.mode==='continuous')return [[a,b]];
   const out=[];

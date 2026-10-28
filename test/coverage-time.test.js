@@ -15,3 +15,14 @@ test('Bestehende Wochenend-/Ganzwochenregeln und 24:00 behalten ihre Bedeutung',
  assert.deepEqual(expandCoverageWindows([{weekdays:[7],start_time:'17:00',end_time:'24:00',end_day_offset:0}]),[{start_day:7,start_time:'17:00',end_day:1,end_time:'00:00'}]);
  for(const w of [{weekdays:[],start_time:'12:00',end_time:'14:00',end_day_offset:0},{weekdays:[1],start_time:'12:00',end_time:'11:00',end_day_offset:0},{weekdays:[1],start_time:'12:00',end_time:'14:00',end_day_offset:8}])assert.throws(()=>expandCoverageWindows([w]));
 });
+
+test('Gültig bis includes the full Swiss end date, including 23/25-hour days and a single-day validity',()=>{
+ for(const [date,next,hours] of [['2026-03-29','2026-03-30',23],['2026-10-25','2026-10-26',25],['2026-10-20','2026-10-21',24]]){
+  const s=demo();s.rules=[{function_id:'DEMO-KTD',geo_id:null,mode:'continuous',windows:[],valid_from:date,valid_until:date}];
+  const result=coverage(s,'DEMO-KTD','NORD',instant(date+'T00:00'),instant(next+'T00:00'));
+  assert.equal(result.status,'unbesetzt');assert.equal(result.gaps.length,1);assert.equal(instant(result.gaps[0].end_on)-instant(result.gaps[0].start_on),hours*3600000);
+  assert.equal(coverage(s,'DEMO-KTD','NORD',instant(next+'T00:00'),instant(next+'T01:00')).status,'kein Pikett erforderlich');
+ }
+ const s=demo();s.rules=[{function_id:'DEMO-KTD',geo_id:null,mode:'weekly',windows:[{start_day:2,start_time:'12:00',end_day:2,end_time:'14:00'}],valid_from:'2026-10-01',valid_until:'2026-10-20'}];
+ const result=coverage(s,'DEMO-KTD','NORD',instant('2026-10-20T00:00'),instant('2026-10-21T00:00'));assert.equal(result.status,'unbesetzt');assert.equal(result.gaps[0].start_on.slice(11,16),'12:00');assert.equal(result.gaps[0].end_on.slice(11,16),'14:00');
+});
