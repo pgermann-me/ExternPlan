@@ -51,3 +51,28 @@ export function favoriteDefinitionMatches(state,f,context={}){
  }
  return f.region_ids.every(id=>allowedFunctionRegions(fn,group,state.regions,department,state.groups).includes(id));
 }
+
+// Explain editor choices without weakening the same restrictions used for planning.
+export function favoriteRegionOptions(state,functionId,context={}){
+ state=withRegionGroups(state);
+ const fn=state.functions.find(f=>f.id===functionId&&!f.deleted_at);
+ if(!fn)return {regions:[],blocked:[],message:'Bitte eine Pikett-Funktion wählen.',canSave:false};
+ const regional=Boolean(fn.geo_ids.length||fn.region_group_ids?.length);
+ if(!regional)return {regions:[],blocked:[],message:'Ortsunabhängig · keine Region erforderlich',canSave:true};
+ const group=state.groups.find(g=>g.id===context.group_id&&!g.deleted_at);
+ const available=new Set(allowedFunctionRegions(fn,group,state.regions,context.department_id,state.groups));
+ const regions=state.regions.filter(r=>available.has(r.id));
+ const ctx={...context,function_id:fn.id};
+ const blocked=state.regions.filter(r=>!r.deleted_at&&fn.geo_ids.includes(r.id)&&!available.has(r.id)).map(region=>{
+  const reasons=[];
+  if(group&&Array.isArray(group.geo_ids)&&!group.geo_ids.includes(region.id))reasons.push('nicht in den Regionen der Gruppe „'+group.name+'“');
+  if(!scopeAllows({...region,region_group_scopes:[]},ctx,state.groups))reasons.push('Einschränkungen am Gebiet für Abteilung, Gruppe oder Funktion');
+  if(region.region_group_scopes?.length&&!region.region_group_scopes.some(scope=>scopeAllows(scope,ctx,state.groups))){
+   const names=regionGroupIds(region).map(id=>state.region_groups?.find(g=>g.id===id)?.name).filter(Boolean);
+   reasons.push('Einschränkungen der Gebietsgruppen'+(names.length?' „'+names.join('“, „')+'“':''));
+  }
+  return {region,reasons};
+ });
+ const message=regions.length?'':blocked.length?'Der Funktion sind Regionen zugeordnet, aber keine ist für die gewählte Abteilung/Gruppe freigegeben. Freigaben unter Stammdaten → Gebiete, Gebietsgruppen und Gruppen prüfen.':'Die Gebietsgruppen dieser Funktion enthalten keine aktiven, für dich sichtbaren Gebiete. Unter Stammdaten → Gebiete die Gebietsgruppen-Zuordnung und unter Funktionen die gewählten Gebietsgruppen prüfen.';
+ return {regions,blocked,message,canSave:regions.length>0};
+}

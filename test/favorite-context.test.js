@@ -60,3 +60,24 @@ test('JUGA and Staatsanwälte can share a region group across departments withou
  s.region_groups[0].department_ids=['demo-abteilung'];assert.match(favoriteContextProblem(s,f,ctx),/UA-Gebiete/);assert.equal(matches(s,f,ctx),false);
  s.region_groups[0].department_ids=[];s.functions.at(-1).department_ids=['demo-abteilung'];assert.match(favoriteContextProblem(s,f,ctx),/Funktion „JUGA Pikett“.*nicht freigegeben/);
 });
+
+test('Favoriteneditor unterscheidet fehlende Gebiete von eingeschränkten Freigaben',async()=>{
+ const {favoriteRegionOptions}=await import('../public/favorite-context.js');
+ const s=demo();s.functions[0].region_assignment_mode='groups';s.functions[0].geo_ids=[];
+ s.region_groups=[{id:'RG',name:'UA-Gebiete',function_ids:[s.functions[0].id]}];
+ s.regions[0].region_group_ids=['RG'];
+ let result=favoriteRegionOptions(s,s.functions[0].id);
+ assert.deepEqual(result.regions.map(r=>r.id),[s.regions[0].id]);assert.equal(result.canSave,true);
+ s.groups[0].geo_ids=[];
+ result=favoriteRegionOptions(s,s.functions[0].id,{group_id:s.groups[0].id});
+ assert.equal(result.canSave,false);assert.match(result.message,/zugeordnet, aber keine/);assert.match(result.blocked[0].reasons[0],/Regionen der Gruppe/);
+ s.groups[0].geo_ids=null;s.region_groups[0].department_ids=['OTHER'];
+ result=favoriteRegionOptions(s,s.functions[0].id,{department_id:'demo-abteilung'});
+ assert.equal(result.canSave,false);assert.match(result.blocked[0].reasons.join(),/Gebietsgruppen.*UA-Gebiete/);
+ s.regions[0].region_group_ids=[];
+ result=favoriteRegionOptions(s,s.functions[0].id);
+ assert.equal(result.canSave,false);assert.match(result.message,/keine aktiven/);assert.deepEqual(result.blocked,[]);
+ s.region_groups[0].function_ids=[];
+ result=favoriteRegionOptions(s,s.functions[0].id);
+ assert.equal(result.canSave,true);assert.match(result.message,/Ortsunabhängig/);
+});

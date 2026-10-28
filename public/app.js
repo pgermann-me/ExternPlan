@@ -24,7 +24,7 @@ import {masterReferences} from './master-references.js';
 import {favoriteTimeLabel,favoriteSchedule,favoriteDurationFromEnd,favoriteWeeklyWindows} from './favorite-time.js';
 import {dayBars} from './day-bars.js';
 import {bindSplitPanel} from './split-panel.js';
-import {favoriteMatchesContext,favoriteDefinitionMatches,favoriteContextProblem} from './favorite-context.js';
+import {favoriteMatchesContext,favoriteDefinitionMatches,favoriteContextProblem,favoriteRegionOptions} from './favorite-context.js';
 import {personGroupIds,personDepartmentIds,allowedFunctionRegions,planningPeople,controlFunctions,availableFunctions,personScopeAllows} from './organization.js';
 import {swissTime,swissDate,localDate,localDateTime,displayTimes} from './time.js';
 installTimeInputFormatting();
@@ -512,7 +512,7 @@ function favoriteEditor(f={},defaults={},context=null){
  for(const field of ['start_time','end_time','end_day_offset','start_weekday'])$('[name='+field+']').oninput=showTimes;showTimes();
  const functions=availableFunctions(state,context?.group_id,context?.department_id);
  const fn=$('#favorite-function');fn.innerHTML=options(functions,'id','name',f.function_id||functions[0]?.id,false);
- const renderRegions=()=>{const selected=state.functions.find(x=>x.id===fn.value);const geos=selected?state.regions.filter(g=>allowedFunctionRegions(selected,context?state.groups.find(g=>g.id===context.group_id):null,state.regions,context?.department_id,state.groups).includes(g.id)):[];$('#favorite-regions').innerHTML=selected?.geo_ids.length?geos.map(g=>`<label class="check-option"><input type="checkbox" data-favorite-region="${esc(g.id)}" ${selectedRegions.includes(g.id)?'checked':''}>${esc(g.name)}</label>`).join('')||'<p>Keine aktiven Regionen; Funktion zuerst konfigurieren.</p>':'Ortsunabhängig · keine Region erforderlich';};
+ const renderRegions=()=>{const result=favoriteRegionOptions(state,fn.value,context||{});$('#favorite-regions').innerHTML=result.regions.map(g=>`<label class="check-option"><input type="checkbox" data-favorite-region="${esc(g.id)}" ${selectedRegions.includes(g.id)?'checked':''}>${esc(g.name)}</label>`).join('')+(result.message?`<p role="status">${esc(result.message)}</p>`:'')+(result.blocked.length?`<details><summary>Nicht verfügbare Regionen (${result.blocked.length})</summary><ul>${result.blocked.map(({region,reasons})=>`<li>${esc(region.name)}: ${esc(reasons.join('; '))}</li>`).join('')}</ul></details>`:'');$('#form button[type=submit]').disabled=!result.canSave;};
  renderRegions();fn.onchange=()=>{selectedRegions=[];renderRegions();};
  if(f.id)$('#delete-favorite').onclick=safe(async()=>{await api('/favorites/'+f.id+'?revision='+f.revision,'DELETE');$('#dialog').close();message('Favorit gelöscht; geplante Dienste bleiben erhalten');await refresh();});
 }
