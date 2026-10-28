@@ -2,7 +2,7 @@ import {audit,iso} from './domain.js';
 export const hunterRecoveryId='2026-10-22-restore-hunter-regions';
 export function linkRegionPolygons(state,layers){
  const ids=new Set(layers.flatMap(l=>l.geojson.features.map(f=>String(f.properties.GEO_ID))));let linked=0;
- for(const region of state.regions)if(ids.has(region.id)&&region.polygon_geo_id!==region.id){
+ for(const region of state.regions)if(region.polygon_link_mode!=='shared'&&ids.has(region.id)&&region.polygon_geo_id!==region.id){
   const before={...region};region.polygon_geo_id=region.id;audit(state,'regions','link-polygon',before,{...region});linked++;
  }
  return linked;

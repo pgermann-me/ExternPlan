@@ -33,3 +33,19 @@ test('Gesamtgebietsabdeckung und gelöschte Funktionshistorie schützen referenz
  s.assignments=[];assert.equal(bulkDeleteRegions(s,['R0','R1']).deleted,2);
  assert.equal(permitted('planner','POST','/api/regions/delete-many'),false);assert.equal(permitted('user','POST','/api/regions/delete-many'),false);
 });
+
+import {prepareRegionDuplicate} from '../region-bulk.js';
+import {linkRegionPolygons} from '../region-recovery.js';
+import {regionPolygonLayers} from '../public/region-geometry.js';
+test('Duplicate has a unique ID, independent settings and a persistent reference to the original polygon',()=>{
+ const s=state();s.regions=[{id:'SOURCE',name:'Original',department_ids:['A'],group_ids:['GA'],function_ids:['F1'],region_group_ids:['RG']}];
+ const feature=id=>({properties:{GEO_ID:id},geometry:{type:'Polygon',coordinates:[[[9,47],[10,47],[10,48],[9,47]]]}}),layers=[{geojson:{features:[feature('SOURCE'),feature('TARGET')]}}],before=structuredClone(s);
+ const copy=prepareRegionDuplicate(s,'SOURCE',{id:' TARGET ',name:' Kopie '},layers);assert.deepEqual(s,before);assert.equal(copy.id,'TARGET');assert.equal(copy.name,'Kopie');assert.equal(copy.polygon_geo_id,'SOURCE');assert.equal(copy.polygon_link_mode,'shared');assert.deepEqual(copy.region_group_ids,['RG']);s.regions.push(copy);linkRegionPolygons(s,layers);assert.equal(copy.polygon_geo_id,'SOURCE');assert.equal(regionPolygonLayers({layers},copy)[0].geojson.features[0].properties.GEO_ID,'SOURCE');copy.group_ids.push('GB');assert.deepEqual(s.regions[0].group_ids,['GA']);
+ const second=prepareRegionDuplicate(s,'TARGET',{id:'THIRD',name:'Kopie der Kopie'},layers);assert.equal(second.polygon_geo_id,'SOURCE');
+ for(const id of ['SOURCE','TARGET'])assert.throws(()=>prepareRegionDuplicate(s,'SOURCE',{id,name:'Kopie'},layers),{status:409});
+});
+test('Reserved IDs, missing originals and invalid input are rejected; regions without polygons can be copied',()=>{
+ const s=state();s.regions=[{id:'ORIGINAL',name:'Original',polygon_geo_id:null},{id:'RESERVED',deleted_at:'2026-01-01'}];const before=structuredClone(s);
+ assert.throws(()=>prepareRegionDuplicate(s,'ORIGINAL',{id:'RESERVED',name:'Kopie'},[]),{status:409});assert.throws(()=>prepareRegionDuplicate(s,'RESERVED',{id:'NEW',name:'Kopie'},[]),{status:404});for(const id of ['',null,'x'.repeat(201)])assert.throws(()=>prepareRegionDuplicate(s,'ORIGINAL',{id,name:'Kopie'},[]));assert.deepEqual(s,before);assert.equal(prepareRegionDuplicate(s,'ORIGINAL',{id:'NEW',name:'Kopie'},[]).polygon_geo_id,null);
+ for(const role of ['user','planner'])assert.equal(permitted(role,'POST','/api/regions/ORIGINAL/duplicate'),false);
+});

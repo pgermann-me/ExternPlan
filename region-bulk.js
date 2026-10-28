@@ -30,3 +30,17 @@ export function bulkDeleteRegions(state,ids,now=Date.now()){
  for(const id of ids)deleteMaster(state,'regions',id,now);
  return {deleted:ids.length};
 }
+
+export function prepareRegionDuplicate(state,sourceId,input,layers){
+ const source=state.regions.find(r=>r.id===sourceId&&!r.deleted_at);if(!source)fail('Originalgebiet nicht gefunden',404);
+ const key=typeof input.id==='string'?input.id.trim():'';
+ if(!key||key==='undefined'||key.length>200)fail('Eine neue Geo_ID mit 1 bis 200 Zeichen eingeben');
+ if(state.regions.some(r=>r.id===key))fail('Diese Geo_ID ist bereits vergeben oder für ein gelöschtes Gebiet reserviert',409);
+ const name=typeof input.name==='string'?input.name.trim():'';if(!name||name.length>500)fail('Beschreibung mit 1 bis 500 Zeichen eingeben');
+ const region=structuredClone(source);region.id=key;region.name=name;
+ delete region.deleted_at;delete region.region_group_scopes;delete region.region_group_scope;delete region.configured_geo_ids;
+ const polygon=Object.hasOwn(source,'polygon_geo_id')?source.polygon_geo_id:source.id;
+ region.polygon_geo_id=layers.some(l=>l.geojson.features.some(f=>String(f.properties.GEO_ID)===polygon))?polygon:null;
+ // A duplicate deliberately shares the source geometry, even if its new ID has another polygon.
+ region.polygon_link_mode='shared';return region;
+}
