@@ -1,3 +1,4 @@
+import {assignImportedFunctionRegions} from './function-region-migration.js';
 import {XMLParser,XMLValidator} from 'fast-xml-parser';
 import {DateTime} from 'luxon';
 import {manualPerson} from './people.js';
@@ -53,10 +54,10 @@ export function importHunters(s,content,createRegions=false){
  const preview=previewHunters(s,content);
  if(preview.missing_regions.length&&!createRegions)throw Error('Fehlende Gebiete zuerst anlegen oder deren Erstellung bestätigen');
  for(const key of preview.restored_regions){const r=s.regions.find(r=>r.id===key),before={...r};delete r.deleted_at;audit(s,'regions','restore',before,{...r});}
- for(const key of preview.missing_regions){const region={id:key,name:key};s.regions.push(region);audit(s,'regions','import',null,region);}
+ for(const key of preview.missing_regions){const region={id:key,name:key,covered_region_ids:[]};s.regions.push(region);audit(s,'regions','import',null,region);}
  let fn=s.functions.find(f=>f.id===preview.function_id);
  if(!fn){fn={id:id(),name:'Jäger',geo_ids:[],covers:{}};s.functions.push(fn);audit(s,'functions','create',null,structuredClone(fn));}
- const beforeFn=structuredClone(fn);delete fn.deleted_at;fn.duty_time_model='always';delete fn.duty_color;fn.geo_ids=[...new Set([...fn.geo_ids,...preview.people.flatMap(p=>p.regions.map(r=>r.geo_id))])];
+ const beforeFn=structuredClone(fn);delete fn.deleted_at;fn.duty_time_model='always';delete fn.duty_color;assignImportedFunctionRegions(s,fn,preview.people.flatMap(p=>p.regions.map(r=>r.geo_id)));
  if(JSON.stringify(fn)!==JSON.stringify(beforeFn))audit(s,'functions','update',beforeFn,structuredClone(fn));
  let department=s.departments.find(d=>d.id===preview.organization.department_id),created_departments=0,created_groups=0;
  if(!department){department={id:id(),name:'Jäger'};s.departments.push(department);audit(s,'departments','create',null,department);created_departments++;}

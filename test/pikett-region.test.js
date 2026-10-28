@@ -15,8 +15,8 @@ test('Point containment supports multipolygons, holes, boundaries and explicit p
 });
 test('Point list includes strictly active duties, covering regions and permanent affiliations with priority',()=>{
  const {state,mapData}=regionFixture(),before=JSON.stringify(state),result=pikettByRegion(publicState(state),mapData,at,47.3,9.4);
- assert.deepEqual(result.rows.filter(r=>r.kind==='scheduled').map(r=>r.assignment_id),['active','whole']);
- assert.equal(result.rows.find(r=>r.assignment_id==='whole').region_ids.length,2);
+ assert.deepEqual(result.rows.filter(r=>r.kind==='scheduled').map(r=>r.assignment_id),['active']);
+ assert.ok(!result.rows.some(r=>r.assignment_id==='whole'));
  assert.deepEqual(result.rows.filter(r=>r.kind==='always'&&r.region_ids.includes('R1')).map(r=>r.priority),[1,2]);
  assert.ok(result.rows.some(r=>r.kind==='always'&&r.employee_id==='HIDDEN'));assert.ok(!JSON.stringify(result).includes('hidden@example.invalid'));
  assert.equal(JSON.stringify(state),before);assert.equal(pikettByRegion(state,mapData,at,46,8).rows.length,0);

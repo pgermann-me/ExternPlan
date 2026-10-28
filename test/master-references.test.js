@@ -6,5 +6,5 @@ test('Abteilungen und mehrere Gruppen liefern Personen auch ohne Dienst, Funktio
  const dept=masterReferences(state,'departments','D');assert.deepEqual(dept.people.map(p=>p.id),['P','idle']);assert.deepEqual(dept.functions,[{id:'F',name:'Pikett'}]);assert.deepEqual(masterReferences(state,'groups','G').people,[{id:'P',name:'Nach Vor'}]);assert.deepEqual(masterReferences(state,'groups','G2').functions,dept.functions);assert.deepEqual(masterReferences(state,'groups','missing'),{people:[],functions:[]});
 });
 test('Gebietsabdeckung verbindet Funktionen und Dienstpersonen; Funktionsreferenzen erfinden keine Qualifikationen',()=>{
- assert.deepEqual(masterReferences(state,'regions','NORD'),{people:[{id:'P',name:'Nach Vor'}],functions:[{id:'F',name:'Pikett'}]});assert.deepEqual(masterReferences(state,'functions','F').people,[{id:'P',name:'Nach Vor'}]);
+ assert.deepEqual(masterReferences(state,'regions','NORD'),{people:[],functions:[]});assert.deepEqual(masterReferences(state,'functions','F').people,[{id:'P',name:'Nach Vor'}]);
 });

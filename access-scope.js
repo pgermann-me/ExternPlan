@@ -1,3 +1,4 @@
+import {coveredRegionIds} from './public/coverage-regions.js';
 import {withRegionGroups} from './public/region-groups.js';
 import {personGroupIds,personDepartmentIds,scopeAllows,personScopeAllows} from './public/organization.js';
 
@@ -64,7 +65,7 @@ export function accessPolicy(s,user){
  const assignmentAllowed=(a,{covering=false}={})=>{
   const p=s.people.find(p=>p.employee_id===a.employee_id),f=s.functions.find(f=>f.id===a.function_id);
   if(!personAllowed(p)||!f||!functionIds.has(f.id))return false;
-  const candidates=covering?[a.geodependency,...(f.covers?.[a.geodependency]||[])]:[a.geodependency];
+  const candidates=covering?[a.geodependency,...coveredRegionIds(s,f.id,a.geodependency)]:[a.geodependency];
   return candidates.some(geo=>targetAllowed(f,geo));
  };
  const personDeletable=p=>!personGroupIds(p).some(id=>!groupIds.has(id))&&(!p.department_id||departmentIds.has(p.department_id))&&(!selectedRegions.length||personGroupIds(p).length>0&&personGroupIds(p).every(id=>{const g=s.groups.find(g=>g.id===id);return Array.isArray(g?.geo_ids)&&g.geo_ids.every(id=>selectedRegions.includes(id));}))&&!s.assignments.some(a=>a.employee_id===p.employee_id&&!assignmentAllowed(a));
@@ -72,13 +73,14 @@ export function accessPolicy(s,user){
  const favoriteAllowed=f=>functionIds.has(f.function_id)&&(f.scope_type!=='group'||groupIds.has(f.scope_id))&&(f.scope_type!=='department'||departmentIds.has(f.scope_id))&&(!selectedRegions.length||f.region_ids?.length>0)&&(f.region_ids||[]).every(id=>targetAllowed(s.functions.find(fn=>fn.id===f.function_id),id));
  return {limited,scope,groups,groupIds,departments,departmentIds,regions,regionIds,functions,functionIds,personAllowed,projectPerson,personDeletable,assignmentAllowed,favoriteAllowed,targetAllowed};
 }
-export function scopedState(s,user){
+export function scopedState(s,user,{coverage=false}={}){
  s=withRegionGroups(s);
  if(!restricted(user))return s;
- const p=accessPolicy(s,user),assignments=s.assignments.filter(a=>p.assignmentAllowed(a,{covering:true})).flatMap(a=>p.assignmentAllowed(a)?[a]:(s.functions.find(f=>f.id===a.function_id)?.covers?.[a.geodependency]||[]).filter(id=>p.assignmentAllowed({...a,geodependency:id})).map(id=>({...a,geodependency:id,access_read_only:true})));
+ const p=accessPolicy(s,user),assignments=s.assignments.filter(a=>p.assignmentAllowed(a,{covering:coverage})).flatMap(a=>p.assignmentAllowed(a)?[a]:coveredRegionIds(s,a.function_id,a.geodependency).filter(id=>p.assignmentAllowed({...a,geodependency:id})).map(id=>({...a,geodependency:id,access_read_only:true})));
  const assignmentIds=new Set(assignments.map(a=>a.assignment_id));
- const trim=record=>Object.fromEntries(Object.entries(record).map(([k,v])=>[k,k==='configured_geo_ids'&&Array.isArray(v)?v.filter(id=>p.regionIds.has(id)):k==='region_group_scopes'?v.map(trim):k==='department_ids'&&Array.isArray(v)?v.filter(id=>p.departmentIds.has(id)):k==='group_ids'&&Array.isArray(v)?v.filter(id=>p.groupIds.has(id)):k==='function_ids'&&Array.isArray(v)?v.filter(id=>p.functionIds.has(id)):v]));
- return {...s,region_groups:(s.region_groups||[]).filter(g=>p.regions.some(r=>r.region_group_ids?.includes(g.id))).map(trim),departments:p.departments,groups:p.groups.map(g=>({...trim(g),...(Array.isArray(g.geo_ids)?{geo_ids:g.geo_ids.filter(id=>p.regionIds.has(id))}:{})})),people:s.people.filter(p.personAllowed).map(p.projectPerson),regions:p.regions.map(trim),functions:p.functions.map(f=>({...trim(f),geo_ids:f.geo_ids.filter(id=>p.targetAllowed(f,id)),covers:Object.fromEntries(Object.entries(f.covers||{}).filter(([id])=>p.regionIds.has(id)).map(([id,parts])=>[id,parts.filter(id=>p.regionIds.has(id))]))})),rules:s.rules.filter(r=>p.functionIds.has(r.function_id)&&(r.geo_id===null||p.regionIds.has(r.geo_id))),favorites:(s.favorites||[]).filter(p.favoriteAllowed).map(trim),assignments,assignment_styles:Object.fromEntries(Object.entries(s.assignment_styles||{}).filter(([id])=>assignmentIds.has(id)).map(([id,style])=>[id,{color:style.color}])),planning_undo:[],audit:[],outbox:[],exports:[],person_exports:[],els:{}};
+ const visibleRegionGroups=new Set((s.region_groups||[]).filter(g=>p.regions.some(r=>r.region_group_ids?.includes(g.id))).map(g=>g.id));
+ const trim=record=>Object.fromEntries(Object.entries(record).map(([k,v])=>[k,k==='region_group_ids'&&Array.isArray(v)?v.filter(id=>visibleRegionGroups.has(id)):k==='covered_region_ids'&&Array.isArray(v)?v.filter(id=>p.regionIds.has(id)):k==='configured_geo_ids'&&Array.isArray(v)?v.filter(id=>p.regionIds.has(id)):k==='region_group_scopes'?v.map(trim):k==='department_ids'&&Array.isArray(v)?v.filter(id=>p.departmentIds.has(id)):k==='group_ids'&&Array.isArray(v)?v.filter(id=>p.groupIds.has(id)):k==='function_ids'&&Array.isArray(v)?v.filter(id=>p.functionIds.has(id)):v]));
+ return {...s,region_groups:(s.region_groups||[]).filter(g=>p.regions.some(r=>r.region_group_ids?.includes(g.id))).map(trim),departments:p.departments,groups:p.groups.map(g=>({...trim(g),...(Array.isArray(g.geo_ids)?{geo_ids:g.geo_ids.filter(id=>p.regionIds.has(id))}:{})})),people:s.people.filter(p.personAllowed).map(p.projectPerson),regions:p.regions.map(r=>trim(coverage&&Object.hasOwn(r,'covered_region_ids')?{...r,covered_region_ids:coveredRegionIds(s,null,r.id)}:r)),functions:p.functions.map(f=>({...trim(f),geo_ids:f.geo_ids.filter(id=>p.targetAllowed(f,id)),covers:Object.fromEntries(Object.entries(f.covers||{}).filter(([id])=>p.regionIds.has(id)).map(([id,parts])=>[id,parts.filter(id=>p.regionIds.has(id))]))})),rules:s.rules.filter(r=>p.functionIds.has(r.function_id)&&(r.geo_id===null||p.regionIds.has(r.geo_id))),favorites:(s.favorites||[]).filter(p.favoriteAllowed).map(trim),assignments,assignment_styles:Object.fromEntries(Object.entries(s.assignment_styles||{}).filter(([id])=>assignmentIds.has(id)).map(([id,style])=>[id,{color:style.color}])),planning_undo:[],audit:[],outbox:[],exports:[],person_exports:[],els:{}};
 }
 export function assertScopedMutation(before,after,user){
  if(!restricted(user))return;

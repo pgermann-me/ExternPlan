@@ -11,7 +11,7 @@ export function publicState(s){
 }
 export function assertRegionDeletable(s,key){
  const record=s.regions.find(r=>r.id===key&&active(r));if(!record)throw Error('Gebiet nicht gefunden');
- if(s.assignments.some(a=>a.geodependency===key||(s.functions.find(f=>f.id===a.function_id)?.covers?.[a.geodependency]||[]).includes(key)))throw Error('Gebiet '+record.name+' kann nicht gelöscht werden: Ein Pikettdienst verweist noch darauf (direkt oder über ein Gesamtgebiet), auch vergangene Dienste zählen.');
+ if(s.assignments.some(a=>a.geodependency===key))throw Error('Gebiet '+record.name+' kann nicht gelöscht werden: Ein Pikettdienst verweist direkt auf dieses Gebiet; auch vergangene Dienste zählen.');
  return record;
 }
 export function deleteMaster(s,type,key,now=Date.now()){

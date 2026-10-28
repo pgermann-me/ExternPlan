@@ -21,9 +21,9 @@ export function personMonth(state, month, functionId, selectedRegions,groupId,de
  const assignments=state.assignments.filter(a=>{
    const fn=functions.find(f=>f.id===a.function_id);if(!fn)return false;
    const allowedForFunction=allowedFunctionRegions(fn,group,state.regions,departmentId,state.groups);
-   return (!fn.geo_ids.length?a.geodependency===null:regions.some(g=>allowedForFunction.includes(g)&&(a.geodependency===g||(fn.covers[a.geodependency]||[]).includes(g))))&&overlap([instant(a.start_on),instant(a.end_on)],monthInterval);
+   return (!fn.geo_ids.length?(a.geodependency===null||fn.region_assignment_mode==='groups'&&(!regions.length||regions.includes(a.geodependency))):regions.some(g=>allowedForFunction.includes(g)&&a.geodependency===g))&&overlap([instant(a.start_on),instant(a.end_on)],monthInterval);
  });
- const eligible=new Set(organizationPeople.map(p=>p.employee_id)),coverageState=prepareCoverage({...state,assignments:state.assignments.filter(a=>eligible.has(a.employee_id))},...monthInterval);
+ const eligible=new Set(organizationPeople.map(p=>p.employee_id)),coverageState=prepareCoverage({...state,assignments:state.assignments.filter(a=>eligible.has(a.employee_id))},...monthInterval,{includeCoveredRegions:false});
  const targets=functions.flatMap(fn=>fn.geo_ids.length?regions.filter(id=>allowedFunctionRegions(fn,group,state.regions,departmentId,state.groups).includes(id)).map(geo=>[fn.id,geo]):[[fn.id,null]]);
  const coverageStatuses=days.map(day=>{
   const required=targets.map(([fn,geo])=>coverage(coverageState,fn,geo,day.toMillis(),day.plus({days:1}).toMillis()).status).filter(status=>status!=='kein Pikett erforderlich');

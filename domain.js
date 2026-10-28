@@ -1,3 +1,4 @@
+import {coveredRegionIds} from './public/coverage-regions.js';
 import {withRegionGroups} from './public/region-groups.js';
 import {projectEls,finishElsProjection} from './els-projection.js';
 import {actorContext} from './request-context.js';
@@ -57,17 +58,17 @@ function ruleIntervals(rule,a,b) {
 }
 // Request-local index: never retain mutable state or another user's scoped data.
 const coverageIndex=Symbol('coverageIndex');
-export function prepareCoverage(s,a=-Infinity,b=Infinity) {
- const functions=new Map(s.functions.map(f=>[f.id,f])),rules=new Map(),assignments=new Map();
+export function prepareCoverage(s,a=-Infinity,b=Infinity,{includeCoveredRegions=true}={}) {
+ const rules=new Map(),assignments=new Map(),targets=new Map();
  for(const rule of s.rules){if(!rules.has(rule.function_id))rules.set(rule.function_id,[]);rules.get(rule.function_id).push(rule);}
  for(const assignment of s.assignments){
   const interval=[instant(assignment.start_on),instant(assignment.end_on)];
   if(!overlap(interval,[a,b]))continue;
-  const fn=functions.get(assignment.function_id);
+  const key=JSON.stringify([assignment.function_id,assignment.geodependency]);if(!targets.has(key))targets.set(key,includeCoveredRegions?coveredRegionIds(s,assignment.function_id,assignment.geodependency):[]);
   if(!assignments.has(assignment.function_id))assignments.set(assignment.function_id,new Map());
   const regions=assignments.get(assignment.function_id);
   const entry={assignment,interval};
-  for(const geo of new Set([assignment.geodependency,...(fn?.covers[assignment.geodependency]||[])])){
+  for(const geo of new Set([assignment.geodependency,...targets.get(key)])){
    if(!regions.has(geo))regions.set(geo,[]);regions.get(geo).push(entry);
   }
  }
@@ -81,7 +82,7 @@ export function coverage(s,function_id,geo,a,b) {
   const required=merge(rules.flatMap(r=>ruleIntervals(r,a,b)));
   const f=s.functions.find(f=>f.id===function_id);
   const entries=(index?.assignments.get(function_id)?.get(geo)||[]).filter(x=>overlap(x.interval,[a,b]));
-  const assignments=index?entries.map(x=>x.assignment):s.assignments.filter(x=>x.function_id===function_id && (x.geodependency===geo || (f?.covers[x.geodependency]||[]).includes(geo)) && overlap([instant(x.start_on),instant(x.end_on)],[a,b]));
+  const assignments=index?entries.map(x=>x.assignment):s.assignments.filter(x=>x.function_id===function_id && (x.geodependency===geo || coveredRegionIds(s,function_id,x.geodependency).includes(geo)) && overlap([instant(x.start_on),instant(x.end_on)],[a,b]));
   const missing=gaps(required,index?entries.map(x=>x.interval):assignments.map(x=>[instant(x.start_on),instant(x.end_on)]));
   const total=required.reduce((n,[a,b])=>n+b-a,0),open=missing.reduce((n,[a,b])=>n+b-a,0);
   return {status:!total?'kein Pikett erforderlich':!open?'vollständig besetzt':open===total?'unbesetzt':'teilweise besetzt',gaps:missing.map(([a,b])=>({start_on:iso(a),end_on:iso(b)})),assignments};
@@ -90,6 +91,7 @@ export function validateAssignment(s,input,previous) {
  s=withRegionGroups(s);
   const person=s.people.find(p=>p.employee_id===input.employee_id&&!p.deleted_at);const f=s.functions.find(f=>f.id===input.function_id&&!f.deleted_at);
   if(!person||!f)throw Error('Person oder Funktion fehlt');
+  if(f.region_group_ids?.length&&!f.geo_ids.length)throw Error('Die Gebietsgruppen der Funktion enthalten noch keine Gebiete');
   if(f.duty_time_model==='always')throw Error('Für Funktionen mit Zeitbereich Immer werden keine Dienste geplant');
   if(!personScopeAllows(s,f,person,f.id))throw Error('Funktion ist für die Abteilungen oder Gruppen dieser Person nicht zulässig');
   const geo=input.geodependency??null;if(geo!==null&&!s.regions.some(r=>r.id===geo&&!r.deleted_at))throw Error('Gebiet wurde gelöscht oder ist unbekannt');
@@ -102,7 +104,6 @@ export function validateAssignment(s,input,previous) {
   const warnings=[];
   for(const x of others.filter(x=>x.function_id===f.id&&overlap([a,b],[instant(x.start_on),instant(x.end_on)]))) {
     if(x.employee_id===input.employee_id&&x.geodependency===geo)warnings.push('Zeitliche Überschneidung derselben Person, Funktion und desselben Gebiets');
-    if((f.covers[geo]||[]).includes(x.geodependency)||(f.covers[x.geodependency]||[]).includes(geo))warnings.push('Gesamtgebiet und regionale Besetzung überschneiden sich; regionale Besetzung hat im ELS Vorrang');
   }
   return {assignment:{assignment_id:previous?.assignment_id||id(),employee_id:input.employee_id,function_id:f.id,start_on:iso(a),end_on:iso(b),geodependency:geo,priority:input.priority,revision:(previous?.revision||0)+1},warnings:[...new Set(warnings)]};
 }

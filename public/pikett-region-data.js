@@ -14,7 +14,7 @@ export function pikettByRegion(state,mapData,at,lat,lng){
  const functions=new Map([...state.functions,...(state.archived_master?.functions||[])].map(f=>[f.id,f])),people=new Map([...state.people,...(state.archived_people||[])].map(p=>[p.employee_id,p]));
  for(const a of state.assignments){
   const fn=functions.get(a.function_id);if(!fn||fn.duty_time_model==='always'||new Date(a.start_on).getTime()>time||new Date(a.end_on).getTime()<=time)continue;
-  const matching=regions.filter(r=>r.id===a.geodependency||(fn.covers?.[a.geodependency]||[]).includes(r.id));if(!matching.length)continue;
+  const matching=regions.filter(r=>r.id===a.geodependency);if(!matching.length)continue;
   const person=people.get(a.employee_id);rows.push({kind:'scheduled',assignment_id:a.assignment_id,function_id:fn.id,function_name:fn.name,employee_id:a.employee_id,person_name:personName(person),region_name:matching.map(r=>r.name).join(', '),region_ids:matching.map(r=>r.id),priority:a.priority,start_on:a.start_on,end_on:a.end_on,contacts:listContacts(person?.contacts)});
  }
  for(const person of state.people.filter(p=>!p.deleted_at))for(const affiliation of person.function_regions||[]){

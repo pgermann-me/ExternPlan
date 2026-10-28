@@ -7,6 +7,7 @@ export function favoriteContextProblem(state,f,context){
  if(f.deleted_at)return 'Der Favorit wurde gelöscht.';
  if(!fn)return 'Die Funktion des Favoriten ist nicht mehr verfügbar.';
  if(context.function_id&&fn.id!==context.function_id)return 'Eine andere Funktion ist ausgewählt.';
+ if(fn.region_group_ids?.length&&!fn.geo_ids.length)return 'Die Gebietsgruppen der Funktion enthalten noch keine Gebiete.';
  if(fn.duty_time_model==='always')return 'Immer-Funktionen werden über dauerhafte Zuordnungen geplant.';
  if(!scopeAllows(fn,context,state.groups))return `Die Funktion „${fn.name}“ ist für die gewählte Abteilung oder Gruppe nicht freigegeben. Einschränkungen unter Stammdaten → Funktionen prüfen.`;
  const group=state.groups.find(g=>g.id===context.group_id&&!g.deleted_at);

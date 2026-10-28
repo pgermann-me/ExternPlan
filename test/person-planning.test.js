@@ -10,8 +10,8 @@ test('Personenraster nach Funktion und mehreren Regionen ohne Duplikate',()=>{
  const unselected=personMonth(s,'2026-10','DEMO-KTD',[]);assert.equal(unselected.rows.length,2);assert.ok(unselected.rows.every(p=>p.bars.length===0));
  assert.equal(personMonth(s,'2026-11','DEMO-KTD').rows.length,2);
 });
-test('Gesamtgebiet zählt über explizite Beziehungen, pro Person/Tag nur einmal',()=>{
- const s=demo();const a=add(s,{geodependency:'GANZ'});const result=personMonth(s,'2026-10','DEMO-KTD',['NORD','SÜD']);assert.equal(result.rows.length,2);assert.equal(result.rows[0].cells[6].assignments.length,1);assert.equal(result.rows[0].cells[6].assignments[0].assignment_id,a.assignment_id);
+test('Planung filtert nur das zugeteilte Gebiet; Gesamtgebietsabdeckungen erweitern den Dienst nicht',()=>{
+ const s=demo();const a=add(s,{geodependency:'GANZ'});const result=personMonth(s,'2026-10','DEMO-KTD',['NORD','SÜD']);assert.equal(result.rows.length,2);assert.equal(result.rows[0].cells[6].assignments.length,0);const whole=personMonth(s,'2026-10','DEMO-KTD',['GANZ']);assert.equal(whole.rows[0].cells[6].assignments[0].assignment_id,a.assignment_id);
  s.functions[0].covers={};const uncovered=personMonth(s,'2026-10','DEMO-KTD',['NORD']);assert.equal(uncovered.rows.length,2);assert.ok(uncovered.rows.every(p=>p.bars.length===0));
 });
 test('Tages-/Monatsgrenzen und Ende exklusiv im Personenraster',()=>{

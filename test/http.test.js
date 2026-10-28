@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import ExcelJS from 'exceljs';
 const dir=mkdtempSync(join(tmpdir(),'externplan-test-'));
 async function start(){const p=spawn(process.execPath,['server.js'],{env:{...process.env,NODE_ENV:'test',EXTERNPLAN_TEST_FIXTURES:'1',EXTERNPLAN_TEST_EXPORT_NOW:'2026-10-07T00:00+02:00',PORT:'0',DATA_DIR:dir},stdio:['ignore','pipe','pipe']});let log='';const port=await new Promise((resolve,reject)=>{const timer=setTimeout(()=>{p.kill();reject(Error('Startup timeout '+log));},10000);p.stdout.on('data',d=>{log+=d;const m=log.match(/Port (\d+)/);if(m){clearTimeout(timer);resolve(m[1]);}});p.stderr.on('data',d=>log+=d);p.on('exit',code=>{clearTimeout(timer);reject(Error(`Exit ${code}: ${log}`));});});return {p,base:`http://127.0.0.1:${port}`};}
-async function stop(p){await new Promise(resolve=>{p.once('exit',resolve);p.kill();});}
+async function stop(p){if(p.exitCode!==null||p.signalCode!==null)return;await new Promise(resolve=>{p.once('exit',resolve);p.kill();});}
 test('HTTP: CRUD, revisions, SAP/JSON/XLSX imports, ELS and persistence',async()=>{let server=await start();let assignmentId;const call=async(path,method='GET',body)=>{const r=await fetch(server.base+'/api'+path,{method,headers:{'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)});return {status:r.status,data:await r.json()};};
 try{
  assert.equal((await call('/health')).data.status,'ok');assert.match(await (await fetch(server.base)).text(),/ExternPlan/);

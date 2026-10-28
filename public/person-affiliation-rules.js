@@ -4,6 +4,7 @@ export function personAffiliationProblem(state,person,row){
  const s=withRegionGroups(state),fn=s.functions.find(f=>f.id===row.function_id&&!f.deleted_at),region=s.regions.find(r=>r.id===row.geo_id&&!r.deleted_at);
  if(!fn)return 'Die gewählte Funktion ist nicht mehr verfügbar. Bitte neu laden.';
  if(!personScopeAllows(s,fn,person,fn.id))return `Die Funktion „${fn.name}“ ist für die gewählte Abteilung oder Gruppe nicht freigegeben. Bitte die Einschränkungen der Funktion prüfen.`;
+ if(fn.region_group_ids?.length&&!fn.geo_ids.length)return 'Die Gebietsgruppen der Funktion enthalten noch keine Gebiete.';
  if(!fn.geo_ids.length)return row.geo_id===null?null:`Die Funktion „${fn.name}“ ist ortsunabhängig und erlaubt keine Gebietszuordnung.`;
  if(!region)return 'Das gewählte Gebiet ist nicht mehr verfügbar. Bitte neu laden.';
  if(!fn.geo_ids.includes(row.geo_id))return `Das Gebiet „${region.name}“ ist der Funktion „${fn.name}“ nicht zugeordnet. Bitte die Gebiete bzw. Gebietsgruppen der Funktion prüfen.`;

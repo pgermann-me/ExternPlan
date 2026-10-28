@@ -28,9 +28,8 @@ test('Mehrere unbenutzte Gebiete gemeinsam archivieren; Stammdatenbezüge und Po
 test('Verweise aus beliebigen Diensten verhindern auch eine teilweise Gebietslöschung',()=>{
  for(const end_on of ['2000-01-01T00:00Z','2099-01-01T00:00Z']){const s=state();s.rules=[];s.favorites=[];s.assignments=[{function_id:'F1',geodependency:'R1',end_on}];const before=structuredClone(s);assert.throws(()=>bulkDeleteRegions(s,['R0','R1']),/verweist/);assert.deepEqual(s,before);assert.throws(()=>deleteMaster(s,'regions','R1'),/verweist/);assert.deepEqual(s,before);}
 });
-test('Gesamtgebietsabdeckung und gelöschte Funktionshistorie schützen referenzierte Teilgebiete',()=>{
- const s=state();s.rules=[];s.favorites=[];s.functions[0].covers={GANZ:['R1']};s.functions[0].deleted_at='2026-01-01';s.assignments=[{function_id:'F1',geodependency:'GANZ',end_on:'2000-01-01T00:00Z'}];const before=structuredClone(s);assert.throws(()=>bulkDeleteRegions(s,['R0','R1']),/Gesamtgebiet/);assert.deepEqual(s,before);
- s.assignments=[];assert.equal(bulkDeleteRegions(s,['R0','R1']).deleted,2);
+test('Gesamtgebietsabdeckung verhindert keine Löschung direkt unbenutzter Teilgebiete',()=>{
+ const s=state();s.rules=[];s.favorites=[];s.regions.push({id:'GANZ',name:'Gesamtgebiet',covered_region_ids:['R1']});s.functions[0].covers={GANZ:['R1']};s.assignments=[{function_id:'F1',geodependency:'GANZ',end_on:'2000-01-01T00:00Z'}];assert.equal(bulkDeleteRegions(s,['R0','R1']).deleted,2);assert.equal(s.assignments[0].geodependency,'GANZ');
  assert.equal(permitted('planner','POST','/api/regions/delete-many'),false);assert.equal(permitted('user','POST','/api/regions/delete-many'),false);
 });
 

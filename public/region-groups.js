@@ -4,7 +4,7 @@ export const regionGroupIds=region=>region.region_group_ids||(region.region_grou
 export function withRegionGroups(state){
  if(state[resolved])return state;
  const groups=(state.region_groups||[]).filter(g=>!g.deleted_at);
- if(!groups.length)return state;
+ if(!groups.length&&!state.functions.some(f=>f.region_assignment_mode==='groups'))return state;
  const byId=new Map(groups.map(g=>[g.id,g])),members=new Map(groups.map(g=>[g.id,[]]));
  const regions=state.regions.map(r=>{
   const affiliations=regionGroupIds(r).map(id=>byId.get(id)).filter(Boolean);if(!affiliations.length||r.deleted_at)return r;
@@ -13,7 +13,7 @@ export function withRegionGroups(state){
  });
  const assigned=(key,id)=>groups.filter(g=>g[key]?.includes(id)).flatMap(g=>members.get(g.id));
  const functions=state.functions.map(f=>{
-  const ids=assigned('function_ids',f.id);return ids.length?{...f,configured_geo_ids:f.geo_ids,geo_ids:[...new Set([...f.geo_ids,...ids])]}:f;
+  const ids=assigned('function_ids',f.id);if(f.region_assignment_mode==='groups')return {...f,configured_geo_ids:[],region_group_ids:groups.filter(g=>g.function_ids?.includes(f.id)).map(g=>g.id),geo_ids:[...new Set(ids)],covers:{}};return ids.length?{...f,configured_geo_ids:f.geo_ids,geo_ids:[...new Set([...f.geo_ids,...ids])]}:f;
  });
  const organizationGroups=state.groups.map(g=>{
   const assignedGroups=groups.filter(rg=>rg.group_ids?.includes(g.id));if(!assignedGroups.length)return g;

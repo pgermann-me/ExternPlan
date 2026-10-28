@@ -27,7 +27,7 @@ function revisionIndex(state){
 }
 // Build a plan without changing the original state, receipts or generated export files.
 export function planWildhutGeoRename(state,layers=[],users=[],now=Date.now()){
- const regions=state.regions.map(r=>fields(r,{id:geo(r.id),polygon_geo_id:geo(r.polygon_geo_id)}));
+ const regions=state.regions.map(r=>fields(r,{id:geo(r.id),polygon_geo_id:geo(r.polygon_geo_id),covered_region_ids:list(r.covered_region_ids)}));
  if(new Set(regions.map(r=>r.id)).size!==regions.length)throw Error('Kennungsänderung: Eine neue Wildhut-Geo_ID ist bereits vergeben');
  const polygonIds=new Set(layers.flatMap(l=>l.geojson.features.map(f=>String(f.properties.GEO_ID))));
  for(const [old,key] of Object.entries(wildhutGeoIds))if(polygonIds.has(old)&&polygonIds.has(key))throw Error('Kennungsänderung: Kartenpolygone für '+old+' und '+key+' sind bereits vorhanden');

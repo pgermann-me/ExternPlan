@@ -19,7 +19,7 @@ export function validateFavorite(s,p){
  if(typeof p.name!=='string'||!p.name.trim())throw Error('Name des Favoritendienstes erforderlich');
  const collection=scopeTypes[p.scope_type];
  if(!collection||!s[collection].some(x=>x.id===p.scope_id&&live(x)))throw Error('Funktion, Abteilung oder Gruppe für den Favoriten wählen');
- const fn=s.functions.find(f=>f.id===p.function_id&&live(f));if(!fn)throw Error('Pikett-Funktion fehlt oder wurde gelöscht');if(fn.duty_time_model==='always')throw Error('Für Funktionen mit Zeitbereich Immer werden keine Dienste geplant');
+ const fn=s.functions.find(f=>f.id===p.function_id&&live(f));if(fn?.region_group_ids?.length&&!fn.geo_ids.length)throw Error('Die Gebietsgruppen der Funktion enthalten noch keine Gebiete');if(!fn)throw Error('Pikett-Funktion fehlt oder wurde gelöscht');if(fn.duty_time_model==='always')throw Error('Für Funktionen mit Zeitbereich Immer werden keine Dienste geplant');
  const context={group_id:p.scope_type==='group'?p.scope_id:null,department_id:p.scope_type==='department'?p.scope_id:null,function_id:fn.id};
  if(!scopeAllows(fn,context,s.groups)||p.region_ids?.some(id=>{const r=s.regions.find(r=>r.id===id);return r&&!scopeAllows(r,context,s.groups);}))throw Error('Favorit passt nicht zu den Einschränkungen der Funktion oder Gebiete');
  if(p.scope_type==='function'&&p.scope_id!==p.function_id)throw Error('Ein Funktionsfavorit muss diese Funktion verwenden');

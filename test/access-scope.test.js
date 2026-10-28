@@ -15,8 +15,8 @@ test('Scoped state contains idle members, removes foreign memberships, services,
  assert.deepEqual(s.people[1].group_ids,['GA','GB']);
 });
 test('Parent-region coverage remains visible in the authorized region but cannot be modified',()=>{
- const s=fixture(),u=account({region_id:'N'}),out=scopedState(s,u),a=out.assignments.find(a=>a.assignment_id==='whole');
- assert.equal(a.geodependency,'N');assert.equal(a.access_read_only,true);assert.equal(accessPolicy(s,u).assignmentAllowed(s.assignments[2]),false);
+ const s=fixture(),u=account({region_id:'N'}),out=scopedState(s,u,{coverage:true}),a=out.assignments.find(a=>a.assignment_id==='whole');
+ assert.ok(!scopedState(s,u).assignments.some(r=>r.assignment_id==='whole'));assert.equal(a.geodependency,'N');assert.equal(a.access_read_only,true);assert.equal(accessPolicy(s,u).assignmentAllowed(s.assignments[2]),false);
  const after=structuredClone(s);after.assignments[2].revision=2;assert.throws(()=>assertScopedMutation(s,after,u),{status:403});
 });
 test('Atomic checks reject foreign changes and undo while allowing authorized services',()=>{
@@ -33,7 +33,7 @@ test('Reordering a scoped list keeps hidden favorites in their original position
 });
 
 test('Functions with no authorized regional target never become independent duties',()=>{
- const s=fixture();assert.equal(scopedState(s,account({group_id:'GA'})).assignments.find(a=>a.assignment_id==='whole').geodependency,'N');s.functions.push({id:'south-only',geo_ids:['S'],covers:{}});const out=scopedState(s,account({group_id:'GA'}));assert(!out.functions.some(f=>f.id==='south-only'));
+ const s=fixture();assert.equal(scopedState(s,account({group_id:'GA'}),{coverage:true}).assignments.find(a=>a.assignment_id==='whole').geodependency,'N');s.functions.push({id:'south-only',geo_ids:['S'],covers:{}});const out=scopedState(s,account({group_id:'GA'}));assert(!out.functions.some(f=>f.id==='south-only'));
  assert.equal(accessPolicy(s,account({group_id:'GA'})).personDeletable(s.people[1]),false);
 });
 
@@ -51,4 +51,9 @@ test('Multiple departments, groups and regions are alternatives within each dime
 test('Function and region must match the same authorized organizational context',()=>{
  const s=fixture();s.regions[0].department_ids=['B'];s.functions[0].department_ids=['A'];
  const out=scopedState(s,account({department_ids:['A','B'],region_ids:['N']}));assert(!out.functions.some(f=>f.id==='F'));
+});
+
+test('Control coverage can cross a hidden intermediate region without leaking its ID into scoped state',()=>{
+ const s=fixture();s.regions.find(r=>r.id==='ALL').covered_region_ids=['MIDDLE'];s.regions.push({id:'MIDDLE',covered_region_ids:['N']});const u=account({region_ids:['ALL','N']});
+ const control=scopedState(s,u,{coverage:true});assert.deepEqual(control.regions.find(r=>r.id==='ALL').covered_region_ids,['N']);assert.ok(!JSON.stringify(control).includes('MIDDLE'));assert.deepEqual(scopedState(s,u).regions.find(r=>r.id==='ALL').covered_region_ids,[]);
 });
