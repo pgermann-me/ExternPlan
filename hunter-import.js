@@ -1,3 +1,4 @@
+import {hunterRegionName} from './public/region-label.js';
 import {assignImportedFunctionRegions} from './function-region-migration.js';
 import {XMLParser,XMLValidator} from 'fast-xml-parser';
 import {DateTime} from 'luxon';
@@ -44,7 +45,7 @@ function describeHunterOrganization(s,parsed){
  const ids=[...new Set(parsed.people.flatMap(p=>p.regions.map(r=>r.geo_id)))].sort();
  return {department_id:department?.id||null,groups:ids.map(geo_id=>{
   const region=s.regions.find(r=>r.id===geo_id),description=region?.name&&region.name!==geo_id?region.name:parsed.descriptions[geo_id]||geo_id;
-  const name=description===geo_id?geo_id:geo_id+' · '+description;
+  const bare=hunterRegionName(geo_id,description).slice(geo_id.length).trim();const name=bare?geo_id+' · '+bare:geo_id;
   const matches=g=>g.department_id===department?.id&&(g.hunter_geo_id===geo_id||g.name===name);
   const existing=department&&(s.groups.find(g=>!g.deleted_at&&matches(g))||s.groups.find(matches));
   return {geo_id,name,id:existing?.id||null};
@@ -54,6 +55,7 @@ export function importHunters(s,content,createRegions=false){
  const preview=previewHunters(s,content);
  if(preview.missing_regions.length&&!createRegions)throw Error('Fehlende Gebiete zuerst anlegen oder deren Erstellung bestätigen');
  for(const key of preview.restored_regions){const r=s.regions.find(r=>r.id===key),before={...r};delete r.deleted_at;audit(s,'regions','restore',before,{...r});}
+ for(const region of s.regions.filter(r=>/^J\d{3}$/.test(r.id))){const name=hunterRegionName(region.id,region.name);if(name!==region.name){const before={...region};region.name=name;audit(s,'regions','update',before,{...region});}}
  for(const key of preview.missing_regions){const region={id:key,name:key,covered_region_ids:[]};s.regions.push(region);audit(s,'regions','import',null,region);}
  let fn=s.functions.find(f=>f.id===preview.function_id);
  if(!fn){fn={id:id(),name:'Jäger',geo_ids:[],covers:{}};s.functions.push(fn);audit(s,'functions','create',null,structuredClone(fn));}

@@ -43,7 +43,11 @@ export function saveFavorite(s,input){
  const p={id:existing?.id||id(),name:String(input.name??'').trim(),scope_type:input.scope_type||'function',scope_id:input.scope_id||input.function_id,function_id:input.function_id,region_ids:input.region_ids,schedule_mode:input.schedule_mode||'single',start_date:input.schedule_mode==='continuous'?input.start_date:null,end_date:input.schedule_mode==='continuous'?input.end_date:null,weekly_windows:input.schedule_mode==='weekly'?favoriteWeeklyWindows(input.weekly_windows):[],duration_minutes:input.duration_minutes,start_time:input.start_time,start_weekday:input.start_weekday??null,priority:input.priority,color:input.color||defaultColor,sort_order:existing?.sort_order??(existing?s.favorites.indexOf(existing):Math.max(-1,...s.favorites.map((f,i)=>f.sort_order??i))+1),revision:(existing?.revision||0)+1};
  if(p.schedule_mode==='weekly')Object.assign(p,{start_time:p.weekly_windows[0].start_time,duration_minutes:p.weekly_windows[0].duration_minutes,start_weekday:null});
  if(p.schedule_mode==='continuous')Object.assign(p,{duration_minutes:continuousDuration(p),start_time:'00:00',start_weekday:null});
- validateFavorite(s,p);Object.assign(p,favoriteSchedule(p));if(existing)s.favorites[s.favorites.indexOf(existing)]=p;else s.favorites.push(p);audit(s,'favorite',existing?'update':'create',existing,p);return p;
+ validateFavorite(s,p);Object.assign(p,favoriteSchedule(p));
+ if(existing&&p.color!==existing.color){
+  for(const [assignment_id,style] of Object.entries(s.assignment_styles||{}))if(style.favorite_id===p.id){const next={...style,color:p.color};s.assignment_styles[assignment_id]=next;audit(s,'assignment_style','update',{assignment_id,...style},{assignment_id,...next});}
+ }
+if(existing)s.favorites[s.favorites.indexOf(existing)]=p;else s.favorites.push(p);audit(s,'favorite',existing?'update':'create',existing,p);return p;
 }
 export function removeFavorite(s,key,revision){const p=(s.favorites||[]).find(f=>f.id===key&&live(f));if(!p)throw Error('Favorit nicht gefunden');if(Number(revision)!==p.revision)throw Error('Favorit wurde inzwischen geändert');const before={...p};p.deleted_at=iso(Date.now());audit(s,'favorite','delete',before,{...p});return {ok:true};}
 export function favoriteForPerson(s,f,p){

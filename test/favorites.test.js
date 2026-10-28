@@ -122,3 +122,12 @@ test('Immer bleibt im Oktober und März durchgehend, mit Schweizer Endzeit',()=>
  for(const [from,to,end] of [['2026-10-01','2026-10-31','2026-10-31T23:59:00+01:00'],['2026-03-28','2026-03-31','2026-03-31T23:59:00+02:00']]){const s=demo(),f=saveFavorite(s,template({schedule_mode:'continuous',start_date:from,end_date:to,region_ids:['NORD']})),r=applyFavorite(s,f.id,request(f),now);assert.equal(r.assignments.length,1);assert.equal(r.assignments[0].end_on,end);assert(instant(end)-instant(r.start_on)>86400000);}
 });
 const makeExport=(s,mode='delta',at=instant('2026-10-14T00:00+02:00'))=>actualMakeExport(s,mode,at);
+
+test('Changed favorite color updates all linked services while leaving times, ELS and other styles intact',()=>{
+ const s=demo(),f=saveFavorite(s,template({duration_minutes:60}));const planned=applyFavorite(s,f.id,request(f),now);const before=structuredClone({assignments:s.assignments,outbox:s.outbox});
+ s.assignment_styles.other={color:'#111111',favorite_id:'another'};s.assignment_styles.manual={color:'#222222'};
+ const updated=saveFavorite(s,{...f,color:'#123abc'});
+ assert.equal(updated.color,'#123abc');for(const a of planned.assignments)assert.deepEqual(s.assignment_styles[a.assignment_id],{favorite_id:f.id,color:'#123abc'});
+ assert.deepEqual(s.assignments,before.assignments);assert.deepEqual(s.outbox,before.outbox);assert.equal(s.assignment_styles.other.color,'#111111');assert.equal(s.assignment_styles.manual.color,'#222222');
+ const saved=structuredClone(s);assert.throws(()=>saveFavorite(s,{...updated,color:'broken'}));assert.deepEqual(s,saved);
+});

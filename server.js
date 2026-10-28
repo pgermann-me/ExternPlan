@@ -1,7 +1,8 @@
+import {hunterRegionName} from './public/region-label.js';
 import {normalizeFunctionRegionModel} from './function-region-migration.js';
 import {validateRegionCoverage} from './public/coverage-regions.js';
 import {recoverHunterPeople} from './hunter-recovery.js';
-import {recoverRegionState} from './region-recovery.js';
+import {recoverRegionState,normalizeHunterRegionNames} from './region-recovery.js';
 import {migrateWildhutGeoIds} from './wildhut-geo-migration.js';
 import {changeAlwaysAffiliation,createAlwaysPerson} from './always-planning.js';
 import {pikettRegionMap} from './public/region-point.js';
@@ -61,6 +62,7 @@ const wildhutRename=migrateWildhutGeoIds(db,{dataDir});if(wildhutRename)console.
 const mapLayers=()=>[...regionMapLayers,...db.prepare('SELECT data FROM imported_map_layers ORDER BY rowid').all().map(r=>JSON.parse(r.data))];
 mutate(s=>{const original=JSON.stringify(s),catalog=JSON.parse(readFileSync(new URL('./map-data/hunter-regions.json',import.meta.url),'utf8'));const result=recoverRegionState(s,catalog,mapLayers());if(result.recovered||result.linked){const backup=resolve(dataDir,'backup-before-region-recovery-'+id()+'.json');writeFileSync(backup,original,{mode:0o600,flag:'wx'});console.log('Gebiete wiederhergestellt / Polygone verknüpft; Sicherung: '+backup);}return result;});
 mutate(s=>{const original=JSON.stringify(s),result=recoverHunterPeople(s);if(result.changed){const backup=resolve(dataDir,'backup-before-hunter-people-recovery-'+id()+'.json');writeFileSync(backup,original,{mode:0o600,flag:'wx'});console.log('Jäger-Personen wiederhergestellt; Sicherung: '+backup);}return result;});
+if(!testFixtures)mutate(s=>{const original=JSON.stringify(s),catalog=JSON.parse(readFileSync(new URL('./map-data/hunter-regions.json',import.meta.url),'utf8')),count=normalizeHunterRegionNames(s,catalog);if(count){const backup=resolve(dataDir,'backup-before-hunter-region-names-'+id()+'.json');writeFileSync(backup,original,{mode:0o600,flag:'wx'});console.log(count+' Jagdgebietsbezeichnungen ergänzt; Sicherung: '+backup);}return count;});
 if(!testFixtures)mutate(s=>{const original=JSON.stringify(s),result=normalizeFunctionRegionModel(s);if(result){const backup=resolve(dataDir,'backup-before-function-region-groups-'+id()+'.json');writeFileSync(backup,original,{mode:0o600,flag:'wx'});console.log('Funktionen auf Gebietsgruppen umgestellt; Sicherung: '+backup);}return result;});
 app.get('/api/region-map',(req,res)=>res.json({layers:mapLayers()}));
 app.post('/api/geojson/preview',(req,res)=>{if(!req.body.mapping)return res.json(inspectGeojson(req.body.geojson));const {geojson,...preview}=mapGeojson(req.body.geojson,req.body.mapping);res.json({...preview,conflicts:geojsonConflicts(mapLayers(),preview)});});
@@ -94,6 +96,7 @@ app.put('/api/people/:id',(req,res)=>res.json(mutate(s=>{
 app.put('/api/people/:id/groups',(req,res)=>res.json(mutate(s=>{const before=s.people.find(p=>p.employee_id===req.params.id&&!p.deleted_at);if(!before)throw Error('Person unbekannt');const values=scopedPersonInput(s,req.user,{group_ids:req.body.group_ids,function_regions:req.body.function_regions,department_id:accessPolicy(s,req.user).projectPerson(before).department_id},before),ids=values.group_ids;if(!Array.isArray(ids)||new Set(ids).size!==ids.length)throw Error('Eindeutige Gruppen wählen');const p={...before,...personDetails({...values,birth_date:req.body.birth_date},before),group_ids:ids,group_id:ids[0]||null};validPerson(s,p,before);s.people[s.people.indexOf(before)]=p;audit(s,'person','update',before,p);return restricted(req.user)?accessPolicy(s,req.user).projectPerson(p):p;})));
 const allowed=['functions','regions','region_groups','departments','groups','rules'];
 function validMaster(s,type,p){
+ if(type==='regions')p.name=hunterRegionName(p.id,p.name);
  const candidate=withRegionGroups({...s,[type]:[...(s[type]||[]).filter(x=>x.id!==p.id),p]});
  if(type==='functions')p=candidate.functions.find(f=>f.id===p.id);
  s=candidate;

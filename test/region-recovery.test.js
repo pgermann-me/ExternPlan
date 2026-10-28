@@ -43,3 +43,11 @@ test('Serverstart stellt Jägergebiete aus dem Katalog mit privater Sicherung wi
   const original=raw();await stop();await start();assert.equal(raw(),original);assert.equal(readdirSync(dir).filter(n=>n.startsWith('backup-before-region-recovery-')).length,1);await stop();
  }finally{if(child)await stop();rmSync(dir,{recursive:true,force:true});}
 });
+
+test('Hunting region descriptions include Geo_ID once and preserve all relationships',async()=>{
+ const {normalizeHunterRegionNames}=await import('../region-recovery.js');const {hunterRegionName}=await import('../public/region-label.js');
+ for(const name of ['Steintal','J111 Steintal','J111 · Steintal','J111 J111 Steintal'])assert.equal(hunterRegionName('J111',name),'J111 Steintal');
+ assert.equal(hunterRegionName('UA01','Stadt'),'Stadt');assert.equal(hunterRegionName('J111',''),'J111');assert.equal(hunterRegionName('J112','J111 Steintal (Kopie)'),'J112 Steintal (Kopie)');
+ const s=emptyState();s.regions=[{id:'J111',name:'Steintal',polygon_geo_id:'J111',region_group_ids:['RG'],covered_region_ids:['J112']},{id:'J112',name:'J112',deleted_at:'2026-01-01'},{id:'UA',name:'Untersuchungsamt'}];const before=structuredClone(s.regions);
+ assert.equal(normalizeHunterRegionNames(s,[{id:'J112',name:'Zweites Revier'}]),2);assert.deepEqual(s.regions[0],{...before[0],name:'J111 Steintal'});assert.deepEqual(s.regions[1],{...before[1],name:'J112 Zweites Revier'});assert.equal(normalizeHunterRegionNames(s),0);assert.equal(s.audit.length,2);
+});

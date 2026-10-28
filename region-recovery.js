@@ -1,3 +1,4 @@
+import {hunterRegionName} from './public/region-label.js';
 import {audit,iso} from './domain.js';
 export const hunterRecoveryId='2026-10-22-restore-hunter-regions';
 export function linkRegionPolygons(state,layers){
@@ -36,4 +37,14 @@ export function recoverRegionState(state,catalog,layers,now=Date.now()){
  }
  result.linked=linkRegionPolygons(state,layers);
  return result;
+}
+
+export function normalizeHunterRegionNames(state,catalog=[]){
+ const descriptions=new Map(catalog.map(r=>[r.id,r.name]));let changed=0;
+ for(const region of state.regions){
+  const name=hunterRegionName(region.id,!region.name||region.name===region.id?descriptions.get(region.id)||region.name:region.name);
+  if(name===region.name)continue;
+  const before={...region};region.name=name;audit(state,'regions','update',before,{...region});changed++;
+ }
+ return changed;
 }
