@@ -406,6 +406,10 @@ Die Liste wird beim Wechsel von Funktion oder Gebiet aktualisiert. Passt die bis
 
 Standardmässig ist kein API-Schlüssel erforderlich. `GEOCODING_REVERSE_URL` und optional `GEOCODING_SEARCH_URL` können serverseitig kompatible HTTPS-Endpunkte konfigurieren. Die Verfügbarkeit und Genauigkeit hängen vom Kartendienst ab. Die automatisierten Tests verwenden simulierte Providerantworten; sie decken Rollen/Koordinatenprüfung, Cache/Abfragerate, Ausfälle, Wiederholung sowie verspätete Antworten nach einem Reiterwechsel ab. Browserprüfung: `node scripts/pikett-region-ui-check.js`.
 
+### Funktionen kopieren
+
+Unter **Stammdaten → Funktionen → Kopieren** öffnet sich ein neuer Funktionseintrag. Der Name ist mit „(Kopie)“ vorbelegt und frei anpassbar. Gebietszuordnung über dieselben Gebietsgruppen oder Ortsunabhängigkeit, Zeitbereich sowie Abteilungs- und Gruppenfreigaben werden übernommen. Speichern erstellt eine neue Kennung und ergänzt die inverse Zuordnung in den gewählten Gebietsgruppen. Dienste, Personen-Zuordnungen, Favoriten und Soll-Abdeckungen werden nicht kopiert. Abbrechen ändert keine Daten.
+
 ### Funktion samt bestehenden Diensten auf ein Zielgebiet umstellen
 
 Eine normale Änderung der Gebietsgruppen bleibt gesperrt, wenn bestehende Dienste dadurch ungültig würden. Für die gemeinsame Umstellung gibt es unter **Stammdaten → Funktionen → Bearbeiten** bei zeitlich geplanten Funktionen den Admin-Button **Gebietszuordnung mit Diensten umstellen**. Der Dialog übernimmt die gerade markierten Gebietsgruppen; es gelten ansonsten die gespeicherten Funktionseinstellungen. Gruppe(n) und Zielgebiet wählen, **Vorschau anzeigen** und anschliessend **Gemeinsam umstellen** verwenden. Beispiel: Haftrichter Pikett → Untersuchungsämter SG → UA Kanton SG.
