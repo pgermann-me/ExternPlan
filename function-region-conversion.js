@@ -7,7 +7,6 @@ const active=r=>!r.deleted_at;
 export const regionConversionToken=(s,key,input={})=>createHash('sha256').update(JSON.stringify({request:{region_group_ids:[...(input.region_group_ids||[])].sort(),geo_id:input.geo_id},function:s.functions.find(f=>f.id===key),groups:s.region_groups,regions:s.regions,people:s.people,assignments:s.assignments.filter(a=>a.function_id===key),favorites:(s.favorites||[]).filter(f=>f.function_id===key),rules:s.rules.filter(r=>r.function_id===key)})).digest('hex');
 export function prepareFunctionRegionConversion(s,key,input,now=Date.now()){
  const original=s.functions.find(f=>f.id===key&&active(f));if(!original)throw Error('Funktion nicht gefunden');
- if(withRegionGroups(s).functions.find(f=>f.id===key).geo_ids.length)throw Error('Diese Umstellung ist nur für bisher ortsunabhängige Funktionen vorgesehen');
  if(original.duty_time_model==='always')throw Error('Diese Umstellung ist für zeitlich geplante Dienste vorgesehen');
  const ids=input.region_group_ids;
  if(!Array.isArray(ids)||!ids.length||new Set(ids).size!==ids.length||ids.some(id=>!(s.region_groups||[]).some(g=>g.id===id&&active(g))))throw Error('Mindestens eine gültige Gebietsgruppe wählen');

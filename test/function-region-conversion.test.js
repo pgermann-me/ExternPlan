@@ -27,3 +27,8 @@ test('A conflict discovered after preparing services or favorites never changes 
  const s=setup();s.favorites[0].color='invalid';let before=structuredClone(s);assert.throws(()=>prepareFunctionRegionConversion(s,'F',input),/farbe/i);assert.deepEqual(s,before);
  s.favorites[0].color='#123abc';s.assignments.push({...s.assignments[0],assignment_id:'DUPLICATE',geodependency:'old-region'});before=structuredClone(s);assert.throws(()=>prepareFunctionRegionConversion(s,'F',input),/Doppel/);assert.deepEqual(s,before);
 });
+
+test('Conversion can also consolidate an already regional function into the chosen target group',()=>{
+ const s=setup();s.region_groups.push({id:'OLD-GROUP',name:'Bisherige Gebiete',function_ids:['F']});s.regions.push({id:'OLD-REGION',name:'Bisheriges Gebiet',region_group_ids:['OLD-GROUP']});s.assignments[0].geodependency='OLD-REGION';s.people[0].function_regions[0].geo_id='OLD-REGION';s.favorites[0].region_ids=['OLD-REGION'];const before=structuredClone(s);
+ const result=prepareFunctionRegionConversion(s,'F',input);assert.deepEqual(s,before);assert.deepEqual(withRegionGroups(result.state).functions[0].geo_ids,['UA']);assert.equal(result.state.assignments[0].geodependency,'UA');assert.deepEqual(result.state.region_groups.find(g=>g.id==='OLD-GROUP').function_ids,[]);
+});
