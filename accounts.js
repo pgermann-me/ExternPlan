@@ -5,7 +5,7 @@ import {resolve} from 'node:path';
 import {validateAccessScope,normalizeAccessScope} from './access-scope.js';
 import {actorContext,accessContext} from './request-context.js';
 const scrypt=promisify(scryptCallback),hash=value=>createHash('sha256').update(value).digest('hex');
-export const roleViews={admin:['planning','person-planning','pikett-list','people','favorites','master','imports','exports','audit','users','region-map'],planner:['planning','person-planning','pikett-list','people','favorites'],user:['planning','person-planning','pikett-list']};
+export const roleViews={admin:['planning','person-planning','pikett-list','people','favorites','master','imports','exports','audit','users','region-map','statistics'],planner:['planning','person-planning','pikett-list','people','favorites','statistics'],user:['planning','person-planning','pikett-list']};
 const publicUser=u=>u?{access_scope:normalizeAccessScope(JSON.parse(u.access_scope||'{}')),...Object.fromEntries(['id','first_name','last_name','email','role','active','revision','must_change_password'].map(k=>[k,['active','must_change_password'].includes(k)?!!u[k]:u[k]]))}:null;
 const fail=(message,status=400)=>{const error=Error(message);error.status=status;throw error;};
 const passwordValid=value=>{if(typeof value!=='string'||value.length<12||value.length>256)fail('Das Passwort benötigt 12 bis 256 Zeichen');return value;};
@@ -15,6 +15,7 @@ async function verifyPassword(password,user){if(typeof password!=='string'||pass
 export function permitted(role,method,path){
  if(!Object.hasOwn(roleViews,role))return false;
  if(role==='admin')return true;
+ if(role==='planner'&&method==='GET'&&path==='/api/statistics')return true;
  if(method==='GET'&&['/api/state','/api/month','/api/person-month','/api/pikett-list','/api/pikett-region-map','/api/pikett-by-region','/api/reverse-address','/api/search-address','/api/swiss-time'].includes(path))return true;
  if(method==='POST'&&(path==='/api/planning/undo'||path==='/api/planning/always'||path==='/api/planning/always/person'||/^\/api\/assignments(?:\/[^/]+(?:\/transfer)?)?$/.test(path)||/^\/api\/favorites\/[^/]+\/(preview|apply)$/.test(path)))return true;
  if(['PUT','DELETE'].includes(method)&&/^\/api\/assignments\/[^/]+$/.test(path))return true;

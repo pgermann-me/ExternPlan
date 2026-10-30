@@ -26,6 +26,10 @@ test('HTTP point queries and polygon map enforce authentication, roles, scopes a
   assert.equal((await ok('/pikett-by-region?lat=47.65&lng=9.85','GET',undefined,cookie)).data.rows.length,0);
   for(const url of ['/pikett-by-region','/pikett-by-region?lat=abc&lng=9','/pikett-by-region?lat=91&lng=9','/pikett-by-region?lat=47&lng=9&at=2026-03-29T02:30'])assert.equal((await call(url,'GET',undefined,cookie)).status,400);
   assert.equal((await ok('/pikett-by-region?lat=47&lng=9&at=2026-10-25T02:30','GET',undefined,cookie)).data.at,'2026-10-25T00:30:00.000Z');
+  assert.equal((await call('/statistics','GET',undefined,cookie)).status,403);
+  await ok('/users','POST',{first_name:'Planer',last_name:'Statistik',email:'planner@point.invalid',role:'planner',password,access_scope:{department_ids:['D'],group_ids:['G'],region_ids:['R1']}},admin);
+  let plannerCookie=(await ok('/auth/login','POST',{email:'planner@point.invalid',password})).cookie;plannerCookie=(await ok('/auth/password','POST',{current_password:password,password:password+'-Neu'},plannerCookie)).cookie;
+  const stats=(await ok('/statistics?date_from=2026-10-22&date_to=2026-10-22','GET',undefined,plannerCookie)).data;assert.equal(stats.rows.length,1);assert.equal(stats.rows[0].employee_id,'P');assert.equal(stats.rows[0].hours,24);assert.ok(!JSON.stringify(stats).includes('HIDDEN'));assert.equal((await call('/statistics?function_id=hidden','GET',undefined,plannerCookie)).status,403);
   const beforeDuties=(await ok('/state','GET',undefined,cookie)).data.assignments;
   await ok('/planning/always','POST',{employee_id:'P',function_id:'W',geo_id:'R1',action:'update',priority:0,expected_priority:2},cookie);
   assert.deepEqual((await ok(point,'GET',undefined,cookie)).data.rows.filter(r=>r.kind==='always').map(r=>r.priority),[1,0]);
