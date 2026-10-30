@@ -49,3 +49,19 @@ test('Kontrollansicht zeigt nur Funktionen aus Diensten der gefilterten Mitglied
  s.people[2].group_ids.push('demo-gruppe');assert.equal(controlFunctions(s,'demo-gruppe','demo-abteilung').length,2);s.people[2].deleted_at='2026-01-01';assert.deepEqual(controlFunctions(s,'demo-gruppe','demo-abteilung').map(f=>f.id),['DEMO-KTD']);
  s.functions[0].deleted_at='2026-01-01';assert.deepEqual(controlFunctions(s,'demo-gruppe','demo-abteilung'),[]);
 });
+
+test('Duty editor candidates match exact function and region via affiliations or existing duties',async()=>{
+ const {assignmentPeople}=await import('../public/organization.js');const s=demo();s.people=[
+ {employee_id:'CURRENT',name:'Current',department_id:'demo-abteilung',group_ids:['demo-gruppe'],contacts:[]},
+ {employee_id:'AFFILIATED',name:'Affiliated',department_id:'demo-abteilung',group_ids:['demo-gruppe'],function_regions:[{function_id:'DEMO-KTD',geo_id:'NORD',priority:0}]},
+ {employee_id:'OTHER-REGION',name:'Other region',group_ids:['demo-gruppe'],function_regions:[{function_id:'DEMO-KTD',geo_id:'SÜD',priority:1}]},
+ {employee_id:'PARENT',name:'Whole region',group_ids:['demo-gruppe'],function_regions:[{function_id:'DEMO-KTD',geo_id:'GANZ',priority:1}]},
+ {employee_id:'OTHER-FUNCTION',name:'Other function',group_ids:['demo-gruppe'],function_regions:[{function_id:'DEMO-ORT',geo_id:null,priority:1}]},
+ {employee_id:'NO-MEMBERSHIP',name:'No membership',group_ids:['demo-gruppe'],function_regions:[]},
+ {employee_id:'ARCHIVED',name:'Archived',deleted_at:'2026-01-01',function_regions:[{function_id:'DEMO-KTD',geo_id:'NORD',priority:1}]},
+ {employee_id:'OTHER-GROUP',name:'Other group',department_id:'OTHER',group_ids:['OTHER-G'],function_regions:[{function_id:'DEMO-KTD',geo_id:'NORD',priority:1}]}
+ ];s.departments.push({id:'OTHER'});s.groups.push({id:'OTHER-G',department_id:'OTHER'});s.assignments=[{employee_id:'CURRENT',function_id:'DEMO-KTD',geodependency:'NORD'}];const before=structuredClone(s);
+ assert.deepEqual(assignmentPeople(s,'DEMO-KTD','NORD','demo-gruppe','demo-abteilung').map(p=>p.employee_id),['CURRENT','AFFILIATED']);assert.deepEqual(s,before);
+ assert.deepEqual(assignmentPeople(s,'DEMO-KTD','SÜD','demo-gruppe').map(p=>p.employee_id),['OTHER-REGION']);assert.deepEqual(assignmentPeople(s,'DEMO-ORT',null,'demo-gruppe').map(p=>p.employee_id),['OTHER-FUNCTION']);assert.deepEqual(assignmentPeople(s,'DEMO-KTD',null),[]);
+ s.regions[0].group_ids=['OTHER-G'];assert.deepEqual(assignmentPeople(s,'DEMO-KTD','NORD','demo-gruppe'),[]);
+});

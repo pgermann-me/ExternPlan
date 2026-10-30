@@ -62,3 +62,15 @@ export function validateScopeRestrictions(s,type,p){
 }
 
 export const personRegionPriority=(person,functionId,geoId,fallback=1)=>{const priority=person?.function_regions?.find(r=>r.function_id===functionId&&r.geo_id===geoId)?.priority;return priority>0?priority:fallback;};
+
+// Editing a duty offers people already exercising its exact function/region.
+// Geographic coverage inheritance never creates a personal affiliation.
+export function assignmentPeople(s,functionId,geoId,groupId,departmentId){
+ s=withRegionGroups(s);
+ const fn=s.functions.find(f=>f.id===functionId&&!f.deleted_at&&f.duty_time_model!=='always');
+ if(!fn||!scopeAllows(fn,{group_id:groupId,department_id:departmentId},s.groups)||fn.region_group_ids?.length&&!fn.geo_ids.length)return [];
+ const group=s.groups.find(g=>g.id===groupId&&!g.deleted_at),region=geoId===null?null:s.regions.find(r=>r.id===geoId&&!r.deleted_at);
+ if(fn.geo_ids.length?!region||!allowedFunctionRegions(fn,group,s.regions,departmentId,s.groups).includes(geoId):geoId!==null)return [];
+ const assigned=new Set(s.assignments.filter(a=>a.function_id===functionId&&(a.geodependency??null)===geoId).map(a=>a.employee_id));
+ return planningPeople(s,groupId,departmentId).filter(p=>!p.deleted_at&&personScopeAllows(s,fn,p,fn.id)&&(!region||personScopeAllows(s,region,p,fn.id))&&(assigned.has(p.employee_id)||(p.function_regions||[]).some(r=>r.function_id===functionId&&r.geo_id===geoId)));
+}
