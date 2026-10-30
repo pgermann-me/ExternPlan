@@ -27,3 +27,11 @@ export function regionIdsWithParents(state,functionId,geoId){
  for(let index=0;index<queue.length;index++)for(const id of parents.get(queue[index])||[])if(!result.has(id)){result.add(id);queue.push(id);}
  return [...result];
 }
+
+// A parent row is redundant only when the filtered control view contains a
+// descendant of the same function. Keep it when no permitted child row is shown.
+export function controlRowsWithoutParents(state,rows){
+ const regionsByFunction=new Map();
+ for(const row of rows){if(!regionsByFunction.has(row.function_id))regionsByFunction.set(row.function_id,new Set());regionsByFunction.get(row.function_id).add(row.geo_id);}
+ return rows.filter(row=>!row.geo_id||!coveredRegionIds(state,row.function_id,row.geo_id).some(id=>regionsByFunction.get(row.function_id).has(id)));
+}

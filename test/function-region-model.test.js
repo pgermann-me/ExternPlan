@@ -36,3 +36,12 @@ test('Control drilldown includes all active parent regions without selecting sib
  s.regions.find(r=>r.id==='OUTER').covered_region_ids.push('OUTER');assert.deepEqual(regionIdsWithParents(s,'F','N1'),['N1','ALL','SECOND','OUTER']);
  const legacy=fixture();assert.deepEqual(regionIdsWithParents(legacy,'F','N1'),['N1','ALL']);
 });
+
+test('Control hides whole-region rows only when a child row of the same function is displayed',async()=>{
+ const {controlRowsWithoutParents}=await import('../public/coverage-regions.js');const s=fixture();normalizeFunctionRegionModel(s);s.regions.push({id:'OUTER',covered_region_ids:['ALL']});
+ const rows=[{function_id:'F',geo_id:'OUTER'},{function_id:'F',geo_id:'ALL'},{function_id:'F',geo_id:'N1'},{function_id:'F',geo_id:'EXTRA'},{function_id:'LOCAL',geo_id:'ALL'},{function_id:'LOCAL',geo_id:null}];
+ const before=structuredClone(rows);assert.deepEqual(controlRowsWithoutParents(s,rows),rows.slice(2));assert.deepEqual(rows,before);
+ assert.deepEqual(controlRowsWithoutParents(s,rows.slice(0,1)),rows.slice(0,1));
+ assert.deepEqual(controlRowsWithoutParents(s,[rows[1],{function_id:'LOCAL',geo_id:'N1'}]),[rows[1],{function_id:'LOCAL',geo_id:'N1'}]);
+ assert.deepEqual(controlRowsWithoutParents(s,[]),[]);
+});
