@@ -1,3 +1,4 @@
+import {prepareFunctionRegionConversion,regionConversionToken} from './function-region-conversion.js';
 import {createReverseGeocoder} from './reverse-geocoding.js';
 import {copyAssignments} from './assignment-copy.js';
 import {hunterRegionName} from './public/region-label.js';
@@ -133,6 +134,12 @@ app.post('/api/regions/assign-group',(req,res)=>res.json(mutate(s=>{
  if(ids.some(id=>!regions.some(r=>r.id===id&&active(r))))throw Error('Gebiet nicht gefunden');
  validateRegionGroupImpact(s,{...s,regions});
  let updated=0;for(const r of regions){const before=s.regions.find(x=>x.id===r.id);if(r!==before&&JSON.stringify([...regionGroupIds(r)].sort())!==JSON.stringify([...regionGroupIds(before)].sort())){audit(s,'regions','update',before,r);updated++;}}s.regions=regions;return {selected:ids.length,updated};
+})));
+app.post('/api/functions/:id/region-conversion/preview',(req,res)=>{const prepared=prepareFunctionRegionConversion(read(),req.params.id,req.body);validMaster(prepared.state,'functions',prepared.state.functions.find(f=>f.id===req.params.id));res.json({summary:prepared.summary,token:prepared.token});});
+app.post('/api/functions/:id/region-conversion/apply',(req,res)=>res.json(mutate(s=>{
+ if(!req.body.token||req.body.token!==regionConversionToken(s,req.params.id,req.body)){const error=Error('Daten wurden inzwischen geändert. Vorschau erneut anzeigen.');error.status=409;throw error;}
+ const prepared=prepareFunctionRegionConversion(s,req.params.id,req.body);validMaster(prepared.state,'functions',prepared.state.functions.find(f=>f.id===req.params.id));
+ const backup=resolve(dataDir,'backup-before-function-region-conversion-'+id()+'.json');writeFileSync(backup,JSON.stringify(s),{mode:0o600,flag:'wx'});Object.assign(s,prepared.state);return {summary:prepared.summary};
 })));
 app.post('/api/master/:type',(req,res)=>res.json(mutate(s=>{
  const type=req.params.type;if(!allowed.includes(type))throw Error('Unbekannte Stammdaten');s[type]??=[];

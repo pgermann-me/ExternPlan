@@ -12,7 +12,7 @@ COPY package.json package-lock.json ./
 RUN --mount=type=secret,id=cloud_ca \
     if [ -f /run/secrets/cloud_ca ]; then export NODE_EXTRA_CA_CERTS=/run/secrets/cloud_ca; fi; \
     npm ci --omit=dev --fetch-retries=0 --fetch-timeout=30000 && npm cache clean --force
-COPY --chown=node:node server.js reverse-geocoding.js function-region-migration.js hunter-recovery.js region-recovery.js wildhut-geo-migration.js always-planning.js continuous-migration.js els-projection.js standing-duties.js people-bulk.js hunter-import.js region-bulk.js geojson-import.js access-scope.js accounts.js request-context.js planning-undo.js assignment-copy.js assignment-transfer.js domain.js people.js person-planning.js master-data.js favorites.js timeline.js data-cleanup.js ./
+COPY --chown=node:node server.js function-region-conversion.js reverse-geocoding.js function-region-migration.js hunter-recovery.js region-recovery.js wildhut-geo-migration.js always-planning.js continuous-migration.js els-projection.js standing-duties.js people-bulk.js hunter-import.js region-bulk.js geojson-import.js access-scope.js accounts.js request-context.js planning-undo.js assignment-copy.js assignment-transfer.js domain.js people.js person-planning.js master-data.js favorites.js timeline.js data-cleanup.js ./
 COPY --chown=node:node adapters ./adapters
 COPY --chown=node:node public ./public
 COPY --chown=node:node map-data ./map-data
