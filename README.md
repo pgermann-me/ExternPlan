@@ -367,3 +367,9 @@ Die serverseitige Normalisierung gilt auch für die Personenerstellung in Planun
 In **Organisation & Personen** steht pro Person in Listen- und Kartenansicht **Kopieren** zur Verfügung. Der neue Erfassungsdialog übernimmt die aktiven Abteilungs-, Gruppen-, Funktions- und Gebietszuordnungen mit ihren Prioritäten. Filter im Hauptfenster überschreiben diese Vorlage nicht. Die Zuordnungen können vor dem Speichern angepasst werden und unterliegen denselben Berechtigungen und Gültigkeitsprüfungen wie eine normale Neuerfassung. Archivierte Zuordnungsziele werden nicht übernommen.
 
 Name, Vorname, Geburtsdatum, Kontaktdaten und Geschäftsadresse bleiben leer. Beim Speichern wird eine neue Personenkennung erzeugt. Die Originalperson und ihre Dienste bleiben unverändert; geplante Dienste werden nicht kopiert. Abbrechen erstellt keinen Datensatz. Browserprüfung: `node scripts/person-copy-ui-check.js`.
+
+### Filter beim Wechsel zwischen Kontrollansicht und Planung
+
+**Kontrollansicht** und **Planung** behalten jeweils ihre letzte Filterauswahl: Monat, Abteilung, Gruppe und Funktion sowie in der Planung die gewählten Regionen. Auch Halbmonat und grobe Tagesansicht werden getrennt pro Hauptansicht behalten. „Alle Funktionen“ und eine ausdrücklich geleerte Regionsauswahl bleiben erhalten. Die Planung merkt sich zudem den geöffneten Reiter (zeitlich geplant/Immer) und die Immer-Funktions-/Regionsauswahl.
+
+Die Einstellungen werden pro Benutzerkennung im jeweiligen Browser gespeichert und nach einem Neuladen wiederhergestellt. Gelöschte oder nicht mehr berechtigte Filterziele werden durch die bestehenden Verfügbarkeitsprüfungen bereinigt. Ein ausdrücklicher Klick auf **Funktion/Gebiet** in der Kontrollansicht übernimmt weiterhin den angeklickten Kontext und den dargestellten Zeitraum in die Planung; die Filter der Kontrollansicht bleiben dabei erhalten. Browserprüfung: `node scripts/calendar-filter-memory-ui-check.js`.
