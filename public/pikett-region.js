@@ -14,12 +14,12 @@ function dutyTableRows(rows){
  }).join('')).join('')}</tbody>`;}).join('');
 }
 export async function renderPikettRegion(root,{api,safe,registerDispose}){
- root.innerHTML=`<form id="pikett-region-filter" class="toolbar"><label for="pikett-region-at">Datum / Uhrzeit</label><input id="pikett-region-at" type="text" value="${esc(swissTime(new Date()))}" placeholder="TT.MM.JJJJ HH:mm" data-time-format="datetime" inputmode="numeric" required><button type="submit">Anzeigen</button><button type="button" id="pikett-region-now" class="secondary">Jetzt</button><button type="button" id="pikett-region-reset" class="secondary">Kanton anzeigen</button></form><p class="small muted">Einen Punkt auf der Karte anklicken. Angezeigt werden laufende Pikettdienste und zuständige Personen mit Zeitbereich Immer.</p><div class="pikett-region-layout"><div><div id="pikett-region-map" role="region" aria-label="Karte Kanton St. Gallen"></div><div id="pikett-region-legend" class="pikett-region-legend" aria-label="Gebietslegende"></div><p id="pikett-region-map-status" class="small muted" role="status">Gebiete werden geladen …</p></div><section id="pikett-region-results" aria-live="polite"><p>Bitte einen Punkt auf der Karte wählen.</p></section></div>`;
+ root.innerHTML=`<form id="pikett-region-filter" class="toolbar"><label for="pikett-region-at">Datum / Uhrzeit</label><input id="pikett-region-at" type="text" value="${esc(swissTime(new Date()))}" placeholder="TT.MM.JJJJ HH:mm" data-time-format="datetime" inputmode="numeric" required><button type="submit">Anzeigen</button><button type="button" id="pikett-region-now" class="secondary">Jetzt</button><button type="button" id="pikett-region-reset" class="secondary">Kanton anzeigen</button></form><p class="small muted">Einen Punkt auf der Karte anklicken. Angezeigt werden laufende Pikettdienste und zuständige Personen mit Zeitbereich Immer.</p><p id="pikett-region-address" class="small" role="status">Adresse: Bitte einen Kartenpunkt wählen.</p><button type="button" id="pikett-region-address-retry" class="secondary small" hidden>Adresse erneut suchen</button><div class="pikett-region-layout"><div><div id="pikett-region-map" role="region" aria-label="Karte Kanton St. Gallen"></div><div id="pikett-region-legend" class="pikett-region-legend" aria-label="Gebietslegende"></div><p id="pikett-region-map-status" class="small muted" role="status">Gebiete werden geladen …</p></div><section id="pikett-region-results" aria-live="polite"><p>Bitte einen Punkt auf der Karte wählen.</p></section></div>`;
  const q=id=>root.querySelector('#'+id),L=window.L;if(!L)throw Error('Die Kartenbibliothek konnte nicht geladen werden');
  const map=L.map(q('pikett-region-map'),{zoomControl:false,fadeAnimation:false});
  L.control.zoom({zoomInTitle:'Vergrössern',zoomOutTitle:'Verkleinern'}).addTo(map);
  const background=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>'}).addTo(map);
- let disposed=false,sequence=0,point=null,marker,polygons,mapData=null,lastResult=null,colors=new Map(),backgroundUnavailable=false,at=new Date().toISOString();
+ let disposed=false,sequence=0,addressSequence=0,point=null,marker,polygons,mapData=null,lastResult=null,colors=new Map(),backgroundUnavailable=false,at=new Date().toISOString();
  const fit=()=>map.fitBounds([[46.85,8.78],[47.60,9.70]],{padding:[12,12],animate:false});fit();
  background.on('tileerror',()=>{backgroundUnavailable=true;if(!disposed)q('pikett-region-map-status').textContent='OpenStreetMap ist nicht erreichbar. Gebietsflächen und Ortsabfrage bleiben verfügbar.';});
  const style=feature=>({color:colors.get(String(feature.properties.GEO_ID)),fillColor:colors.get(String(feature.properties.GEO_ID)),weight:2,fillOpacity:.28,opacity:1});
@@ -38,7 +38,7 @@ export async function renderPikettRegion(root,{api,safe,registerDispose}){
  };
 
  const observer=new ResizeObserver(()=>map.invalidateSize({pan:false}));observer.observe(q('pikett-region-map'));
- registerDispose(()=>{disposed=true;sequence++;observer.disconnect();map.remove();});
+ registerDispose(()=>{disposed=true;sequence++;addressSequence++;observer.disconnect();map.remove();});
  const draw=data=>{
   at=data.at;lastResult=data;drawPolygons();
   q('pikett-region-at').value=swissTime(data.at);
@@ -51,10 +51,19 @@ export async function renderPikettRegion(root,{api,safe,registerDispose}){
   try{const data=await api('/pikett-by-region?'+new URLSearchParams({at,lat:point.lat,lng:point.lng}));if(disposed||request!==sequence)return;draw(data);}
   catch(error){if(disposed||request!==sequence)return;q('pikett-region-results').textContent=error.message;throw error;}
  };
+ const loadAddress=async()=>{
+  if(!point)return;const request=++addressSequence,current={...point};
+  q('pikett-region-address').textContent='Adresse wird ermittelt …';q('pikett-region-address-retry').hidden=true;
+  try{
+   const result=await api('/reverse-address?'+new URLSearchParams(current));if(disposed||request!==addressSequence)return;
+   q('pikett-region-address').textContent=result.label?`${result.kind==='address'?'Nächstgelegene Adresse':'Ortsangabe'}: ${result.label} · ${result.attribution} (Nominatim)`:'Für diesen Kartenpunkt ist keine Adresse oder Ortsangabe in OpenStreetMap hinterlegt.';
+  }catch(error){if(disposed||request!==addressSequence)return;q('pikett-region-address').textContent=error.message;q('pikett-region-address-retry').hidden=false;}
+ };
+ q('pikett-region-address-retry').onclick=safe(loadAddress);
  map.on('click',safe(async event=>{
   at=q('pikett-region-at').value===swissTime(at)?at:localDateTime(q('pikett-region-at').value);point={lat:event.latlng.lat,lng:event.latlng.lng};
   if(marker)map.removeLayer(marker);marker=L.circleMarker(point,{radius:7,color:'#b91c1c',fillColor:'#fff',fillOpacity:1,weight:3,interactive:false}).addTo(map);
-  await load();
+  await Promise.all([load(),loadAddress()]);
  }));
  q('pikett-region-filter').onsubmit=safe(async event=>{event.preventDefault();at=localDateTime(q('pikett-region-at').value);await load();});
  q('pikett-region-now').onclick=safe(async()=>{at=new Date().toISOString();q('pikett-region-at').value=swissTime(at);await load();});
