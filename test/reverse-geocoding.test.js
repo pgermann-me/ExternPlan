@@ -21,3 +21,14 @@ test('Cache is bounded and expires; failures do not stop later requests and unkn
 test('Excess concurrent points are rejected without making extra provider requests',async()=>{
  let release;const gate=new Promise(resolve=>release=resolve);const lookup=createReverseGeocoder({maxQueue:1,fetchImpl:async()=>{await gate;return response();}});const first=lookup(47,9);await assert.rejects(lookup(48,9),{status:429});release();await first;assert.throws(()=>createReverseGeocoder({endpoint:'http://example.test/reverse'}),/HTTPS/);
 });
+
+test('Address search is explicit, bounded and shares the reverse geocoding request queue/cache',async()=>{
+ const {createGeocoder,searchQuery}=await import('../reverse-geocoding.js');let clock=0,calls=[];
+ const geocoder=createGeocoder({now:()=>clock,wait:async ms=>{clock+=ms;},fetchImpl:async(url,options)=>{calls.push({time:clock,url,options});return {ok:true,status:200,json:async()=>url.pathname.endsWith('/search')?[{display_name:'Testweg 7, St. Gallen',lat:'47.423',lon:'9.376',address:{road:'Testweg',house_number:'7'}}]:{address:{city:'St. Gallen'}}};}});
+ const result=await geocoder.search(' Testweg   7 St. Gallen ');assert.equal(result.results.length,1);assert.deepEqual(result.results[0].point,{lat:47.423,lng:9.376});assert.equal(calls[0].url.pathname,'/search');assert.equal(calls[0].url.searchParams.get('q'),'Testweg 7 St. Gallen');assert.equal(calls[0].url.searchParams.get('limit'),'5');await geocoder.search('testweg 7 st. gallen');assert.equal(calls.length,1);await geocoder.reverse(47,9);assert.ok(calls[1].time-calls[0].time>=1000);
+ for(const value of ['',null,'ab','x'.repeat(301)])assert.throws(()=>searchQuery(value),{status:400});assert.equal(permitted('user','GET','/api/search-address'),true);
+});
+test('Search results ignore malformed coordinates and limit results; empty and failed searches are distinguished',async()=>{
+ const {createGeocoder,searchResults}=await import('../reverse-geocoding.js');assert.deepEqual(searchResults([{lat:'bad',lon:9,display_name:'Invalid'}]),[]);assert.equal(searchResults(Array.from({length:8},()=>({lat:47,lon:9,display_name:'Test'}))).length,5);
+ const geocoder=createGeocoder({fetchImpl:async()=>({ok:true,status:200,json:async()=>[]})});assert.deepEqual((await geocoder.search('Keine Adresse')).results,[]);assert.throws(()=>searchResults({error:'Unexpected'}));
+});

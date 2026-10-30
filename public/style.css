@@ -243,3 +243,4 @@ th.sortable-heading{padding:0}.table-sort-button{display:block;width:100%;paddin
 .duty-bar.whole-region-duty{background-image:repeating-linear-gradient(135deg,transparent 0,transparent 5px,rgba(255,255,255,.48) 5px,rgba(255,255,255,.48) 7px,rgba(0,0,0,.2) 7px,rgba(0,0,0,.2) 8px)}
 .pikett-region-legend{margin:12px 0}.pikett-region-legend h3{margin:0 0 6px;font-size:1rem}.pikett-region-legend ul{display:flex;flex-wrap:wrap;gap:8px 20px;list-style:none;padding:0;margin:0;max-height:200px;overflow:auto}.pikett-region-legend li{display:flex;align-items:center;gap:7px;font-size:.85rem}.pikett-region-legend .map-color{flex-shrink:0}
 .planning-tabs-header{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-bottom:12px}.planning-tabs-header>.master-tabs{margin:0}
+#pikett-region-query{width:min(420px,100%)}.address-search-results{list-style:none;padding:0;display:grid;gap:6px}.address-search-results button{text-align:left;width:100%}

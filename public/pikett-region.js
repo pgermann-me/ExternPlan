@@ -14,22 +14,24 @@ function dutyTableRows(rows){
  }).join('')).join('')}</tbody>`;}).join('');
 }
 export async function renderPikettRegion(root,{api,safe,registerDispose}){
- root.innerHTML=`<form id="pikett-region-filter" class="toolbar"><label for="pikett-region-at">Datum / Uhrzeit</label><input id="pikett-region-at" type="text" value="${esc(swissTime(new Date()))}" placeholder="TT.MM.JJJJ HH:mm" data-time-format="datetime" inputmode="numeric" required><button type="submit">Anzeigen</button><button type="button" id="pikett-region-now" class="secondary">Jetzt</button><button type="button" id="pikett-region-reset" class="secondary">Kanton anzeigen</button></form><p class="small muted">Einen Punkt auf der Karte anklicken. Angezeigt werden laufende Pikettdienste und zuständige Personen mit Zeitbereich Immer.</p><p id="pikett-region-address" class="small" role="status">Adresse: Bitte einen Kartenpunkt wählen.</p><button type="button" id="pikett-region-address-retry" class="secondary small" hidden>Adresse erneut suchen</button><div class="pikett-region-layout"><div><div id="pikett-region-map" role="region" aria-label="Karte Kanton St. Gallen"></div><div id="pikett-region-legend" class="pikett-region-legend" aria-label="Gebietslegende"></div><p id="pikett-region-map-status" class="small muted" role="status">Gebiete werden geladen …</p></div><section id="pikett-region-results" aria-live="polite"><p>Bitte einen Punkt auf der Karte wählen.</p></section></div>`;
+ root.innerHTML=`<form id="pikett-region-filter" class="toolbar"><label for="pikett-region-at">Datum / Uhrzeit</label><input id="pikett-region-at" type="text" value="${esc(swissTime(new Date()))}" placeholder="TT.MM.JJJJ HH:mm" data-time-format="datetime" inputmode="numeric" required><button type="submit">Anzeigen</button><button type="button" id="pikett-region-now" class="secondary">Jetzt</button><button type="button" id="pikett-region-reset" class="secondary">Kanton anzeigen</button></form><form id="pikett-region-search" class="toolbar"><label for="pikett-region-query">Adresse suchen</label><input id="pikett-region-query" type="search" minlength="3" maxlength="300" required placeholder="Strasse, Hausnummer, Ort"><button type="submit">Adresse suchen</button></form><div id="pikett-region-search-results" aria-live="polite"></div><p class="small muted">Eine Adresse suchen oder einen Punkt auf der Karte anklicken. Angezeigt werden laufende Pikettdienste und zuständige Personen mit Zeitbereich Immer.</p><p id="pikett-region-address" class="small" role="status">Adresse: Bitte einen Kartenpunkt wählen.</p><button type="button" id="pikett-region-address-retry" class="secondary small" hidden>Adresse erneut suchen</button><div class="pikett-region-layout"><div><div id="pikett-region-map" role="region" aria-label="Karte Kanton St. Gallen"></div><div id="pikett-region-legend" class="pikett-region-legend" aria-label="Gebietslegende"></div><p id="pikett-region-map-status" class="small muted" role="status">Gebiete werden geladen …</p></div><section id="pikett-region-results" aria-live="polite"><p>Bitte einen Punkt auf der Karte wählen.</p></section></div>`;
  const q=id=>root.querySelector('#'+id),L=window.L;if(!L)throw Error('Die Kartenbibliothek konnte nicht geladen werden');
  const map=L.map(q('pikett-region-map'),{zoomControl:false,fadeAnimation:false});
  L.control.zoom({zoomInTitle:'Vergrössern',zoomOutTitle:'Verkleinern'}).addTo(map);
  const background=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>'}).addTo(map);
- let disposed=false,sequence=0,addressSequence=0,point=null,marker,polygons,mapData=null,lastResult=null,colors=new Map(),backgroundUnavailable=false,at=new Date().toISOString();
+ let disposed=false,sequence=0,addressSequence=0,searchSequence=0,point=null,marker,polygons,mapData=null,lastResult=null,colors=new Map(),backgroundUnavailable=false,at=new Date().toISOString();
  const fit=()=>map.fitBounds([[46.85,8.78],[47.60,9.70]],{padding:[12,12],animate:false});fit();
  background.on('tileerror',()=>{backgroundUnavailable=true;if(!disposed)q('pikett-region-map-status').textContent='OpenStreetMap ist nicht erreichbar. Gebietsflächen und Ortsabfrage bleiben verfügbar.';});
- const style=feature=>({color:colors.get(String(feature.properties.GEO_ID)),fillColor:colors.get(String(feature.properties.GEO_ID)),weight:2,fillOpacity:.28,opacity:1});
+ const style=feature=>({color:colors.get(String(feature.properties.GEO_ID)),fillColor:colors.get(String(feature.properties.GEO_ID)),weight:3,fillOpacity:.045,opacity:1});
  const drawPolygons=()=>{
   if(!mapData)return;
+  if(!lastResult){if(polygons){map.removeLayer(polygons);polygons=null;}q('pikett-region-legend').innerHTML='';if(!backgroundUnavailable)q('pikett-region-map-status').textContent='Eine Adresse suchen oder einen Kartenpunkt wählen, um die betroffenen Gebiete anzuzeigen.';return;}
   const affected=lastResult?new Set(lastResult.map_region_ids||lastResult.rows.flatMap(row=>row.region_ids)):null;
   const visible=mapData.features.map(feature=>{
    const regions=feature.properties.regions.filter(r=>!affected||affected.has(r.id));
    return regions.length?{...feature,properties:{...feature.properties,regions,Beschreibung:regions.map(r=>r.name).join(', ')}}:null;
   }).filter(Boolean);
+  const ids=[...new Set(visible.map(f=>String(f.properties.GEO_ID)))].sort();colors=new Map(ids.map((id,index)=>[id,`hsl(${20+index*360/Math.max(1,ids.length)}, 80%, 38%)`]));
   if(polygons)map.removeLayer(polygons);
   polygons=L.geoJSON({type:'FeatureCollection',features:visible},{interactive:false,style,onEachFeature:(feature,layer)=>layer.on('add',()=>{const node=layer.getElement();if(node){node.setAttribute('data-region-polygon',String(feature.properties.GEO_ID));node.setAttribute('role','img');node.setAttribute('aria-label',feature.properties.Beschreibung);}})}).addTo(map);
   const legend=[...new Map(visible.map(feature=>[String(feature.properties.GEO_ID),feature.properties])).values()].sort((a,b)=>a.Beschreibung.localeCompare(b.Beschreibung,'de-CH'));
@@ -38,7 +40,7 @@ export async function renderPikettRegion(root,{api,safe,registerDispose}){
  };
 
  const observer=new ResizeObserver(()=>map.invalidateSize({pan:false}));observer.observe(q('pikett-region-map'));
- registerDispose(()=>{disposed=true;sequence++;addressSequence++;observer.disconnect();map.remove();});
+ registerDispose(()=>{disposed=true;sequence++;addressSequence++;searchSequence++;observer.disconnect();map.remove();});
  const draw=data=>{
   at=data.at;lastResult=data;drawPolygons();
   q('pikett-region-at').value=swissTime(data.at);
@@ -51,24 +53,38 @@ export async function renderPikettRegion(root,{api,safe,registerDispose}){
   try{const data=await api('/pikett-by-region?'+new URLSearchParams({at,lat:point.lat,lng:point.lng}));if(disposed||request!==sequence)return;draw(data);}
   catch(error){if(disposed||request!==sequence)return;q('pikett-region-results').textContent=error.message;throw error;}
  };
+ const showAddress=result=>{q('pikett-region-address').textContent=result.label?`${result.kind==='address'?'Nächstgelegene Adresse':'Ortsangabe'}: ${result.label} · ${result.attribution||'© OpenStreetMap contributors'} (Nominatim)`:'Für diesen Kartenpunkt ist keine Adresse oder Ortsangabe in OpenStreetMap hinterlegt.';q('pikett-region-address-retry').hidden=true;};
  const loadAddress=async()=>{
   if(!point)return;const request=++addressSequence,current={...point};
   q('pikett-region-address').textContent='Adresse wird ermittelt …';q('pikett-region-address-retry').hidden=true;
   try{
    const result=await api('/reverse-address?'+new URLSearchParams(current));if(disposed||request!==addressSequence)return;
-   q('pikett-region-address').textContent=result.label?`${result.kind==='address'?'Nächstgelegene Adresse':'Ortsangabe'}: ${result.label} · ${result.attribution} (Nominatim)`:'Für diesen Kartenpunkt ist keine Adresse oder Ortsangabe in OpenStreetMap hinterlegt.';
+   showAddress(result);
   }catch(error){if(disposed||request!==addressSequence)return;q('pikett-region-address').textContent=error.message;q('pikett-region-address-retry').hidden=false;}
  };
  q('pikett-region-address-retry').onclick=safe(loadAddress);
- map.on('click',safe(async event=>{
-  at=q('pikett-region-at').value===swissTime(at)?at:localDateTime(q('pikett-region-at').value);point={lat:event.latlng.lat,lng:event.latlng.lng};
+ const selectPoint=async(next,address=null,zoom=false)=>{
+  at=q('pikett-region-at').value===swissTime(at)?at:localDateTime(q('pikett-region-at').value);point={...next};addressSequence++;lastResult=null;drawPolygons();
   if(marker)map.removeLayer(marker);marker=L.circleMarker(point,{radius:7,color:'#b91c1c',fillColor:'#fff',fillOpacity:1,weight:3,interactive:false}).addTo(map);
-  await Promise.all([load(),loadAddress()]);
- }));
+  if(zoom)map.setView(point,16,{animate:false});
+  if(address)showAddress(address);await Promise.all([load(),address?Promise.resolve():loadAddress()]);
+ };
+ map.on('click',safe(async event=>{searchSequence++;q('pikett-region-search-results').innerHTML='';await selectPoint({lat:event.latlng.lat,lng:event.latlng.lng});}));
+ q('pikett-region-search').onsubmit=safe(async event=>{
+  event.preventDefault();const request=++searchSequence;q('pikett-region-search-results').textContent='Adresse wird gesucht …';
+  try{
+   const data=await api('/search-address?'+new URLSearchParams({q:q('pikett-region-query').value}));if(disposed||request!==searchSequence)return;
+   if(!data.results.length){q('pikett-region-search-results').textContent='Keine passende Adresse gefunden. Bitte Strasse und Ort präzisieren.';return;}
+   const choose=async result=>{q('pikett-region-search-results').innerHTML='';await selectPoint(result.point,{...result,attribution:data.attribution},true);};
+   if(data.results.length===1){await choose(data.results[0]);return;}
+   q('pikett-region-search-results').innerHTML=`<p>Adresse auswählen:</p><ul class="address-search-results">${data.results.map((result,index)=>`<li><button type="button" class="secondary" data-address-result="${index}">${esc(result.label)}</button></li>`).join('')}</ul>`;
+   q('pikett-region-search-results').querySelectorAll('[data-address-result]').forEach(button=>button.onclick=safe(()=>choose(data.results[Number(button.dataset.addressResult)])));
+  }catch(error){if(!disposed&&request===searchSequence)q('pikett-region-search-results').textContent=error.message;}
+ });
  q('pikett-region-filter').onsubmit=safe(async event=>{event.preventDefault();at=localDateTime(q('pikett-region-at').value);await load();});
  q('pikett-region-now').onclick=safe(async()=>{at=new Date().toISOString();q('pikett-region-at').value=swissTime(at);await load();});
  q('pikett-region-reset').onclick=fit;
  let data;try{data=await api('/pikett-region-map');}catch(error){if(disposed)return;throw error;}if(disposed)return;
- mapData=data;const ids=[...new Set(data.features.map(f=>String(f.properties.GEO_ID)))].sort();colors=new Map(ids.map((id,index)=>[id,`hsl(${(index*137.508)%360}, 65%, 42%)`]));if(lastResult)draw(lastResult);else drawPolygons();
+ mapData=data;if(lastResult)draw(lastResult);else drawPolygons();
 
 }

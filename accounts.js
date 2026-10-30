@@ -15,7 +15,7 @@ async function verifyPassword(password,user){if(typeof password!=='string'||pass
 export function permitted(role,method,path){
  if(!Object.hasOwn(roleViews,role))return false;
  if(role==='admin')return true;
- if(method==='GET'&&['/api/state','/api/month','/api/person-month','/api/pikett-list','/api/pikett-region-map','/api/pikett-by-region','/api/reverse-address','/api/swiss-time'].includes(path))return true;
+ if(method==='GET'&&['/api/state','/api/month','/api/person-month','/api/pikett-list','/api/pikett-region-map','/api/pikett-by-region','/api/reverse-address','/api/search-address','/api/swiss-time'].includes(path))return true;
  if(method==='POST'&&(path==='/api/planning/undo'||path==='/api/planning/always'||path==='/api/planning/always/person'||/^\/api\/assignments(?:\/[^/]+(?:\/transfer)?)?$/.test(path)||/^\/api\/favorites\/[^/]+\/(preview|apply)$/.test(path)))return true;
  if(['PUT','DELETE'].includes(method)&&/^\/api\/assignments\/[^/]+$/.test(path))return true;
  if(role==='planner'&&method==='POST'&&path==='/api/people/bulk-organization')return true;
