@@ -28,3 +28,11 @@ test('Nested whole regions resolve safely, and invalid or cyclic definitions are
 test('An imported geographic function receives a visible region group instead of individual region settings',()=>{
  const s=fixture();normalizeFunctionRegionModel(s);const fn=s.functions[1];assignImportedFunctionRegions(s,fn,['EXTRA']);assert.deepEqual(fn.geo_ids,[]);assert.deepEqual(withRegionGroups(s).functions[1].geo_ids,['EXTRA']);assert.ok(s.region_groups.some(g=>g.import_function_id==='LOCAL'));const count=s.region_groups.length;assignImportedFunctionRegions(s,fn,['EXTRA']);assert.equal(s.region_groups.length,count);
 });
+
+test('Control drilldown includes all active parent regions without selecting siblings or changing duties',async()=>{
+ const {regionIdsWithParents}=await import('../public/coverage-regions.js');const s=fixture();normalizeFunctionRegionModel(s);
+ s.regions.push({id:'OUTER',covered_region_ids:['ALL']},{id:'SECOND',covered_region_ids:['N1']},{id:'ARCHIVED',covered_region_ids:['N1'],deleted_at:'2026-01-01'});
+ const before=structuredClone(s);assert.deepEqual(regionIdsWithParents(s,'F','N1'),['N1','ALL','SECOND','OUTER']);assert.deepEqual(regionIdsWithParents(s,'F','ALL'),['ALL','OUTER']);assert.deepEqual(regionIdsWithParents(s,'F','EXTRA'),['EXTRA']);assert.deepEqual(regionIdsWithParents(s,'F',null),[]);assert.deepEqual(regionIdsWithParents(s,'F','missing'),[]);assert.deepEqual(s,before);
+ s.regions.find(r=>r.id==='OUTER').covered_region_ids.push('OUTER');assert.deepEqual(regionIdsWithParents(s,'F','N1'),['N1','ALL','SECOND','OUTER']);
+ const legacy=fixture();assert.deepEqual(regionIdsWithParents(legacy,'F','N1'),['N1','ALL']);
+});

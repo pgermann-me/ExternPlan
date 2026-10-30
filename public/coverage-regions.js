@@ -1,4 +1,4 @@
-// Only coverage calculations may expand a whole region into its configured parts.
+// Only coverage calculations expand a whole-region duty into its configured parts.
 export function coveredRegionIds(state,functionId,geoId){
  const byId=new Map(state.regions.map(r=>[r.id,r])),legacy=state.functions.find(f=>f.id===functionId)?.covers||{},result=new Set(),visited=new Set([geoId]);
  const visit=id=>{const region=byId.get(id),parts=region&&Object.hasOwn(region,'covered_region_ids')?region.covered_region_ids:legacy[id]||[];for(const part of parts){if(visited.has(part)||byId.get(part)?.deleted_at)continue;visited.add(part);result.add(part);visit(part);}};
@@ -11,4 +11,19 @@ export function validateRegionCoverage(state,region){
  const visiting=new Set(),done=new Set();
  const visit=id=>{if(visiting.has(id))throw Error('Gesamt- und Teilgebiete dürfen keinen Kreis bilden');if(done.has(id))return;visiting.add(id);for(const part of byId.get(id)||[])visit(part);visiting.delete(id);done.add(id);};
  for(const id of byId.keys())visit(id);
+}
+
+// Broaden only the explicit planning filter, never a duty's assigned region.
+export function regionIdsWithParents(state,functionId,geoId){
+ if(!geoId)return [];
+ const regions=state.regions.filter(r=>!r.deleted_at),active=new Set(regions.map(r=>r.id));
+ if(!active.has(geoId))return [];
+ const legacy=state.functions.find(f=>f.id===functionId)?.covers||{},parents=new Map();
+ for(const region of regions)for(const part of Object.hasOwn(region,'covered_region_ids')?region.covered_region_ids:legacy[region.id]||[]){
+  if(!active.has(part))continue;
+  if(!parents.has(part))parents.set(part,[]);parents.get(part).push(region.id);
+ }
+ const result=new Set([geoId]),queue=[geoId];
+ for(let index=0;index<queue.length;index++)for(const id of parents.get(queue[index])||[])if(!result.has(id)){result.add(id);queue.push(id);}
+ return [...result];
 }
