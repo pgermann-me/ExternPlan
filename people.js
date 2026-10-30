@@ -1,3 +1,4 @@
+import {normalizePersonContacts} from './public/phone.js';
 import {personAffiliationProblem} from './public/person-affiliation-rules.js';
 import {withRegionGroups} from './public/region-groups.js';
 import {DateTime} from 'luxon';
@@ -31,7 +32,7 @@ export function manualPerson(input, previous, employeeId) {
     department_id:input.department_id||null,
     group_ids,group_id:group_ids[0]||null,
     business_address:businessAddress(Object.hasOwn(input,'business_address')?input.business_address:previous?.business_address),
-    contacts:(input.contacts??previous?.contacts??[]).map(c=>({...c,priority:c.priority??0}))
+    contacts:normalizePersonContacts(input.contacts??previous?.contacts??[],previous?.contacts||[])
   };
 }
 

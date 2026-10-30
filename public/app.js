@@ -342,7 +342,7 @@ function personDialog(p={}){
  label('Geburtsdatum',input('birth_date',p.birth_date||'','date',false))+
  '<div id="person-affiliation-editor"></div>'+
  '<fieldset><legend>Geschäftliche Adresse</legend>'+label('Adressart',`<select name="business_address_type"><option value="BusinessStandort" ${p.business_address?.type!=='BusinessPostal'?'selected':''}>Geschäftsstandort</option><option value="BusinessPostal" ${p.business_address?.type==='BusinessPostal'?'selected':''}>Geschäftliche Postadresse</option></select>`)+'<div class="form-pair">'+businessAddressFields.map(([key,text])=>'<div>'+label(text,input('business_address_'+key,p.business_address?.[key]||'','text',false))+'</div>').join('')+'</div></fieldset>'+
- '<h3>Kontaktdaten</h3><p class="small muted">Kontaktprioritäten sind unabhängig von Pikett-Zuteilungen. Standard: 0.</p>'+
+ '<h3>Kontaktdaten</h3><p class="small muted">Telefonnummern werden beim Speichern vereinheitlicht, z. B. 079 578 68 88 → +41795786888. Kontaktprioritäten sind unabhängig von Pikett-Zuteilungen. Standard: 0.</p>'+
  contactFields.map((f,i)=>contactRow(f.type,f.label,values[i],f.input)).join('')+
  (remaining.length?'<h3>Weitere bestehende Kontakte</h3>'+remaining.map((c,i)=>contactRow('extra_'+i,c.type,c,'text')).join(''):'')+
  (p.employee_id?personDeleteButton(p):''),async d=>{
