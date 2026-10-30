@@ -1,3 +1,4 @@
+import {copyAssignments} from './assignment-copy.js';
 import {hunterRegionName} from './public/region-label.js';
 import {normalizeFunctionRegionModel} from './function-region-migration.js';
 import {validateRegionCoverage} from './public/coverage-regions.js';
@@ -69,6 +70,7 @@ app.post('/api/geojson/preview',(req,res)=>{if(!req.body.mapping)return res.json
 app.post('/api/geojson/import',(req,res)=>res.json(mutate(s=>{const {layer,summary}=prepareGeojsonImport(s,mapLayers(),req.body);db.prepare('INSERT INTO imported_map_layers (id,data) VALUES (?,?)').run(layer.id,JSON.stringify(layer));return summary;})));
 app.get('/api/health',(req,res)=>res.json({status:'ok',database:!!read(),timezone:zone}));
 function assignmentStyle(s,a,input){if(input.color===undefined)return;if(!/^#[0-9a-f]{6}$/i.test(input.color))throw Error('Ungültige Dienstfarbe');s.assignment_styles??={};s.assignment_styles[a.assignment_id]={...s.assignment_styles[a.assignment_id],color:input.color};}
+app.post('/api/assignments/copy',(req,res)=>res.json(mutate(s=>planningChange(s,()=>copyAssignments(s,req.body,req.user)))));
 app.post('/api/assignments/delete-many',(req,res)=>res.json(mutate(s=>planningChange(s,()=>{
  const entries=req.body.assignments;if(!Array.isArray(entries)||!entries.length||entries.length>1000||new Set(entries.map(e=>e?.assignment_id)).size!==entries.length)throw Error('1 bis 1000 eindeutige Dienste auswählen');
  const removed=entries.map(e=>{const a=s.assignments.find(a=>a.assignment_id===e?.assignment_id);if(!a||a.revision!==e.revision)throw Error('Ein ausgewählter Dienst wurde inzwischen geändert oder gelöscht. Neu laden und erneut auswählen.');return a;});
