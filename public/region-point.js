@@ -25,7 +25,12 @@ export function regionsAtPoint(state,{layers},point){
  return state.regions.filter(r=>!r.deleted_at&&polygonId(r)!==null&&polygons.has(polygonId(r)));
 }
 // The public map contains only polygons linked to regions visible to the current user.
-export function pikettRegionMap(state,{layers}){
- const names=new Map();for(const r of state.regions.filter(r=>!r.deleted_at)){const id=polygonId(r);if(id===null)continue;if(!names.has(id))names.set(id,[]);names.get(id).push(r.name);}
- return {type:'FeatureCollection',features:layers.flatMap(layer=>layer.geojson.features.filter(f=>names.has(String(f.properties.GEO_ID))).map(f=>({type:'Feature',properties:{GEO_ID:String(f.properties.GEO_ID),Beschreibung:names.get(String(f.properties.GEO_ID)).join(', ')},geometry:f.geometry})))};
+export function parentRegionIds(state){
+ const active=state.regions.filter(r=>!r.deleted_at),ids=new Set(active.map(r=>r.id));
+ return new Set(active.filter(r=>(Object.hasOwn(r,'covered_region_ids')?r.covered_region_ids:state.functions.flatMap(f=>f.covers?.[r.id]||[])).some(id=>ids.has(id))).map(r=>r.id));
+}
+export function pikettRegionMap(state,{layers},{parents=parentRegionIds(state)}={}){
+ const active=state.regions.filter(r=>!r.deleted_at);
+ const names=new Map();for(const r of active.filter(r=>!parents.has(r.id))){const id=polygonId(r);if(id===null)continue;if(!names.has(id))names.set(id,[]);names.get(id).push({id:r.id,name:r.name});}
+ return {type:'FeatureCollection',features:layers.flatMap(layer=>layer.geojson.features.filter(f=>names.has(String(f.properties.GEO_ID))).map(f=>({type:'Feature',properties:{GEO_ID:String(f.properties.GEO_ID),Beschreibung:names.get(String(f.properties.GEO_ID)).map(r=>r.name).join(', '),regions:names.get(String(f.properties.GEO_ID))},geometry:f.geometry})))};
 }

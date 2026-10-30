@@ -6,7 +6,7 @@ import {recoverHunterPeople} from './hunter-recovery.js';
 import {recoverRegionState,normalizeHunterRegionNames} from './region-recovery.js';
 import {migrateWildhutGeoIds} from './wildhut-geo-migration.js';
 import {changeAlwaysAffiliation,createAlwaysPerson} from './always-planning.js';
-import {pikettRegionMap} from './public/region-point.js';
+import {pikettRegionMap,parentRegionIds} from './public/region-point.js';
 import {pikettByRegion} from './public/pikett-region-data.js';
 import {withRegionGroups,regionGroupIds} from './public/region-groups.js';
 import {validateStandingFunction} from './standing-duties.js';
@@ -158,7 +158,7 @@ app.post('/api/master/:type',(req,res)=>res.json(mutate(s=>{
 app.delete('/api/master/:type/:id',(req,res)=>res.json(mutate(s=>{const before={...s,regions:s.regions.map(r=>({...r}))};const result=deleteMaster(s,req.params.type,req.params.id);if(req.params.type==='regions')validateRegionGroupImpact(before,s);return result;})));
 app.get('/api/month',(req,res)=>{const s=publicState(scopedState(read(),req.user,{coverage:true}));if(!/^\d{4}-\d{2}$/.test(req.query.month||''))throw Error('Monat als YYYY-MM');const start=DateTime.fromISO(`${req.query.month}-01`,{zone});if(!start.isValid)throw Error('Ungültiger Monat');const selectedGroup=req.query.group_id;if(selectedGroup&&!s.groups.some(g=>g.id===selectedGroup))throw Error('Gruppe unbekannt');const selectedDepartment=req.query.department_id,eligible=new Set(planningPeople(s,selectedGroup,selectedDepartment).map(p=>p.employee_id));const planningState=prepareCoverage(selectedGroup||selectedDepartment?{...s,assignments:s.assignments.filter(a=>eligible.has(a.employee_id))}:s,start.toMillis(),start.plus({months:1}).toMillis());const days=Array.from({length:start.daysInMonth},(_,i)=>start.plus({days:i}));res.json({days:days.map(d=>d.toISODate()),rows:controlFunctions(s,selectedGroup,selectedDepartment).flatMap(f=>(f.geo_ids.length?allowedFunctionRegions(f,s.groups.find(g=>g.id===selectedGroup),s.regions,selectedDepartment,s.groups):[null]).map(geo=>({function_id:f.id,geo_id:geo,...timelineBars(coverage(planningState,f.id,geo,start.toMillis(),start.plus({months:1}).toMillis()).assignments,days.map(d=>({start_on:d.toISO(),end_on:d.plus({days:1}).toISO()})),s.assignment_styles||{}),cells:days.map(d=>{const cell=coverage(planningState,f.id,geo,d.toMillis(),d.plus({days:1}).toMillis());return {...cell,...timelineBars(cell.assignments,[{start_on:d.toISO(),end_on:d.plus({days:1}).toISO()}],s.assignment_styles||{})};})}))) });});
 app.get('/api/swiss-time',(req,res)=>res.json({time:iso(automaticSwissInstant(req.query.value))}));
-app.get('/api/pikett-region-map',(req,res)=>res.json(pikettRegionMap(publicState(scopedState(read(),req.user)),{layers:mapLayers()})));
+app.get('/api/pikett-region-map',(req,res)=>{const s=read();res.json(pikettRegionMap(publicState(scopedState(s,req.user)),{layers:mapLayers()},{parents:parentRegionIds(s)}));});
 app.get('/api/pikett-by-region',(req,res)=>{
  const {lat,lng}=req.query;if(typeof lat!=='string'||typeof lng!=='string'||!lat.trim()||!lng.trim())throw Error('Kartenpunkt wählen');
  const at=iso(automaticSwissInstant(req.query.at||new Date().toISOString()));

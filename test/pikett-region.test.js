@@ -57,3 +57,15 @@ test('Regional list orders all functions alphabetically and each function by 1 t
  const before=JSON.stringify(state),result=pikettByRegion(state,mapData,at,47.3,9.4);assert.deepEqual(result.rows.map(r=>[r.function_name,r.priority]),[['Amtsarzt',1],['Amtsarzt',2],['Amtsarzt',9],['Amtsarzt',0],['Zentrale',1],['Zentrale',2],['Zentrale',9],['Zentrale',0]]);assert.ok(result.rows.every(r=>r.kind==='always'&&r.region_ids[0]==='R1'));assert.equal(JSON.stringify(state),before);
  assert.deepEqual(pikettByRegion(state,mapData,'2040-01-01T00:00:00+01:00',47.3,9.4).rows,result.rows);
 });
+
+test('Map polygons exclude parents and name only visible leaf regions, including shared polygons',async()=>{
+ const {parentRegionIds}=await import('../public/region-point.js');const {state,mapData}=regionFixture();
+ state.regions.find(r=>r.id==='WHOLE').polygon_geo_id='SHAPE-A';state.regions.find(r=>r.id==='WHOLE').covered_region_ids=['R1','R2'];
+ const parents=parentRegionIds(state),map=pikettRegionMap(state,mapData);assert.ok(parents.has('WHOLE'));assert.equal(map.features.length,2);assert.deepEqual(map.features[0].properties.regions,[{id:'R1',name:'Westgebiet'}]);assert.equal(map.features[0].properties.Beschreibung,'Westgebiet');assert.ok(!JSON.stringify(map).includes('Gesamtgebiet'));
+ const s=publicState(scopedState(state,{role:'user',access_scope:{region_ids:['WHOLE']}}));assert.equal(pikettRegionMap(s,mapData,{parents}).features.length,0);
+});
+test('Only active point duties and Immer responsibilities affect map selection; parent duty tables retain actual regions',()=>{
+ const {state,mapData}=regionFixture();assert.deepEqual(pikettByRegion(state,mapData,at,47.3,9.2).map_region_ids,['R1']);assert.deepEqual(pikettByRegion(state,mapData,at,46,8).map_region_ids,[]);
+ state.people.forEach(p=>p.function_regions=[]);state.assignments=state.assignments.filter(a=>a.assignment_id==='whole');state.regions.find(r=>r.id==='WHOLE').polygon_geo_id='SHAPE-A';
+ const result=pikettByRegion(state,mapData,at,47.3,9.2);assert.deepEqual(result.rows.map(r=>r.region_ids),[['WHOLE']]);assert.deepEqual(result.map_region_ids,['WHOLE','R1']);assert.deepEqual(pikettByRegion(state,mapData,'2026-10-22T19:00:00+02:00',47.3,9.2).map_region_ids,[]);
+});

@@ -14,21 +14,36 @@ function dutyTableRows(rows){
  }).join('')).join('')}</tbody>`;}).join('');
 }
 export async function renderPikettRegion(root,{api,safe,registerDispose}){
- root.innerHTML=`<form id="pikett-region-filter" class="toolbar"><label for="pikett-region-at">Datum / Uhrzeit</label><input id="pikett-region-at" type="text" value="${esc(swissTime(new Date()))}" placeholder="TT.MM.JJJJ HH:mm" data-time-format="datetime" inputmode="numeric" required><button type="submit">Anzeigen</button><button type="button" id="pikett-region-now" class="secondary">Jetzt</button><button type="button" id="pikett-region-reset" class="secondary">Kanton anzeigen</button></form><p class="small muted">Einen Punkt auf der Karte anklicken. Angezeigt werden laufende Pikettdienste und zuständige Personen mit Zeitbereich Immer.</p><div class="pikett-region-layout"><div><div id="pikett-region-map" role="region" aria-label="Karte Kanton St. Gallen"></div><p id="pikett-region-map-status" class="small muted" role="status">Gebiete werden geladen …</p></div><section id="pikett-region-results" aria-live="polite"><p>Bitte einen Punkt auf der Karte wählen.</p></section></div>`;
+ root.innerHTML=`<form id="pikett-region-filter" class="toolbar"><label for="pikett-region-at">Datum / Uhrzeit</label><input id="pikett-region-at" type="text" value="${esc(swissTime(new Date()))}" placeholder="TT.MM.JJJJ HH:mm" data-time-format="datetime" inputmode="numeric" required><button type="submit">Anzeigen</button><button type="button" id="pikett-region-now" class="secondary">Jetzt</button><button type="button" id="pikett-region-reset" class="secondary">Kanton anzeigen</button></form><p class="small muted">Einen Punkt auf der Karte anklicken. Angezeigt werden laufende Pikettdienste und zuständige Personen mit Zeitbereich Immer.</p><div class="pikett-region-layout"><div><div id="pikett-region-map" role="region" aria-label="Karte Kanton St. Gallen"></div><div id="pikett-region-legend" class="pikett-region-legend" aria-label="Gebietslegende"></div><p id="pikett-region-map-status" class="small muted" role="status">Gebiete werden geladen …</p></div><section id="pikett-region-results" aria-live="polite"><p>Bitte einen Punkt auf der Karte wählen.</p></section></div>`;
  const q=id=>root.querySelector('#'+id),L=window.L;if(!L)throw Error('Die Kartenbibliothek konnte nicht geladen werden');
  const map=L.map(q('pikett-region-map'),{zoomControl:false,fadeAnimation:false});
  L.control.zoom({zoomInTitle:'Vergrössern',zoomOutTitle:'Verkleinern'}).addTo(map);
  const background=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>'}).addTo(map);
- let disposed=false,sequence=0,point=null,marker,polygons,selected=new Set(),at=new Date().toISOString();
+ let disposed=false,sequence=0,point=null,marker,polygons,mapData=null,lastResult=null,colors=new Map(),backgroundUnavailable=false,at=new Date().toISOString();
  const fit=()=>map.fitBounds([[46.85,8.78],[47.60,9.70]],{padding:[12,12],animate:false});fit();
- background.on('tileerror',()=>{if(!disposed)q('pikett-region-map-status').textContent='OpenStreetMap ist nicht erreichbar. Gebietsflächen und Ortsabfrage bleiben verfügbar.';});
- const style=feature=>({color:selected.has(String(feature.properties.GEO_ID))?'#126a8b':'#557d8b',weight:selected.has(String(feature.properties.GEO_ID))?3:1,fillOpacity:selected.has(String(feature.properties.GEO_ID))?.2:.035});
+ background.on('tileerror',()=>{backgroundUnavailable=true;if(!disposed)q('pikett-region-map-status').textContent='OpenStreetMap ist nicht erreichbar. Gebietsflächen und Ortsabfrage bleiben verfügbar.';});
+ const style=feature=>({color:colors.get(String(feature.properties.GEO_ID)),fillColor:colors.get(String(feature.properties.GEO_ID)),weight:2,fillOpacity:.28,opacity:1});
+ const drawPolygons=()=>{
+  if(!mapData)return;
+  const affected=lastResult?new Set(lastResult.map_region_ids||lastResult.rows.flatMap(row=>row.region_ids)):null;
+  const visible=mapData.features.map(feature=>{
+   const regions=feature.properties.regions.filter(r=>!affected||affected.has(r.id));
+   return regions.length?{...feature,properties:{...feature.properties,regions,Beschreibung:regions.map(r=>r.name).join(', ')}}:null;
+  }).filter(Boolean);
+  if(polygons)map.removeLayer(polygons);
+  polygons=L.geoJSON({type:'FeatureCollection',features:visible},{interactive:false,style,onEachFeature:(feature,layer)=>layer.on('add',()=>{const node=layer.getElement();if(node){node.setAttribute('data-region-polygon',String(feature.properties.GEO_ID));node.setAttribute('role','img');node.setAttribute('aria-label',feature.properties.Beschreibung);}})}).addTo(map);
+  const legend=[...new Map(visible.map(feature=>[String(feature.properties.GEO_ID),feature.properties])).values()].sort((a,b)=>a.Beschreibung.localeCompare(b.Beschreibung,'de-CH'));
+  q('pikett-region-legend').innerHTML='<h3>Gebiete</h3>'+(legend.length?`<ul>${legend.map(region=>`<li data-region-legend="${esc(region.GEO_ID)}"><span class="map-color" style="background:${colors.get(region.GEO_ID)}" aria-hidden="true"></span><span>${esc(region.Beschreibung)}</span></li>`).join('')}</ul>`:`<p class="small muted">${lastResult?'Keine betroffenen Gebiete mit Kartenpolygon und zuständigem Pikett.':'Keine verfügbaren Teilgebiete mit Kartenpolygon.'}</p>`);
+  if(!backgroundUnavailable)q('pikett-region-map-status').textContent=lastResult?'Nur betroffene Teilgebiete mit Zuständigkeit am gewählten Punkt und Zeitpunkt.':'Teilgebiete mit unterschiedlichen Farben. Einen Punkt wählen, um die betroffenen Gebiete anzuzeigen.';
+ };
+
  const observer=new ResizeObserver(()=>map.invalidateSize({pan:false}));observer.observe(q('pikett-region-map'));
  registerDispose(()=>{disposed=true;sequence++;observer.disconnect();map.remove();});
  const draw=data=>{
-  at=data.at;selected=new Set(data.regions.map(r=>r.polygon_geo_id));polygons?.setStyle(style);
+  at=data.at;lastResult=data;drawPolygons();
   q('pikett-region-at').value=swissTime(data.at);
-  q('pikett-region-results').innerHTML=`<h2>Pikett nach Region</h2><p>${esc(swissTime(data.at))} · Schweizer Zeit</p><p class="small">Kartenpunkt: ${data.point.lat.toFixed(5)}, ${data.point.lng.toFixed(5)}</p><p>${data.regions.length?'Gebiete: '+data.regions.map(r=>esc(r.name)).join(', '):'Für diesen Punkt sind keine verknüpften Gebiete vorhanden.'}</p>${data.rows.length?`<p role="status">${data.rows.length} zuständige Einträge</p><p class="small muted">Sortierung: Zeitbereich vor Immer; jeweils Funktion A–Z, Region gruppiert, dann Priorität (1 zuerst; 0 = keine Priorität am Schluss).</p><div class="pikett-list-board"><table class="pikett-list"><thead><tr><th>Pikett</th><th>Region</th><th>Name</th><th>Prio</th><th>Dienstzeit</th><th>Kontaktdaten</th></tr></thead>${dutyTableRows(data.rows)}</table></div>`:'<p>Keine zuständigen Pikettdienste für diesen Punkt und Zeitpunkt gefunden.</p>'}`;
+  const drawn=new Set((mapData?.features||[]).flatMap(f=>f.properties.regions.map(r=>r.id))),affected=new Set(data.map_region_ids||data.rows.flatMap(r=>r.region_ids)),visibleRegions=data.regions.filter(r=>drawn.has(r.id)&&affected.has(r.id));
+  q('pikett-region-results').innerHTML=`<h2>Pikett nach Region</h2><p>${esc(swissTime(data.at))} · Schweizer Zeit</p><p class="small">Kartenpunkt: ${data.point.lat.toFixed(5)}, ${data.point.lng.toFixed(5)}</p><p>${visibleRegions.length?'Angezeigte Gebiete: '+visibleRegions.map(r=>esc(r.name)).join(', '):'Keine betroffenen Teilgebiete mit Kartenpolygon.'}</p>${data.rows.length?`<p role="status">${data.rows.length} zuständige Einträge</p><p class="small muted">Sortierung: Zeitbereich vor Immer; jeweils Funktion A–Z, Region gruppiert, dann Priorität (1 zuerst; 0 = keine Priorität am Schluss).</p><div class="pikett-list-board"><table class="pikett-list"><thead><tr><th>Pikett</th><th>Region</th><th>Name</th><th>Prio</th><th>Dienstzeit</th><th>Kontaktdaten</th></tr></thead>${dutyTableRows(data.rows)}</table></div>`:'<p>Keine zuständigen Pikettdienste für diesen Punkt und Zeitpunkt gefunden.</p>'}`;
  };
  const load=async()=>{
   if(!point)return;const request=++sequence;
@@ -39,12 +54,12 @@ export async function renderPikettRegion(root,{api,safe,registerDispose}){
  map.on('click',safe(async event=>{
   at=q('pikett-region-at').value===swissTime(at)?at:localDateTime(q('pikett-region-at').value);point={lat:event.latlng.lat,lng:event.latlng.lng};
   if(marker)map.removeLayer(marker);marker=L.circleMarker(point,{radius:7,color:'#b91c1c',fillColor:'#fff',fillOpacity:1,weight:3,interactive:false}).addTo(map);
-  selected=new Set();polygons?.setStyle(style);await load();
+  await load();
  }));
  q('pikett-region-filter').onsubmit=safe(async event=>{event.preventDefault();at=localDateTime(q('pikett-region-at').value);await load();});
  q('pikett-region-now').onclick=safe(async()=>{at=new Date().toISOString();q('pikett-region-at').value=swissTime(at);await load();});
  q('pikett-region-reset').onclick=fit;
  let data;try{data=await api('/pikett-region-map');}catch(error){if(disposed)return;throw error;}if(disposed)return;
- polygons=L.geoJSON(data,{interactive:false,style}).addTo(map);
- if(!q('pikett-region-map-status').textContent.startsWith('OpenStreetMap'))q('pikett-region-map-status').textContent=data.features.length?'Gebietsflächen aus den verknüpften Stammdaten. Hintergrund: OpenStreetMap.':'Noch keine sichtbaren Gebiete mit Kartenpolygon verknüpft.';
+ mapData=data;const ids=[...new Set(data.features.map(f=>String(f.properties.GEO_ID)))].sort();colors=new Map(ids.map((id,index)=>[id,`hsl(${(index*137.508)%360}, 65%, 42%)`]));if(lastResult)draw(lastResult);else drawPolygons();
+
 }
