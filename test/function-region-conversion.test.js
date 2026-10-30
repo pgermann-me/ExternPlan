@@ -32,3 +32,18 @@ test('Conversion can also consolidate an already regional function into the chos
  const s=setup();s.region_groups.push({id:'OLD-GROUP',name:'Bisherige Gebiete',function_ids:['F']});s.regions.push({id:'OLD-REGION',name:'Bisheriges Gebiet',region_group_ids:['OLD-GROUP']});s.assignments[0].geodependency='OLD-REGION';s.people[0].function_regions[0].geo_id='OLD-REGION';s.favorites[0].region_ids=['OLD-REGION'];const before=structuredClone(s);
  const result=prepareFunctionRegionConversion(s,'F',input);assert.deepEqual(s,before);assert.deepEqual(withRegionGroups(result.state).functions[0].geo_ids,['UA']);assert.equal(result.state.assignments[0].geodependency,'UA');assert.deepEqual(result.state.region_groups.find(g=>g.id==='OLD-GROUP').function_ids,[]);
 });
+
+test('Explicit geographic access extension resolves restrictive target/group permissions and previews every change',()=>{
+ const s=setup();s.departments.push({id:'D2',name:'Andere Abteilung'});s.groups.push({id:'G2',name:'Andere Gruppe',department_id:'D2'});s.functions.push({id:'X',name:'Andere Funktion',geo_ids:[]});
+ Object.assign(s.regions[0],{department_ids:['D2'],group_ids:['G2'],function_ids:['X']});Object.assign(s.region_groups[0],{department_ids:['D2'],group_ids:['G2'],function_ids:['X']});s.groups[0].geo_ids=[];
+ const before=structuredClone(s);assert.throws(()=>prepareFunctionRegionConversion(s,'F',input),/Test Person.*nicht.*freigegeben/);
+ const request={...input,extend_region_access:true},r=prepareFunctionRegionConversion(s,'F',request);assert.deepEqual(s,before);
+ assert.equal(r.state.assignments[0].geodependency,'UA');assert.deepEqual(r.state.regions[0].department_ids,['D2','D']);assert.deepEqual(r.state.regions[0].group_ids,['G2','G']);assert.deepEqual(r.state.regions[0].function_ids,['X','F']);assert.deepEqual(r.state.region_groups[0].department_ids,['D2','D']);assert.deepEqual(r.state.region_groups[0].function_ids,['X','F']);assert.deepEqual(r.state.groups[0].geo_ids,['UA']);
+ assert.deepEqual(r.summary.access_changes.map(c=>c.type),['regions','region_groups','groups']);assert.ok(r.summary.access_changes.every(c=>c.details.length));assert.ok(r.state.audit.some(a=>a.entity==='regions'));
+ assert.notEqual(regionConversionToken(s,'F',input),regionConversionToken(s,'F',request));const token=regionConversionToken(s,'F',request);s.groups[0].geo_ids=['UA'];assert.notEqual(regionConversionToken(s,'F',request),token);
+ s.favorites[0].color='invalid';const bad=structuredClone(s);assert.throws(()=>prepareFunctionRegionConversion(s,'F',request),/farbe/i);assert.deepEqual(s,bad);
+});
+test('Access extension explicitly reports unrestricted geographic scopes for people without organization memberships',()=>{
+ const s=setup();s.people[0].department_id=null;s.people[0].group_ids=[];s.region_groups[0].group_ids=['G'];s.regions[0].department_ids=['D'];
+ const r=prepareFunctionRegionConversion(s,'F',{...input,extend_region_access:true});assert.deepEqual(r.state.region_groups[0].department_ids,[]);assert.deepEqual(r.state.region_groups[0].group_ids,[]);assert.deepEqual(r.state.regions[0].department_ids,[]);assert.match(JSON.stringify(r.summary.access_changes),/alle.*ohne entsprechende Zuordnung/);
+});
