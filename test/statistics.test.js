@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {emptyState} from '../data-cleanup.js';
+import {statisticsRegions} from '../public/statistics-regions.js';
 import {planningStatistics} from '../statistics.js';
 import {scopedState} from '../access-scope.js';
 import {permitted,roleViews} from '../accounts.js';
@@ -26,4 +27,23 @@ test('Scoped planners see only their actual permitted assignments; historical pe
 test('Statistics validate filters/date ranges and are accessible only to planners and admins',()=>{
  const s=fixture();for(const patch of [{date_from:''},{date_to:'2026-02-30'},{date_to:'2026-09-30'},{function_id:'hidden'},{group_id:'H',department_id:'D'}])assert.throws(()=>planningStatistics(s,{...range,...patch}));
  for(const role of ['admin','planner']){assert.equal(permitted(role,'GET','/api/statistics'),true);assert.ok(roleViews[role].includes('statistics'));}assert.equal(permitted('user','GET','/api/statistics'),false);assert.ok(!roleViews.user.includes('statistics'));
+});
+
+test('Statistics offer only function regions, support multiple regions and sort descending by hours',()=>{
+ const s=fixture();s.regions.push({id:'UNRELATED',name:'Andere Region'});
+ assert.deepEqual(statisticsRegions(s,{function_id:'F'}).map(r=>r.id),['R1','R2']);
+ assert.deepEqual(statisticsRegions(s,{function_id:'F2'}),[]);
+ assert.equal(planningStatistics(s,{...range,function_id:'F',region_id:['R1','R2']}).total_hours,11);
+ assert.equal(planningStatistics(s,{...range,function_id:'F',region_ids:['R2']}).total_hours,4);
+ assert.deepEqual(planningStatistics(s,range).rows.map(r=>r.hours),[10,2,1]);
+ assert.throws(()=>planningStatistics(s,{...range,function_id:'F',region_ids:['UNRELATED']}),/nicht zulässig/);
+ assert.throws(()=>planningStatistics(s,{...range,function_id:'F2',region_ids:['R1']}),/nicht zulässig/);
+ s.groups[0].geo_ids=['R2'];assert.deepEqual(statisticsRegions(s,{function_id:'F',group_id:'G'}).map(r=>r.id),['R2']);
+ s.regions[1].department_ids=['OTHER'];assert.deepEqual(statisticsRegions(s,{function_id:'F',department_id:'D',group_id:'G'}),[]);
+});
+test('Statistics region options derive from region groups',()=>{
+ const s=fixture();s.functions[0]={...s.functions[0],geo_ids:[],region_assignment_mode:'groups'};
+ s.region_groups=[{id:'RG',function_ids:['F']}];s.regions[1].region_group_ids=['RG'];
+ assert.deepEqual(statisticsRegions(s,{function_id:'F'}).map(r=>r.id),['R2']);
+ assert.equal(planningStatistics(s,{...range,function_id:'F',region_ids:['R2']}).total_hours,4);
 });
