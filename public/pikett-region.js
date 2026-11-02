@@ -18,11 +18,12 @@ export async function renderPikettRegion(root,{api,safe,registerDispose}){
  const q=id=>root.querySelector('#'+id),L=window.L;if(!L)throw Error('Die Kartenbibliothek konnte nicht geladen werden');
  const map=L.map(q('pikett-region-map'),{zoomControl:false,fadeAnimation:false});
  L.control.zoom({zoomInTitle:'Vergrössern',zoomOutTitle:'Verkleinern'}).addTo(map);
+ const boundaries=map.createPane('pikettRegionBoundaries');boundaries.style.zIndex='450';boundaries.style.pointerEvents='none';
  const background=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>'}).addTo(map);
  let disposed=false,sequence=0,addressSequence=0,searchSequence=0,point=null,marker,polygons,mapData=null,lastResult=null,colors=new Map(),backgroundUnavailable=false,at=new Date().toISOString();
  const fit=()=>map.fitBounds([[46.85,8.78],[47.60,9.70]],{padding:[12,12],animate:false});fit();
  background.on('tileerror',()=>{backgroundUnavailable=true;if(!disposed)q('pikett-region-map-status').textContent='OpenStreetMap ist nicht erreichbar. Gebietsflächen und Ortsabfrage bleiben verfügbar.';});
- const style=feature=>({color:colors.get(String(feature.properties.GEO_ID)),fillColor:colors.get(String(feature.properties.GEO_ID)),weight:3,fillOpacity:.045,opacity:1});
+ const style=feature=>({color:colors.get(String(feature.properties.GEO_ID)),fillColor:colors.get(String(feature.properties.GEO_ID)),stroke:false,fillOpacity:.045,opacity:1});
  const drawPolygons=()=>{
   if(!mapData)return;
   if(!lastResult){if(polygons){map.removeLayer(polygons);polygons=null;}if(!backgroundUnavailable)q('pikett-region-map-status').textContent='Eine Adresse suchen oder einen Kartenpunkt wählen, um die betroffenen Gebiete anzuzeigen.';return;}
@@ -33,7 +34,11 @@ export async function renderPikettRegion(root,{api,safe,registerDispose}){
   }).filter(Boolean);
   const ids=[...new Set(visible.map(f=>String(f.properties.GEO_ID)))].sort();colors=new Map(ids.map((id,index)=>[id,`hsl(${20+index*360/Math.max(1,ids.length)}, 80%, 38%)`]));
   if(polygons)map.removeLayer(polygons);
-  polygons=L.geoJSON({type:'FeatureCollection',features:visible},{interactive:false,style,onEachFeature:(feature,layer)=>layer.on('add',()=>{const node=layer.getElement();if(node){node.setAttribute('data-region-polygon',String(feature.properties.GEO_ID));node.setAttribute('role','img');node.setAttribute('aria-label',feature.properties.Beschreibung);}})}).addTo(map);
+  const fills=L.geoJSON({type:'FeatureCollection',features:visible},{interactive:false,style,onEachFeature:(feature,layer)=>layer.on('add',()=>{const node=layer.getElement();if(node){node.setAttribute('data-region-polygon',String(feature.properties.GEO_ID));node.setAttribute('role','img');node.setAttribute('aria-label',feature.properties.Beschreibung);}})});
+  // Broad boundaries first, narrow boundaries above: coincident edges retain
+  // a visible band of each color. A separate pane keeps every fill below them.
+  const outlines=L.geoJSON({type:'FeatureCollection',features:[...visible].sort((a,b)=>ids.indexOf(String(a.properties.GEO_ID))-ids.indexOf(String(b.properties.GEO_ID)))},{interactive:false,pane:'pikettRegionBoundaries',style:feature=>({color:colors.get(String(feature.properties.GEO_ID)),weight:3+4*(ids.length-1-ids.indexOf(String(feature.properties.GEO_ID))),fill:false,opacity:1}),onEachFeature:(feature,layer)=>layer.on('add',()=>{const node=layer.getElement();if(node){node.setAttribute('data-region-outline',String(feature.properties.GEO_ID));node.setAttribute('aria-hidden','true');}})});
+  polygons=L.featureGroup([fills,outlines]).addTo(map);
   if(!backgroundUnavailable)q('pikett-region-map-status').textContent=lastResult?'Nur betroffene Teilgebiete mit Zuständigkeit am gewählten Punkt und Zeitpunkt.':'Teilgebiete mit unterschiedlichen Farben. Einen Punkt wählen, um die betroffenen Gebiete anzuzeigen.';
  };
 
