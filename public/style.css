@@ -241,7 +241,6 @@ th.sortable-heading{padding:0}.table-sort-button{display:block;width:100%;paddin
 #control-required-only::before{content:'○';margin-right:6px}#control-required-only[aria-checked=true]{background:var(--green);color:white}#control-required-only[aria-checked=true]::before{content:'✓'}
 .duty-copy-mode .timeline-day,.duty-copy-mode .duty-bar{cursor:copy}#copy-selected-duties[aria-pressed=true]{background:var(--green);color:white}
 .duty-bar.whole-region-duty{background-image:repeating-linear-gradient(135deg,transparent 0,transparent 5px,rgba(255,255,255,.48) 5px,rgba(255,255,255,.48) 7px,rgba(0,0,0,.2) 7px,rgba(0,0,0,.2) 8px)}
-.pikett-region-legend{margin:12px 0}.pikett-region-legend h3{margin:0 0 6px;font-size:1rem}.pikett-region-legend ul{display:flex;flex-wrap:wrap;gap:8px 20px;list-style:none;padding:0;margin:0;max-height:200px;overflow:auto}.pikett-region-legend li{display:flex;align-items:center;gap:7px;font-size:.85rem}.pikett-region-legend .map-color{flex-shrink:0}
 .planning-tabs-header{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-bottom:12px}.planning-tabs-header>.master-tabs{margin:0}
 #pikett-region-query{width:min(420px,100%)}.address-search-results{list-style:none;padding:0;display:grid;gap:6px}.address-search-results button{text-align:left;width:100%}
 #statistics-filters{align-items:flex-end}#statistics-filters label{display:grid;gap:5px;margin:0}.statistics-table{width:100%;max-width:1000px}.statistics-table .stat-hours{text-align:right;font-variant-numeric:tabular-nums}.statistics-table tfoot{font-weight:600;border-top:2px solid #c4d0d8}
@@ -250,3 +249,5 @@ th.sortable-heading{padding:0}.table-sort-button{display:block;width:100%;paddin
 .statistics-table tfoot th,.statistics-table tfoot td{background:#173849;color:white;font-weight:750;font-size:1.1rem;padding:16px 12px;border-top:3px solid #137d69;border-bottom:0}.statistics-table tfoot .stat-hours{font-size:1.25rem}.statistics-region-control{display:grid;gap:5px}.statistics-region-control button{margin-left:0}
 
 #statistics-filters .check-option{display:flex;align-items:center;gap:9px;padding:4px 0}
+
+.region-duty-color{margin-right:7px;vertical-align:middle}
