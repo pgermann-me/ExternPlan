@@ -12,7 +12,7 @@ test('Getrennte Namen, Kontaktstandard 0 und unveränderliche Kennung bei Bearbe
 test('Bestehende vollständige Namen und weitere Kontakte gehen nicht verloren',()=>{
  const legacy={employee_id:'LEGACY-ID',name:'Bestehender vollständiger Name',source:'manual',contacts:[{type:'Telefon',value:'Alt',priority:3}]};
  const updated=manualPerson({first_name:'',last_name:''},legacy);
- assert.equal(updated.name,legacy.name);assert.equal(updated.employee_id,legacy.employee_id);assert.deepEqual(updated.contacts,legacy.contacts);
+ assert.equal(updated.name,legacy.name);assert.equal(updated.employee_id,legacy.employee_id);assert.deepEqual(updated.contacts,legacy.contacts.map(c=>({...c,description:''})));
 });
 test('SAP nimmt getrennte Namen explizit entgegen und lässt persID unverändert',()=>{
  const mapping={employee_id:'persID',first_name:'Vorname',last_name:'Name',department_id:'Abteilung',contacts:'Kontakte'};

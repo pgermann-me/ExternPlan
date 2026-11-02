@@ -33,7 +33,7 @@ import {timelineBars} from './timeline.js';
 import {personGroupIds,allowedFunctionRegions,validatePlanningGroup,planningPeople,controlFunctions,validateScopeRestrictions} from './public/organization.js';
 import express from 'express';
 import {installAccounts,roleViews} from './accounts.js';
-import { manualPerson,deletePerson,personDetails,validatePersonAffiliations } from './people.js';
+import { manualPerson,deletePerson,personDetails,validatePersonAffiliations,ensureContactDescriptions } from './people.js';
 import { personMonth } from './person-planning.js';
 import {active,publicState,deleteMaster} from './master-data.js';
 import {saveFavorite,removeFavorite,previewFavorite,applyFavorite,reorderFavorites} from './favorites.js';
@@ -72,6 +72,7 @@ mutate(s=>{const original=JSON.stringify(s),catalog=JSON.parse(readFileSync(new 
 mutate(s=>{const original=JSON.stringify(s),result=recoverHunterPeople(s);if(result.changed){const backup=resolve(dataDir,'backup-before-hunter-people-recovery-'+id()+'.json');writeFileSync(backup,original,{mode:0o600,flag:'wx'});console.log('Jäger-Personen wiederhergestellt; Sicherung: '+backup);}return result;});
 if(!testFixtures)mutate(s=>{const original=JSON.stringify(s),catalog=JSON.parse(readFileSync(new URL('./map-data/hunter-regions.json',import.meta.url),'utf8')),count=normalizeHunterRegionNames(s,catalog);if(count){const backup=resolve(dataDir,'backup-before-hunter-region-names-'+id()+'.json');writeFileSync(backup,original,{mode:0o600,flag:'wx'});console.log(count+' Jagdgebietsbezeichnungen ergänzt; Sicherung: '+backup);}return count;});
 if(!testFixtures)mutate(s=>{const original=JSON.stringify(s),result=normalizeFunctionRegionModel(s);if(result){const backup=resolve(dataDir,'backup-before-function-region-groups-'+id()+'.json');writeFileSync(backup,original,{mode:0o600,flag:'wx'});console.log('Funktionen auf Gebietsgruppen umgestellt; Sicherung: '+backup);}return result;});
+mutate(s=>{const original=JSON.stringify(s),count=ensureContactDescriptions(s);if(count){writeFileSync(resolve(dataDir,'backup-before-contact-descriptions-'+id()+'.json'),original,{mode:0o600,flag:'wx'});}return count;});
 app.get('/api/region-map',(req,res)=>res.json({layers:mapLayers()}));
 app.post('/api/geojson/preview',(req,res)=>{if(!req.body.mapping)return res.json(inspectGeojson(req.body.geojson));const {geojson,...preview}=mapGeojson(req.body.geojson,req.body.mapping);res.json({...preview,conflicts:geojsonConflicts(mapLayers(),preview)});});
 app.post('/api/geojson/import',(req,res)=>res.json(mutate(s=>{const {layer,summary}=prepareGeojsonImport(s,mapLayers(),req.body);db.prepare('INSERT INTO imported_map_layers (id,data) VALUES (?,?)').run(layer.id,JSON.stringify(layer));return summary;})));

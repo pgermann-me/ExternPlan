@@ -1,4 +1,4 @@
-const phoneTypes=new Set(['telefon pikett','phone_mobile','phone_business','phone_private','phone','telefon','telefon mobil','telefon mobile','telefon geschäft','telefon geschaeft','telefon privat','mobile','mobil','business','private','natel','festnetz']);
+const phoneTypes=new Set(['tel pikett','tel. pikett','telefon pikett','phone_mobile','phone_business','phone_private','phone','telefon','telefon mobil','telefon mobile','telefon geschäft','telefon geschaeft','telefon privat','mobile','mobil','business','private','natel','festnetz']);
 export const isPhoneContact=type=>phoneTypes.has(String(type??'').trim().toLocaleLowerCase('de-CH'));
 export function normalizePhone(value){
  if(typeof value!=='string')throw Error('Telefonnummer als Text eingeben');
@@ -14,6 +14,10 @@ export function normalizePhone(value){
  if(!/^\+[1-9]\d{6,14}$/.test(number)||number.startsWith('+41')&&!/^\+41[1-9]\d{8}$/.test(number))throw Error('Ungültige Telefonnummer. Schweizer Nummer z. B. 079 578 68 88 oder internationale Nummer mit +Ländervorwahl eingeben.');
  return number;
 }
+export function contactDescription(contact){
+ if(contact.description!=null&&typeof contact.description!=='string')throw Error('Kontaktbeschreibung muss Text sein');
+ const text=(contact.description||'').trim();return /^(telefon|tel\.?)\s*pikett$/i.test(String(contact.type).trim())&&(!text||text==='Pikett')?'Pikettnummer 24h':text;
+}
 export function normalizePersonContacts(contacts,previous=[]){
  return contacts.map(contact=>{
   let value=contact.value;
@@ -23,6 +27,6 @@ export function normalizePersonContacts(contacts,previous=[]){
     if(!previous.some(old=>old.type===contact.type&&old.value===value))throw error;
    }
   }
-  return {...contact,value,priority:contact.priority??0};
+  return {...contact,value,priority:contact.priority??0,description:contactDescription(contact)};
  });
 }

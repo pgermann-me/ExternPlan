@@ -1,5 +1,5 @@
 import {officeAffiliationProblem} from './offices.js';
-import {normalizePersonContacts} from './public/phone.js';
+import {normalizePersonContacts,contactDescription} from './public/phone.js';
 import {personAffiliationProblem} from './public/person-affiliation-rules.js';
 import {withRegionGroups} from './public/region-groups.js';
 import {DateTime} from 'luxon';
@@ -66,4 +66,9 @@ export function validatePersonAffiliations(s,p,previous){
   if(unchanged)continue;
   const problem=personAffiliationProblem(s,p,r);if(problem)throw Error(problem);
  }
+}
+
+export function ensureContactDescriptions(s){
+ let changed=0;for(const record of [...s.people,...(s.offices||[])])for(const contact of record.contacts||[]){const description=contactDescription(contact);if(contact.description!==description){contact.description=description;changed++;}}
+ if(changed)audit(s,'maintenance','contact-descriptions',null,{contacts:changed});return changed;
 }

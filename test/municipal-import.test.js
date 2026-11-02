@@ -34,7 +34,7 @@ test('Stellen remain separate from people, have their own export identifiers and
  const parsed=await parseMunicipalFiles([await municipalFile()]),s=prepareMunicipalImport(state(),parsed,request(parsed)).state;
  const org=s.offices.find(o=>o.name==='Beispiel AG'),root=s.offices.find(o=>!o.parent_office_id);
  saveOffice(s,{id:root.id,els_org_id:'ELS-ROOT'});const persons=onCallPersonExample(s);assert.equal(persons.payload.length,4);assert.ok(persons.payload.every(p=>p.department==='ELS-ROOT'));
- const organisations=onCallOrganisationExample(s);assert.ok(organisations.payload.some(o=>o.orgID==='ELS-ROOT'));assert.equal(organisations.payload.find(o=>o.orgID===org.id).organisation,'ELS-ROOT');assert.ok(organisations.payload.find(o=>o.orgID===org.id).contacts.some(c=>c.type==='Phone'&&c.description==='Pikett'));
+ const organisations=onCallOrganisationExample(s);assert.ok(organisations.payload.some(o=>o.orgID==='ELS-ROOT'));assert.equal(organisations.payload.find(o=>o.orgID===org.id).organisation,'ELS-ROOT');assert.ok(organisations.payload.find(o=>o.orgID===org.id).contacts.some(c=>c.type==='Phone'&&c.description==='Pikettnummer 24h'));
  const before=structuredClone(s);assert.throws(()=>saveOffice(s,{id:root.id,parent_office_id:org.id}),/Kreis/);assert.deepEqual(s,before);assert.throws(()=>saveOffice(s,{id:org.id,els_org_id:'ELS-ROOT'}),/vergeben/);assert.deepEqual(s,before);
  for(const role of ['planner','user'])for(const action of ['preview','commit'])assert.equal(permitted(role,'POST','/api/import/municipal/'+action),false);
 });

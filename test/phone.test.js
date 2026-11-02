@@ -18,5 +18,5 @@ test('Create and edit normalize all telephone fields, keeping other contacts and
 });
 test('Unchanged legacy phone text survives editing while numeric legacy numbers normalize',()=>{
  const previous=[{type:'Telefon',value:'Historischer Kontakt',priority:3},{type:'phone_business',value:'071 222 33 44',priority:0}];
- const result=normalizePersonContacts(previous,previous);assert.deepEqual(result[0],previous[0]);assert.equal(result[1].value,'+41712223344');assert.throws(()=>normalizePersonContacts([{...previous[0],value:'Anderer ungültiger Text'}],previous));
+ const result=normalizePersonContacts(previous,previous);assert.deepEqual(result[0],{...previous[0],description:''});assert.equal(result[1].value,'+41712223344');assert.throws(()=>normalizePersonContacts([{...previous[0],value:'Anderer ungültiger Text'}],previous));
 });

@@ -255,3 +255,5 @@ th.sortable-heading{padding:0}.table-sort-button{display:block;width:100%;paddin
 .municipal-import-board{max-height:60vh;margin:12px 0}.municipal-import-board th,.municipal-import-board td{padding:8px}.municipal-import-board input:not([type=checkbox]),.municipal-import-board select{max-width:280px;width:100%;min-width:100px}.municipal-import-board small{display:block}.municipal-import-board label{margin:5px 0}.municipal-warning,#municipal-error{color:#a13d33;font-size:12px}.municipal-import-board [data-field=priority]{width:65px;min-width:65px}.municipal-import-board [data-field=function_name]{min-width:220px}
 
 #office-hierarchy{margin:16px 0}#office-hierarchy small{display:block;font-weight:400}#office-hierarchy td p{margin:3px 0}.person-affiliation-row [data-affiliation-office]{max-width:220px}
+
+.contact-row{grid-template-columns:minmax(0,1fr) 75px minmax(0,1fr)}.contact-row input{min-width:0;width:100%}@media(max-width:600px){.contact-row{grid-template-columns:minmax(0,1fr) 75px}.contact-row label:nth-of-type(3){grid-row:3;grid-column:1/-1}.contact-row input:nth-of-type(3){grid-row:4;grid-column:1/-1}}

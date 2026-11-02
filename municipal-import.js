@@ -4,7 +4,7 @@ import {DateTime} from 'luxon';
 import {audit,id} from './domain.js';
 import {saveOffice} from './offices.js';
 import {manualPerson,validatePersonAffiliations} from './people.js';
-import {normalizePhone} from './public/phone.js';
+import {normalizePhone,contactDescription} from './public/phone.js';
 import {personGroupIds} from './public/organization.js';
 import {regionGroupIds,withRegionGroups} from './public/region-groups.js';
 export const municipalName=value=>String(value||'').normalize('NFD').replace(/\p{M}/gu,'').toLowerCase().replace(/\(sg\)|gemeinde|stadt/g,'').replace(/[^a-z0-9]/g,'');
@@ -38,8 +38,8 @@ export async function parseMunicipalFiles(files,now=Date.now()){
    const office_name=person_kind==='office'?name:/^TB /.test(raw_role)?raw_role:section,parent_office_name=office_name!==section?section:'';
    const roleNames=canonicalRole(raw_role).split(/\s+\/\s+(?=Schulpräsident\b)/);
    const phones=[3,4,5,6].map(c=>cell(row,c)),contacts=[],types=['Telefon Pikett','phone_business','phone_private','phone_mobile'];let invalid=false;
-   phones.forEach((value,i)=>{if(!value)return;try{contacts.push({type:types[i],value:normalizePhone(value),priority:i===0?1:0});}catch{invalid=true;warnings.push('Ungültige Telefonnummer in '+['Tel Pikett','Tel G','Tel Priv.','Natel'][i]+': bitte korrigieren.');}});
-   const email=cell(row,7);if(email)contacts.push({type:'email',value:email,priority:0});if(cell(row,8))warnings.push('Fax wird nicht übernommen.');
+   phones.forEach((value,i)=>{if(!value)return;try{contacts.push({type:types[i],value:normalizePhone(value),priority:i===0?1:0,description:i===0?'Pikettnummer 24h':''});}catch{invalid=true;warnings.push('Ungültige Telefonnummer in '+['Tel Pikett','Tel G','Tel Priv.','Natel'][i]+': bitte korrigieren.');}});
+   const email=cell(row,7);if(email)contacts.push({type:'email',value:email,priority:0,description:''});if(cell(row,8))warnings.push('Fax wird nicht übernommen.');
    if(cell(row,10)&&!deletion)warnings.push('Hinweis in Spalte löschen: '+cell(row,10));
    for(const [part,function_name] of roleNames.entries()){const priority=(counts.get(function_name)||0)+1;if(!deletion&&!vacant&&!expired)counts.set(function_name,priority);rows.push({key:index+':'+n+':'+part,row:n,raw_role,raw_name:cell(row,2),function_name,person_kind,office_name,parent_office_name,first_name,last_name,priority,contacts,phones,email,warnings,include:!deletion&&!vacant&&!expired&&!invalid&&(person_kind==='office'||!!first_name)});}
   }
@@ -74,7 +74,7 @@ export function prepareMunicipalImport(source,parsed,input){
    let rg=s.region_groups.find(g=>active(g)&&g.municipal_function_id===fn.id);if(!rg){rg={id:id(),name:fn.name+' · Gemeindegebiete',municipal_function_id:fn.id,function_ids:[fn.id]};s.region_groups.push(rg);audit(s,'region_groups','create',null,structuredClone(rg));}
    if(!regionGroupIds(doc.region).includes(rg.id)){const before=structuredClone(doc.region);doc.region.region_group_ids=[...regionGroupIds(doc.region),rg.id];delete doc.region.region_group_id;audit(s,'regions','update',before,structuredClone(doc.region));}
    if(!['person','office'].includes(row.person_kind))throw Error('Eintrag muss Person oder Stelle sein');
-   if(!Array.isArray(row.phones)||row.phones.length!==4||row.phones.some(v=>typeof v!=='string'))throw Error('Vier Telefonfelder erwartet');const contacts=row.phones.flatMap((v,i)=>v.trim()?[{type:['Telefon Pikett','phone_business','phone_private','phone_mobile'][i],value:normalizePhone(v),priority:i===0?1:0}]:[]);if(row.email){if(typeof row.email!=='string'||!/^\S+@\S+\.\S+$/.test(row.email))throw Error('Ungültige E-Mail-Adresse');contacts.push({type:'email',value:row.email.trim(),priority:0});}
+   if(!Array.isArray(row.phones)||row.phones.length!==4||row.phones.some(v=>typeof v!=='string'))throw Error('Vier Telefonfelder erwartet');const contacts=row.phones.flatMap((v,i)=>v.trim()?[{type:['Telefon Pikett','phone_business','phone_private','phone_mobile'][i],value:normalizePhone(v),priority:i===0?1:0,description:i===0?'Pikettnummer 24h':''}]:[]);if(row.email){if(typeof row.email!=='string'||!/^\S+@\S+\.\S+$/.test(row.email))throw Error('Ungültige E-Mail-Adresse');contacts.push({type:'email',value:row.email.trim(),priority:0,description:''});}
    const storeOffice=(name,parent,values={})=>{
     if(typeof name!=='string'||!name.trim()||name.length>250)throw Error('Stellenbezeichnung erforderlich');
     const officeKey=doc.municipality_key+':'+norm(name),existing=s.offices.find(o=>active(o)&&(o.municipal_key===officeKey||o.group_id===group.id&&norm(o.name)===norm(name)));
@@ -86,6 +86,7 @@ export function prepareMunicipalImport(source,parsed,input){
    let office=storeOffice(row.office_name,parent);
    if(row.person_kind==='office'){
     const sourceKey=doc.municipality_key+':'+norm(row.raw_role)+':'+norm(row.raw_name),oldSource=office.municipal_sources?.find(x=>x.key===sourceKey),otherSources=(office.municipal_sources||[]).filter(x=>x.key!==sourceKey);
+    for(const c of contacts){const existing=office.contacts?.find(old=>old.type===c.type&&old.value===c.value);if(existing)c.description=contactDescription(existing);}
     const combined=(office.contacts||[]).filter(c=>!oldSource?.contacts?.some(old=>old.type===c.type&&old.value===c.value)||otherSources.some(x=>x.contacts?.some(old=>old.type===c.type&&old.value===c.value)));for(const c of contacts)if(!combined.some(old=>old.type===c.type&&old.value===c.value))combined.push(c);
     office=storeOffice(row.office_name,parent,{contacts:combined,function_regions:[...(office.function_regions||[]).filter(a=>a.function_id!==fn.id||a.geo_id!==doc.region.id),{function_id:fn.id,geo_id:doc.region.id,priority:row.priority}]});office.municipal_sources=[...otherSources,{key:sourceKey,contacts}];summary.affiliations++;continue;
    }
@@ -93,6 +94,7 @@ export function prepareMunicipalImport(source,parsed,input){
    let previous;
    if(row.employee_id){previous=s.people.find(p=>active(p)&&p.employee_id===row.employee_id);if(!previous||previous.source!=='manual')throw Error('Gewählte Person nicht verfügbar oder nicht manuell gepflegt');}
    else{const candidates=s.people.filter(p=>active(p)&&p.source==='manual'&&(p.municipal_sources?.some(x=>x.person_key===personKey||x.key===sourceKey)||personGroupIds(p).includes(group.id)&&norm(p.name)===norm(targetName)));if(candidates.length>1)throw Error('Mehrere passende Personen: '+targetName+'; bitte explizit auswählen');previous=candidates[0];}
+   for(const c of contacts){const existing=previous?.contacts?.find(old=>old.type===c.type&&old.value===c.value);if(existing)c.description=contactDescription(existing);}
    const oldSource=previous?.municipal_sources?.find(x=>x.key===sourceKey),otherSources=(previous?.municipal_sources||[]).filter(x=>x.key!==sourceKey),retained=(previous?.contacts||[]).filter(c=>!oldSource?.contacts?.some(old=>old.type===c.type&&old.value===c.value)||otherSources.some(x=>x.contacts?.some(old=>old.type===c.type&&old.value===c.value)));
    const combined=[...retained];for(const c of contacts)if(!combined.some(old=>old.type===c.type&&old.value===c.value))combined.push(c);
    const person=manualPerson({first_name:row.first_name,last_name:row.last_name,department_id:previous?.department_id||department.id,group_ids:[...new Set([...personGroupIds(previous),group.id])],contacts:combined},previous,'EXT-'+id());

@@ -3,7 +3,7 @@ const contactTypes=[['phone_mobile','Telefon Mobil','mobile'],['phone_business',
 export function listContacts(contacts=[]){
  const rank=c=>{const i=contactTypes.findIndex(types=>types.includes(c.type));return i<0?contactTypes.length:i;};
  const priority=c=>Number(c.priority)>0?Number(c.priority):Infinity;
- return contacts.filter(c=>contactTypes.some(types=>types.includes(c.type))||/^(telefon|phone|mobil|polycom|natel)/i.test(c.type)).sort((a,b)=>priority(a)-priority(b)||rank(a)-rank(b)).map(c=>`${Number(c.priority)?'('+c.priority+') ':''}${contactTypes[rank(c)]?.[1]||c.type}: ${c.value}`);
+ return contacts.filter(c=>contactTypes.some(types=>types.includes(c.type))||/^(telefon|phone|mobil|polycom|natel)/i.test(c.type)).sort((a,b)=>priority(a)-priority(b)||rank(a)-rank(b)).map(c=>`${Number(c.priority)?'('+c.priority+') ':''}${contactTypes[rank(c)]?.[1]||c.type}: ${c.value}${c.description?' · '+c.description:''}`);
 }
 // End is exclusive. Later duties are shown only if they start on the selected Swiss calendar day.
 export function pikettList(state,at){

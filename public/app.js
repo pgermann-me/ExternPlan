@@ -148,7 +148,7 @@ function personAffiliationValues(p){
  return {Abteilung:personDepartmentIds(p,state.groups).map(id=>state.departments.find(d=>d.id===id)?.name).filter(Boolean),Gruppe:personGroupIds(p).map(groupName).filter(Boolean),Funktion:[...new Set(personFunctionIds(p).map(functionName))].sort((a,b)=>a.localeCompare(b,'de-CH'))};
 }
 function personAffiliations(p){return `<dl class="person-affiliations">${Object.entries(personAffiliationValues(p)).map(([title,values])=>`<div><dt>${title}</dt><dd>${values.map(esc).join(', ')||'—'}</dd></div>`).join('')}</dl>`;}
-function personContacts(p){return sortedContacts(p.contacts).map(x=>`<p class="small person-contact">${Number(x.priority)?'('+esc(x.priority)+') ':''}${esc(contactName(x.type))}: ${esc(x.value)}</p>`).join('');}
+function personContacts(p){return sortedContacts(p.contacts).map(x=>`<p class="small person-contact">${Number(x.priority)?'('+esc(x.priority)+') ':''}${esc(contactName(x.type))}: ${esc(x.value)}${x.description?' · '+esc(x.description):''}</p>`).join('');}
 function personAffiliationDetails(p){return (p.function_regions||[]).map(r=>`<p class="small">${esc(functionName(r.function_id))} · ${esc(r.geo_id?regionName(r.geo_id)+' ('+r.geo_id+')':'Ortsunabhängig')} · ${r.priority?'Priorität '+esc(r.priority):'Keine Priorität'}</p>`).join('')||'<span class="muted">—</span>';}
 function personBusinessAddress(p,showLabel=true){const a=p.business_address;if(!a)return '';const lines=[[a.street,a.streetNumber].filter(Boolean).join(' '),a.additionalInfo,[a.zipCode,a.city].filter(Boolean).join(' '),a.country].filter(Boolean);return lines.length?`<p class="small person-business-address">${showLabel?`<b>${a.type==='BusinessPostal'?'Geschäftliche Postadresse':'Geschäftliche Adresse'}</b><br>`:''}${lines.map(esc).join('<br>')}</p>`:'';}
 function personActions(p){return `<div class="actions"><button class="secondary" data-person-calendar="${esc(p.employee_id)}">Dienste</button>${p.source==='manual'?`<button class="secondary" data-person="${esc(p.employee_id)}">Bearbeiten</button>`:`<button class="secondary" data-person-groups="${esc(p.employee_id)}">Bearbeiten</button>`}<button type="button" class="secondary" data-copy-person="${esc(p.employee_id)}">Kopieren</button></div>`;}
@@ -386,7 +386,7 @@ function personDialog(p={},copySource=null){
  const remaining=[...(p.contacts||[])];
  const values=contactFields.map(f=>{const i=remaining.findIndex(c=>f.aliases.includes(c.type));return i<0?null:remaining.splice(i,1)[0];});
  const legacy=p.employee_id&&!p.first_name&&!p.last_name;
- const contactRow=(key,text,c,type='tel')=>`<div class="contact-row">${label(text,input(key,c?.value||'',type,false))}${label('Prio',`<input name="${key}_priority" type="number" min="0" step="1" value="${esc(c?.priority??0)}" required aria-label="Priorität ${esc(text)}">`)}</div>`;
+ const contactRow=(key,text,c,type='tel')=>`<div class="contact-row">${label(text,input(key,c?.value||'',type,false))}${label('Prio',`<input name="${key}_priority" type="number" min="0" step="1" value="${esc(c?.priority??0)}" required aria-label="Priorität ${esc(text)}">`)}${label('Beschreibung',input(key+'_description',c?.description||'','text',false))}</div>`;
  modal('<h2>Externe Person</h2>'+(copySource?`<p class="small muted">Zuordnungen übernommen von ${esc([copySource.last_name,copySource.first_name].filter(Boolean).join(' ')||copySource.name)}. Aktive Abteilungs-, Gruppen-, Funktions- und Gebietszuordnungen samt Prioritäten sind vorbelegt. Bitte die Daten der neuen Person ergänzen; bestehende Pikettdienste werden nicht kopiert.</p>`:'')+ (p.employee_id?`<p class="small muted">employee_id: ${esc(p.employee_id)}</p>`:'<p class="muted">Die employee_id wird beim Speichern automatisch erzeugt.</p>')+
  (legacy?`<p class="small muted">Bisheriger vollständiger Name: ${esc(p.name)}. Für getrennte Namen beide Felder ausfüllen; andernfalls bleibt dieser Name erhalten.</p>`:'')+
  '<div class="name-fields">'+label('Name',input('last_name',p.last_name||'','text',!legacy))+label('Vorname',input('first_name',p.first_name||'','text',!legacy))+'</div>'+
@@ -401,8 +401,8 @@ function personDialog(p={},copySource=null){
  (remaining.length?'<h3>Weitere bestehende Kontakte</h3>'+remaining.map((c,i)=>contactRow('extra_'+i,c.type,c,'text')).join(''):'')+
  (p.employee_id?personDeleteButton(p):''),async d=>{
    const contacts=[];
-   for(const f of contactFields){const value=d[f.type].trim();if(value)contacts.push({type:f.type,value,priority:Number(d[f.type+'_priority'])});}
-   remaining.forEach((c,i)=>{const value=d['extra_'+i].trim();if(value)contacts.push({...c,value,priority:Number(d['extra_'+i+'_priority'])});});
+   for(const [i,f] of contactFields.entries()){const value=d[f.type].trim();if(value)contacts.push({...values[i],type:f.type,value,priority:Number(d[f.type+'_priority']),description:d[f.type+'_description'].trim()});}
+   remaining.forEach((c,i)=>{const value=d['extra_'+i].trim();if(value)contacts.push({...c,value,priority:Number(d['extra_'+i+'_priority']),description:d['extra_'+i+'_description'].trim()});});
    const business_address={type:d.business_address_type,...Object.fromEntries(businessAddressFields.map(([key])=>[key,d['business_address_'+key]]))};
    const person={...($('#fields [name=els_office_id]')?{els_office_id:d.els_office_id||null}:{}),function_regions:readAffiliations(),birth_date:d.birth_date||null,business_address,first_name:d.first_name,last_name:d.last_name,group_ids:selectedGroups(),department_id:d.department_id||null,contacts};
    const saved=await api('/people'+(p.employee_id?'/'+encodeURIComponent(p.employee_id):''),p.employee_id?'PUT':'POST',person);
