@@ -1,3 +1,4 @@
+import {officeAffiliationProblem} from './offices.js';
 import {normalizePersonContacts} from './public/phone.js';
 import {personAffiliationProblem} from './public/person-affiliation-rules.js';
 import {withRegionGroups} from './public/region-groups.js';
@@ -47,18 +48,21 @@ export function deletePerson(s,employeeId,now=Date.now()){
 export function personDetails(input,previous){
  const birth_date=input.birth_date===undefined?(previous?.birth_date||null):(input.birth_date||null);
  if(birth_date&&(typeof birth_date!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(birth_date)||!DateTime.fromISO(birth_date).isValid))throw Error('Ungültiges Geburtsdatum');
+ const officeDetails=Object.hasOwn(input,'els_office_id')?{els_office_id:input.els_office_id||null}:{};if(officeDetails.els_office_id!=null&&typeof officeDetails.els_office_id!=='string')throw Error('Ungültige ELS-Stelle');
  const rows=input.function_regions??previous?.function_regions;
- if(rows===undefined)return {birth_date};
+ if(rows===undefined)return {birth_date,...officeDetails};
  if(!Array.isArray(rows)||rows.length>1000)throw Error('Funktions-/Gebietszuordnungen müssen eine Liste sein (höchstens 1000)');
  const keys=new Set(),function_regions=rows.map(r=>{
   if(!r||typeof r.function_id!=='string'||!r.function_id||!(r.geo_id===null||typeof r.geo_id==='string'&&r.geo_id)||!Number.isSafeInteger(r.priority??0)||(r.priority??0)<0)throw Error('Zuordnung benötigt Funktion, Gebiet und ganzzahlige Priorität ab 0');
-  const key=JSON.stringify([r.function_id,r.geo_id]);if(keys.has(key))throw Error('Funktion und Gebiet dürfen pro Person nur einmal zugeordnet werden');keys.add(key);return {function_id:r.function_id,geo_id:r.geo_id,priority:r.priority??0};
- });return {birth_date,function_regions};
+  const key=JSON.stringify([r.function_id,r.geo_id]);if(keys.has(key))throw Error('Funktion und Gebiet dürfen pro Person nur einmal zugeordnet werden');keys.add(key);if(r.office_id!==undefined&&r.office_id!==null&&typeof r.office_id!=='string')throw Error('Ungültige Stellenkennung');return {function_id:r.function_id,geo_id:r.geo_id,priority:r.priority??0,...(r.office_id?{office_id:r.office_id}:{})};
+ });return {birth_date,...officeDetails,function_regions};
 }
 export function validatePersonAffiliations(s,p,previous){
  s=withRegionGroups(s);
+ if(p.els_office_id&&(!(s.offices||[]).some(o=>o.id===p.els_office_id&&!o.deleted_at)||!p.function_regions?.some(r=>r.office_id===p.els_office_id)))throw Error('ELS-Stelle muss einer Funktionszuordnung dieser Person entsprechen');
  for(const r of p.function_regions||[]){
-  const unchanged=(previous?.function_regions||[]).some(old=>old.function_id===r.function_id&&old.geo_id===r.geo_id&&old.priority===r.priority);
+  const unchanged=(previous?.function_regions||[]).some(old=>old.function_id===r.function_id&&old.geo_id===r.geo_id&&old.priority===r.priority&&old.office_id===r.office_id);
+  const officeProblem=officeAffiliationProblem(s,p,r);if(officeProblem)throw Error(officeProblem);
   if(unchanged)continue;
   const problem=personAffiliationProblem(s,p,r);if(problem)throw Error(problem);
  }

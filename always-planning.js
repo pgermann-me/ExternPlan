@@ -18,18 +18,20 @@ export function changeAlwaysAffiliation(state,input,user){
  const rows=person.function_regions||[],index=rows.findIndex(r=>r.function_id===function_id&&r.geo_id===geo_id);
  if(action==='add'&&index>=0)fail('Diese Funktion und Region sind der Person bereits zugeordnet',409);
  if(action!=='add'&&(index<0||!Number.isSafeInteger(input.expected_priority)||input.expected_priority<0||input.expected_priority!==(rows[index].priority??0)))fail('Die Zuordnung wurde inzwischen geändert. Bitte neu laden',409);
- const affiliation={function_id,geo_id,priority};
+ const office_id=index>=0?rows[index].office_id:input.office_id;if(office_id&&(typeof office_id!=='string'||index<0&&restricted(user)&&!policy.officeIds.has(office_id)))fail('Stelle liegt ausserhalb Ihrer Berechtigung',403);
+ const affiliation={function_id,geo_id,priority,...(office_id?{office_id}:{})};
  const next=action==='add'?[...rows,affiliation]:action==='remove'?rows.filter((_,i)=>i!==index):rows.map((r,i)=>i===index?affiliation:r);
- const after={...person,function_regions:personDetails({function_regions:next},person).function_regions};validatePersonAffiliations(state,after,person);
+ const after={...person,function_regions:personDetails({function_regions:next},person).function_regions};if(after.els_office_id&&!after.function_regions.some(r=>r.office_id===after.els_office_id))after.els_office_id=null;validatePersonAffiliations(state,after,person);
  state.people[state.people.indexOf(person)]=after;audit(state,'person','update',person,after);
- return {ok:true,affiliation:action==='remove'?null:affiliation};
+ return {ok:true,affiliation:action==='remove'?null:restricted(user)?accessPolicy(state,user).projectPerson(after).function_regions.find(r=>r.function_id===function_id&&r.geo_id===geo_id):affiliation};
 }
 
 export function replaceAlwaysAffiliation(state,input,user){
  if(typeof input.replacement_employee_id!=='string'||input.replacement_employee_id===input.employee_id)fail('Eine andere Person wählen');
+ const office_id=state.people.find(p=>p.employee_id===input.employee_id)?.function_regions?.find(r=>r.function_id===input.function_id&&r.geo_id===input.geo_id)?.office_id;
  const next={...state,people:[...state.people],audit:[...state.audit]},priority=input.priority??input.expected_priority;
  changeAlwaysAffiliation(next,{...input,priority,action:'remove'},user);
- const result=changeAlwaysAffiliation(next,{...input,priority,action:'add',employee_id:input.replacement_employee_id},user);
+ const result=changeAlwaysAffiliation(next,{...input,priority,office_id,action:'add',employee_id:input.replacement_employee_id},user);
  state.people=next.people;state.audit=next.audit;return result;
 }
 export function createAlwaysPerson(state,input,user){
@@ -44,7 +46,8 @@ export function createAlwaysPerson(state,input,user){
  if(input.planning_group_id&&!personGroupIds(values).includes(input.planning_group_id))fail('Die Person muss die gewählte Gruppe erhalten');
  const policy=accessPolicy(state,user);
  if(restricted(user)&&(!policy.functionIds.has(fn.id)||!policy.targetAllowed(fn,geo_id)))fail('Diese Zuordnung liegt ausserhalb Ihrer Berechtigung',403);
- const permitted={first_name:values.first_name,last_name:values.last_name,department_id:values.department_id||null,group_ids:values.group_ids||[],contacts:values.contacts||[],birth_date:values.birth_date,business_address:values.business_address,function_regions:[{function_id,geo_id,priority}]};
+ const office_id=input.replace_employee_id?state.people.find(p=>p.employee_id===input.replace_employee_id)?.function_regions?.find(r=>r.function_id===function_id&&r.geo_id===geo_id)?.office_id:undefined;if(office_id&&restricted(user)&&!policy.officeIds.has(office_id))fail('Stelle liegt ausserhalb Ihrer Berechtigung',403);
+ const permitted={first_name:values.first_name,last_name:values.last_name,department_id:values.department_id||null,group_ids:values.group_ids||[],contacts:values.contacts||[],birth_date:values.birth_date,business_address:values.business_address,function_regions:[{function_id,geo_id,priority,...(office_id?{office_id}:{})}]};
  let employeeId;do{employeeId='EXT-'+id();}while(state.people.some(p=>p.employee_id===employeeId));
  const person=manualPerson(scopedPersonInput(state,user,permitted),null,employeeId);
  if(person.department_id&&!state.departments.some(d=>d.id===person.department_id&&!d.deleted_at))fail('Abteilung unbekannt');

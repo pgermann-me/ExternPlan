@@ -1,4 +1,4 @@
-const phoneTypes=new Set(['phone_mobile','phone_business','phone_private','phone','telefon','telefon mobil','telefon mobile','telefon geschäft','telefon geschaeft','telefon privat','mobile','mobil','business','private','natel','festnetz']);
+const phoneTypes=new Set(['telefon pikett','phone_mobile','phone_business','phone_private','phone','telefon','telefon mobil','telefon mobile','telefon geschäft','telefon geschaeft','telefon privat','mobile','mobil','business','private','natel','festnetz']);
 export const isPhoneContact=type=>phoneTypes.has(String(type??'').trim().toLocaleLowerCase('de-CH'));
 export function normalizePhone(value){
  if(typeof value!=='string')throw Error('Telefonnummer als Text eingeben');

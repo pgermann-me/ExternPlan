@@ -3,21 +3,23 @@ import {personDepartmentIds} from '../public/organization.js';
 import {DateTime} from 'luxon';
 
 // Example mapping only: no identities, AD attributes or personal facts are invented.
-function contactRow(c,issues){
+export function contactRow(c,issues){
  const key=String(c.type||'').toLowerCase();
- const mapping={phone_mobile:['Mobile',''],mobile:['Mobile',''],'telefon mobil':['Mobile',''],phone_business:['Phone','business'],business:['Phone','business'],'telefon geschäft':['Phone','business'],phone_private:['Phone','private'],private:['Phone','private'],'telefon privat':['Phone','private'],phone:['Phone',''],telefon:['Phone',''],email:['Email',''],'e-mail':['Email','']};
+ const mapping={'telefon pikett':['Phone','business'],phone_mobile:['Mobile',''],mobile:['Mobile',''],'telefon mobil':['Mobile',''],phone_business:['Phone','business'],business:['Phone','business'],'telefon geschäft':['Phone','business'],phone_private:['Phone','private'],private:['Phone','private'],'telefon privat':['Phone','private'],phone:['Phone',''],telefon:['Phone',''],email:['Email',''],'e-mail':['Email','']};
  const [type,defaultKind]=mapping[key]||['',''];
  const kind=['business','private'].includes(c.kind)?c.kind:defaultKind;
  if(!type)issues.add('Kontaktart ist noch nicht für OnCall zugeordnet.');
  if(!kind)issues.add('Bei einzelnen Kontakten fehlt die Zuordnung Geschäft/Privat.');
- return {priority:c.priority??0,type,kind,value:String(c.value??''),description:String(c.description??'')};
+ return {priority:c.priority??0,type,kind,value:String(c.value??''),description:String(c.description??(key==='telefon pikett'?'Pikett':''))};
 }
 export function onCallPersonExample(state){
  const warnings=[];
  const payload=state.people.filter(p=>!p.deleted_at).map(p=>{
   const issues=new Set();
   const departments=personDepartmentIds(p,state.groups);
-  const department=p.department_id||(departments.length===1?departments[0]:'');
+  const officeIds=[...new Set((p.function_regions||[]).map(r=>r.office_id).filter(Boolean))],offices=(state.offices||[]).filter(o=>!o.deleted_at),office=offices.find(o=>o.id===(p.els_office_id||(officeIds.length===1?officeIds[0]:null)));
+  const department=office?(office.els_org_id||office.id):officeIds.length?'':p.department_id||(departments.length===1?departments[0]:'');
+  if(office&&!office.els_org_id)issues.add('ELS-Stellenkennung noch nicht bestätigt; interne Stellenkennung verwendet.');if(officeIds.length&&!office)issues.add('Mehrere oder fehlende Stellenzuordnungen; ELS-Stelle bei der Person ausdrücklich wählen.');
   if(!p.first_name||!p.last_name)issues.add('Vorname und Nachname sind noch nicht in getrennten Feldern erfasst.');
   if(!department)issues.add(departments.length>1?'Mehrere Abteilungen vorhanden; eine eindeutige OnCall-Zuordnung fehlt.':'Abteilungszuordnung fehlt.');
   const a=p.business_address;

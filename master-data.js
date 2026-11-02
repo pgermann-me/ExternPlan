@@ -7,7 +7,7 @@ export function publicState(s){
  s=withRegionGroups(s);
  const {planning_undo,...visible}=s;
  const types=['functions','regions','region_groups','groups','rules','favorites'];
- return {...visible,people:s.people.filter(active),archived_people:s.people.filter(p=>!active(p)),...Object.fromEntries(types.map(t=>[t,(s[t]||[]).filter(active)])),favorites:orderedFavorites(s),archived_master:Object.fromEntries(types.map(t=>[t,(s[t]||[]).filter(x=>!active(x))]))};
+ return {...visible,offices:(s.offices||[]).filter(active),people:s.people.filter(active),archived_people:s.people.filter(p=>!active(p)),...Object.fromEntries(types.map(t=>[t,(s[t]||[]).filter(active)])),favorites:orderedFavorites(s),archived_master:Object.fromEntries(types.map(t=>[t,(s[t]||[]).filter(x=>!active(x))]))};
 }
 export function assertRegionDeletable(s,key){
  const record=s.regions.find(r=>r.id===key&&active(r));if(!record)throw Error('Gebiet nicht gefunden');

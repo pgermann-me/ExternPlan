@@ -1,3 +1,4 @@
+import {officeAffiliationProblem} from './offices.js';
 import {audit,change} from './domain.js';
 import {personGroupIds} from './public/organization.js';
 import {accessPolicy,restricted,scopedPersonInput} from './access-scope.js';
@@ -19,6 +20,7 @@ export function bulkPeopleOrganization(s,input,user){
   const nextGroups=groups.mode==='keep'?personGroupIds(visible):groups.mode==='clear'?[]:groups.mode==='add'?[...new Set([...personGroupIds(visible),...ids])]:ids;
   const values=scopedPersonInput(s,user,{group_ids:nextGroups,department_id:department.mode==='keep'?visible.department_id:department.mode==='clear'?null:department.id},before);
   const after={...before,department_id:values.department_id||null,group_ids:values.group_ids,group_id:values.group_ids[0]||null};
+  for(const row of after.function_regions||[]){const problem=officeAffiliationProblem(s,after,row);if(problem)throw Error(problem);}
   // A scoped planner must retain access to every affected person after the change.
   if(policy&&!policy.personAllowed(after)){const error=Error('Die neue Zuordnung liegt ausserhalb Ihrer Berechtigung');error.status=403;throw error;}
   return {before,after};

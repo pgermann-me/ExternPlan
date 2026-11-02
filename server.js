@@ -1,3 +1,6 @@
+import {createOnCallOrganisationExport} from './adapters/oncall-organisation.js';
+import {saveOffice} from './offices.js';
+import {parseMunicipalFiles,municipalPreview,prepareMunicipalImport,municipalToken} from './municipal-import.js';
 import {searchRegions} from './public/region-search.js';
 import {planningStatistics} from './statistics.js';
 import {prepareFunctionRegionConversion,regionConversionToken} from './function-region-conversion.js';
@@ -191,6 +194,11 @@ app.post('/api/exports',(req,res)=>res.json(mutate(s=>makeExport(s,req.body.mode
 app.post('/api/exports/:id/confirm',(req,res)=>res.json(mutate(s=>confirmExport(s,req.params.id))));
 app.post('/api/els/people',(req,res)=>res.json(mutate(s=>{for(const p of s.people)simulatedElsAdapter.syncPerson(s.els,p);return {confirmed:s.people.length};})));
 app.get('/api/exports/:id',(req,res)=>{const e=read().exports.find(x=>x.payload.export_id===req.params.id);if(!e)return res.status(404).json({error:'Nicht gefunden'});res.setHeader('Content-Disposition',`attachment; filename="els-${e.payload.export_id}.json"`);res.json(e.payload);});
+app.post('/api/oncall/organisation-exports',(req,res)=>res.json(mutate(s=>createOnCallOrganisationExport(s))));
+app.get('/api/oncall/organisation-exports/:id',(req,res)=>{const record=(read().office_exports||[]).find(r=>r.id===req.params.id);if(!record)return res.status(404).json({error:'Export nicht gefunden'});res.set('Content-Disposition','attachment; filename="'+record.filename+'"').json(record.payload);});
+app.put('/api/offices/:id',(req,res)=>res.json(mutate(s=>saveOffice(s,{...req.body,id:req.params.id}))));
+app.post('/api/import/municipal/preview',async(req,res)=>{const parsed=await parseMunicipalFiles(req.body.files),s=read();if(!req.body.review)return res.json(municipalPreview(s,parsed));const prepared=prepareMunicipalImport(s,parsed,req.body);res.json({summary:prepared.summary,token:prepared.token});});
+app.post('/api/import/municipal/commit',async(req,res)=>{const parsed=await parseMunicipalFiles(req.body.files);res.json(mutate(s=>{if(!req.body.token||req.body.token!==municipalToken(s,parsed,req.body)){const error=Error('Daten oder Auswahl wurden geändert. Import erneut prüfen.');error.status=409;throw error;}const result=prepareMunicipalImport(s,parsed,req.body);const backup=resolve(dataDir,'backup-before-municipal-import-'+id()+'.json');writeFileSync(backup,JSON.stringify(s),{mode:0o600,flag:'wx'});Object.assign(s,result.state);return result.summary;}));});
 app.post('/api/import/hunters/preview',(req,res)=>res.json(previewHunters(read(),req.body.content)));
 app.post('/api/import/hunters/commit',(req,res)=>res.json(mutate(s=>importHunters(s,req.body.content,req.body.create_regions===true))));
 // Import is two-stage: parse and inspect headers, then explicitly map columns and commit atomically.
