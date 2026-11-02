@@ -1,3 +1,4 @@
+import {searchRegions} from './public/region-search.js';
 import {planningStatistics} from './statistics.js';
 import {prepareFunctionRegionConversion,regionConversionToken} from './function-region-conversion.js';
 import {createGeocoder} from './reverse-geocoding.js';
@@ -169,7 +170,7 @@ app.get('/api/month',(req,res)=>{const s=publicState(scopedState(read(),req.user
 app.get('/api/statistics',(req,res)=>res.json(planningStatistics(scopedState(read(),req.user),req.query)));
 app.get('/api/swiss-time',(req,res)=>res.json({time:iso(automaticSwissInstant(req.query.value))}));
 const geocoder=createGeocoder({searchEndpoint:process.env.GEOCODING_SEARCH_URL,endpoint:process.env.GEOCODING_REVERSE_URL||'https://nominatim.openstreetmap.org/reverse',userAgent:'ExternPlan/1.0 ('+(process.env.RENDER_EXTERNAL_URL||'https://github.com/pgermann-me/ExternPlan')+')'});
-app.get('/api/search-address',async(req,res)=>res.json(await geocoder.search(req.query.q)));
+app.get('/api/search-address',async(req,res)=>{const results=searchRegions(scopedState(read(),req.user),{layers:mapLayers()},req.query.q);res.json(results.length?{results,attribution:''}:await geocoder.search(req.query.q));});
 app.get('/api/reverse-address',async(req,res)=>res.json(await geocoder.reverse(req.query.lat,req.query.lng)));
 app.get('/api/pikett-region-map',(req,res)=>{const s=read();res.json(pikettRegionMap(publicState(scopedState(s,req.user)),{layers:mapLayers()},{parents:parentRegionIds(s)}));});
 app.get('/api/pikett-by-region',(req,res)=>{
