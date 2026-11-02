@@ -4,9 +4,9 @@ import {mkdtempSync,rmSync,readdirSync,statSync} from 'node:fs';
 import {DatabaseSync} from 'node:sqlite';
 import assert from 'node:assert/strict';
 import {emptyState} from '../data-cleanup.js';
-import {municipalFile} from './fixtures/municipal.js';
+import {municipalFile,seedMunicipalFunctions} from './fixtures/municipal.js';
 import {municipalPdf} from './fixtures/municipal-pdf.js';
-const s=emptyState();s.regions=[{id:'T',name:'Testdorf'},{id:'W',name:'Testwil'}];
+const s=seedMunicipalFunctions(emptyState());s.regions=[{id:'T',name:'Testdorf'},{id:'W',name:'Testwil'}];
 const files=[municipalPdf('Testdorf'),await municipalFile('Testwil')];
 const dir=mkdtempSync('/tmp/externplan-function-region-ui-'),db=new DatabaseSync(dir+'/externplan.sqlite');db.exec('CREATE TABLE state(id INTEGER PRIMARY KEY,data TEXT NOT NULL)');db.prepare('INSERT INTO state VALUES(1,?)').run(JSON.stringify(s));db.close();const server=spawn(process.execPath,['server.js'],{env:{...process.env,NODE_ENV:'test',EXTERNPLAN_TEST_FIXTURES:'1',PORT:'0',DATA_DIR:dir},stdio:['ignore','pipe','pipe']});let browser;
 try{

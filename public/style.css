@@ -259,3 +259,5 @@ th.sortable-heading{padding:0}.table-sort-button{display:block;width:100%;paddin
 .contact-row{grid-template-columns:minmax(0,1fr) 75px minmax(0,1fr)}.contact-row input{min-width:0;width:100%}@media(max-width:600px){.contact-row{grid-template-columns:minmax(0,1fr) 75px}.contact-row label:nth-of-type(3){grid-row:3;grid-column:1/-1}.contact-row input:nth-of-type(3){grid-row:4;grid-column:1/-1}}
 
 .municipal-pdf-review{padding:12px;margin:10px 0;background:#fff4d8;border:1px solid #d8bd7c;border-radius:5px}.municipal-pdf-review input[type=checkbox]{width:auto}.municipal-pdf-review select{max-width:100%}
+
+.municipal-function-map{display:grid;grid-template-columns:minmax(140px,1fr) minmax(200px,2fr) auto auto;gap:8px;align-items:center;margin:7px 0}.municipal-function-map select{min-width:0;max-width:100%}@media(max-width:700px){.municipal-function-map{grid-template-columns:1fr}.municipal-function-map button{justify-self:start}}
