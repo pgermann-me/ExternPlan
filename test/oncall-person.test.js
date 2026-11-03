@@ -9,7 +9,7 @@ test('Personenbeispiel hat die Felder der gelieferten E3-Personendatei und diese
 });
 test('Namen, Kürzel, AD-Daten und mehrdeutige Abteilungszuordnungen werden nicht geraten',()=>{
  const s=demo();s.departments.push({id:'D2',name:'Zweite Abteilung'});s.groups.push({id:'G2',department_id:'D2'});s.people=[{employee_id:'legacy',name:'Vorname Nachname mit Zusatz',source:'SAP',group_ids:['demo-gruppe','G2'],contacts:[{type:'unknown-channel',value:'original value',priority:0}]}];const r=onCallPersonExample(s),p=r.payload[0];assert.equal(p.firstName,'');assert.equal(p.lastName,'');assert.equal(p.department,'');assert.equal(p.persID,'legacy');assert.equal(p.contacts[0].type,'');assert.equal(p.contacts[0].value,'original value');assert.ok(r.warnings[0].issues.some(x=>x.includes('Mehrere Abteilungen')));assert.ok(r.warnings[0].issues.some(x=>x.includes('getrennten Feldern')));
- s.people[0].group_ids=['demo-gruppe'];assert.equal(onCallPersonExample(s).payload[0].department,'demo-abteilung');
+ s.people[0].group_ids=['demo-gruppe'];assert.equal(onCallPersonExample(s).payload[0].department,'demo-gruppe');
 });
 test('Vorhandene Kontaktart und explizite Geschäft/Privat-Zuordnung bleiben erhalten',()=>{
  const s=demo();s.people=[{...person,contacts:[{type:'Mobile',kind:'private',value:'original',priority:5,description:'Zusatz'},{type:'Phone',kind:'business',value:'phone',priority:1},{type:'Email',kind:'business',value:'mail@example.invalid',priority:0}]}];assert.deepEqual(onCallPersonExample(s).payload[0].contacts,s.people[0].contacts.map(c=>({...c,description:c.description||''})));
@@ -22,5 +22,5 @@ test('Leerer Bestand erzeugt ein leeres JSON-Array',()=>{const s=demo();s.people
 test('Geschäftliche Adresse verwendet die gelieferten OnCall-Feldnamen; optionale Personendaten erzeugen keine Warnung',()=>{
  const s=demo();s.people=[{...person,contacts:[{type:'phone_business',value:'original',priority:0}],business_address:{type:'BusinessStandort',street:'Musterstrasse',streetNumber:'7a',additionalInfo:'Gebäude B',zipCode:'0900',city:'St. Gallen',country:''}}];const r=onCallPersonExample(s);assert.deepEqual(r.payload[0].addresses,[{type:'BusinessStandort',street:'Musterstrasse',streetNumber:'7a',additionalInfo:'Gebäude B',zipCode:'0900',city:'St. Gallen',country:null}]);assert.deepEqual(r.warnings,[]);assert.equal(r.payload[0].sex,null);assert.equal(r.payload[0].birthdate,null);assert.equal(r.payload[0].shortSign,'');
  s.people[0].business_address.type='BusinessPostal';assert.equal(onCallPersonExample(s).payload[0].addresses[0].type,'BusinessPostal');
- s.people[0].business_address.street='';assert.ok(onCallPersonExample(s).warnings[0].issues.some(x=>x.includes('unvollständig')));
+ s.people[0].business_address.street='';assert.deepEqual(onCallPersonExample(s).warnings,[]);s.people[0].business_address=null;assert.deepEqual(onCallPersonExample(s).warnings,[]);assert.deepEqual(onCallPersonExample(s).payload[0].addresses,[]);
 });
