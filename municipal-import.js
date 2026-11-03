@@ -56,7 +56,7 @@ export function prepareMunicipalImport(source,parsed,input){
  const documents=parsed.documents.map(d=>{const p=plan.find(p=>p.key===d.key);if(d.pdf_review_required&&(p?.pdf_verified!==true||!['first_last','last_first','manual'].includes(p.pdf_name_order)))throw Error(d.municipality+': PDF-Namenreihenfolge wählen und PDF-Daten am Original prüfen');const region=p&&s.regions.find(r=>active(r)&&r.id===p.region_id);if(!region)throw Error(d.municipality+': Ein bestehendes Gemeindegebiet wählen');if(municipalName(region.name)==='stgallen')throw Error('Stadt St. Gallen ist ausgeschlossen');if(!Array.isArray(p.rows)||p.rows.length!==d.rows.length)throw Error('Unvollständige Zeilenauswahl');return {...d,office_name:p.office_name??d.office_name,region,rows:d.rows.map(raw=>{const edited=p.rows.find(r=>r.key===raw.key);if(!edited||typeof edited.include!=='boolean')throw Error('Zeilenauswahl fehlt');return {...raw,...Object.fromEntries(['include','function_name','function_id','first_name','last_name','priority','phones','pikett_type','phone_descriptions','phone_description_edited','email','email_description','email_description_edited','employee_id'].map(k=>[k,edited[k]??raw[k]]))};})};});
  if(new Set(documents.map(d=>d.region.id)).size!==documents.length)throw Error('Jede Gemeinde benötigt ein eigenes Gebiet');
  let department=input.department_id?s.departments.find(d=>active(d)&&d.id===input.department_id):s.departments.find(d=>active(d)&&norm(d.name)==='gemeinden');if(input.department_id&&!department)throw Error('Abteilung nicht gefunden');
- const summary={created_people:0,updated_people:0,created_offices:0,updated_offices:0,affiliations:0,office_only_rows:0,legacy_role_checks:0,migrated_offices:0,legacy_offices:0,created_functions:[],created_groups:[],created_department:false,skipped:0};
+ const summary={access_changes:[],created_people:0,updated_people:0,created_offices:0,updated_offices:0,affiliations:0,office_only_rows:0,legacy_role_checks:0,migrated_offices:0,legacy_offices:0,created_functions:[],created_groups:[],created_department:false,skipped:0};
  if(!documents.some(d=>d.rows.some(r=>r.include)))throw Error('Mindestens einen Eintrag auswählen');
  if(!department){department={id:id(),name:'Gemeinden'};s.departments.push(department);audit(s,'departments','create',null,structuredClone(department));summary.created_department=true;}
  const changedPeople=new Set(),functionIds=new Set(),assigned=new Map();
@@ -66,21 +66,31 @@ export function prepareMunicipalImport(source,parsed,input){
   let group=s.groups.find(g=>active(g)&&g.department_id===department.id&&(g.municipal_region_id===doc.region.id||municipalName(g.name)===doc.municipality_key));
   if(!group){group={id:id(),name:doc.region.name,department_id:department.id,geo_ids:[doc.region.id],municipal_region_id:doc.region.id};s.groups.push(group);audit(s,'groups','create',null,structuredClone(group));summary.created_groups.push(group.name);}
   if(Array.isArray(group.geo_ids)&&!group.geo_ids.includes(doc.region.id)){const before=structuredClone(group);group.geo_ids.push(doc.region.id);audit(s,'groups','update',before,structuredClone(group));}
+  const targets=new Map();
+  for(const row of rows.filter(r=>r.person_kind==='person')){
+   if(row.function_id===undefined&&(typeof row.function_name!=='string'||!row.function_name.trim()||row.function_name.length>200))throw Error('Funktionsname fehlt oder ist zu lang');if(!Number.isSafeInteger(row.priority)||row.priority<1)throw Error('Priorität muss eine ganze Zahl ab 1 sein');
+   const matches=row.function_id!==undefined?s.functions.filter(f=>active(f)&&f.id===row.function_id):s.functions.filter(f=>active(f)&&norm(f.name)===norm(row.function_name));if(matches.length>1)throw Error('Funktion nicht eindeutig: '+row.function_name);
+   const fn=matches[0];if(!fn)throw Error('Funktion „'+row.function_name+'“ einer vorhandenen Funktion zuordnen oder die Zeile vom Import ausschliessen. Neue Funktionen werden nicht automatisch angelegt.');if(fn.duty_time_model!=='always')throw Error('Funktion '+fn.name+' existiert mit Zeitprofil Geplant. Eine vorhandene Immer-Funktion wählen.');
+   targets.set(row.key,fn);functionIds.add(fn.id);
+  }
+  // A municipality import explicitly assigns the selected area to its municipality.
+  // Add this context rather than weakening existing region-group restrictions.
+  const functionIdsHere=[...new Set([...targets.values()].map(f=>f.id))];
+  let context=s.region_groups.find(g=>active(g)&&g.municipal_region_id===doc.region.id&&g.group_ids?.includes(group.id));
+  if(!context){context={id:id(),name:doc.region.name+' · Gemeindefunktionen',municipal_region_id:doc.region.id,department_ids:[department.id],group_ids:[group.id],function_ids:functionIdsHere};s.region_groups.push(context);audit(s,'region_groups','create',null,structuredClone(context));summary.access_changes.push(doc.region.name+': Gebietsgruppe für '+department.name+' / '+group.name+' vorbereitet');}
+  else{const before=structuredClone(context);context.function_ids=[...new Set([...(context.function_ids||[]),...functionIdsHere])];if(JSON.stringify(before)!==JSON.stringify(context)){audit(s,'region_groups','update',before,structuredClone(context));summary.access_changes.push(doc.region.name+': weitere ausgewählte Gemeindefunktionen freigegeben');}}
+  const regionBefore=structuredClone(doc.region);
+  if(!regionGroupIds(doc.region).includes(context.id)){doc.region.region_group_ids=[...regionGroupIds(doc.region),context.id];delete doc.region.region_group_id;}
+  const additions=[['department_ids',[department.id],'Abteilung '+department.name],['group_ids',[group.id],'Gemeindegruppe '+group.name],['function_ids',functionIdsHere,'ausgewählte Gemeindefunktionen']];
+  for(const [key,ids,label] of additions)if(doc.region[key]?.length&&ids.some(id=>!doc.region[key].includes(id))){doc.region[key]=[...new Set([...doc.region[key],...ids])];summary.access_changes.push(doc.region.name+': '+label+' zur bestehenden Gebietsfreigabe ergänzt');}
+  if(JSON.stringify(regionBefore)!==JSON.stringify(doc.region))audit(s,'regions','update',regionBefore,structuredClone(doc.region));
   if(typeof doc.office_name!=='string'||!doc.office_name.trim()||doc.office_name.length>250)throw Error('Bezeichnung des Gemeindehauses erforderlich');
   const roots=s.offices.filter(o=>active(o)&&o.group_id===group.id&&(o.municipal_root_region_id===doc.region.id||o.municipal_key?.startsWith(doc.municipality_key+':')&&!o.parent_office_id&&(/^(Gemeindehaus|Gemeindeverwaltung|Stadtverwaltung)\b/i.test(o.name)||doc.rows.some(r=>r.person_kind==='office'&&norm(r.raw_name)===norm(o.name)))));
   if(roots.length>1)throw Error(doc.municipality+': Mehrere bestehende Gemeindehaus-Stellen. Bitte vor dem Import bereinigen.');
   const root=saveOffice(s,{...roots[0],name:doc.office_name.trim(),department_id:department.id,group_id:group.id,region_id:doc.region.id,parent_office_id:null});
   root.municipal_root_region_id=doc.region.id;root.municipal_key=doc.municipality_key+':gemeindehaus';summary[roots.length?'updated_offices':'created_offices']++;
   for(const row of rows){
-   const officeOnly=row.person_kind==='office';let fn=null;
-   if(!officeOnly){
-   if(row.function_id===undefined&&(typeof row.function_name!=='string'||!row.function_name.trim()||row.function_name.length>200))throw Error('Funktionsname fehlt oder ist zu lang');if(!Number.isSafeInteger(row.priority)||row.priority<1)throw Error('Priorität muss eine ganze Zahl ab 1 sein');
-   const matches=row.function_id!==undefined?s.functions.filter(f=>active(f)&&f.id===row.function_id):s.functions.filter(f=>active(f)&&norm(f.name)===norm(row.function_name));if(matches.length>1)throw Error('Funktion nicht eindeutig: '+row.function_name);
-   fn=matches[0];if(!fn)throw Error('Funktion „'+row.function_name+'“ einer vorhandenen Funktion zuordnen oder die Zeile vom Import ausschliessen. Neue Funktionen werden nicht automatisch angelegt.');if(fn.duty_time_model!=='always')throw Error('Funktion '+fn.name+' existiert mit Zeitprofil Geplant. Eine vorhandene Immer-Funktion wählen.');
-   functionIds.add(fn.id);
-   let rg=s.region_groups.find(g=>active(g)&&g.municipal_function_id===fn.id);if(!rg){rg={id:id(),name:fn.name+' · Gemeindegebiete',municipal_function_id:fn.id,function_ids:[fn.id]};s.region_groups.push(rg);audit(s,'region_groups','create',null,structuredClone(rg));}
-   if(!regionGroupIds(doc.region).includes(rg.id)){const before=structuredClone(doc.region);doc.region.region_group_ids=[...regionGroupIds(doc.region),rg.id];delete doc.region.region_group_id;audit(s,'regions','update',before,structuredClone(doc.region));}
-   }
+   const fn=targets.get(row.key)||null;
    if(!Array.isArray(row.phones)||row.phones.length!==4||row.phones.some(v=>typeof v!=='string'))throw Error('Vier Telefonfelder erwartet');
    if(!['phone_mobile','phone_business'].includes(row.pikett_type))throw Error('Tel Pikett muss Mobil Geschäft oder Telefon Geschäft sein');
    if(!Array.isArray(row.phone_descriptions)||row.phone_descriptions.length!==4||row.phone_descriptions.some(v=>typeof v!=='string')||typeof row.email_description!=='string')throw Error('Kontaktbeschreibungen als Text eingeben');
