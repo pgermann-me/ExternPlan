@@ -1,3 +1,5 @@
+import {writeFileSync,renameSync,rmSync} from 'node:fs';
+import {randomUUID} from 'node:crypto';
 import {isPhoneContact} from './public/phone.js';
 export const anonymizedPhone='[anonymisiert]';
 const phoneKey=/^(?:phone|phones|phone_number|phoneNumber|telephone|telephone_number|tel|telefon|telefonnummer|natel|festnetz|fax|mobile|mobil|phone_mobile|phone_business|phone_private|tel_pikett)$/i;
@@ -22,4 +24,15 @@ export function anonymizePhones(source){
   return value.replace(swissNumber,()=>{replacements++;return anonymizedPhone;}).replace(internationalNumber,()=>{replacements++;return anonymizedPhone;});
  }
  const result=visit(source);return {value:result,replacements};
+}
+
+// A failed write can leave a partial file; track its name before writing.
+export function replaceAnonymizedJson(path,text,io={writeFileSync,renameSync,rmSync}){
+ const temp=path+'.anonymize-'+randomUUID()+'.tmp';
+ try{io.writeFileSync(temp,text,{mode:0o600,flag:'wx'});io.renameSync(temp,path);}finally{io.rmSync(temp,{force:true});}
+}
+export function anonymizationSpacePlan({databaseBytes,changedBytes,largestJsonBytes,freeBytes}){
+ const reserve=2*databaseBytes+2*changedBytes+4*1024*1024;
+ const requiredBytes=reserve+largestJsonBytes;
+ return {requiredBytes,reserveBytes:reserve,freeBytes,enough:freeBytes>=requiredBytes};
 }

@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';
 import {spawnSync} from 'node:child_process';
-import {mkdtempSync,writeFileSync,readFileSync,rmSync,readdirSync} from 'node:fs';
-import {anonymizePhones,anonymizedPhone} from '../phone-anonymization.js';
+import {mkdtempSync,writeFileSync,readFileSync,rmSync,readdirSync,renameSync,existsSync} from 'node:fs';
+import {anonymizePhones,anonymizedPhone,replaceAnonymizedJson} from '../phone-anonymization.js';
 test('Phone anonymization retains non-phone contacts and identifiers across current data, exports and history',()=>{
  const contacts=[{type:'phone_mobile',value:'+41791234567',priority:1},{type:'phone_business',value:'071 222 33 44'},{type:'Phone',value:'+49 (30) 1234567'},{type:'Telefon Mobil Geschäft',value:'079-111-22-33'},{type:'email',value:'0791234567@example.invalid'},{type:'Polycom',value:'26123456'}];
  const source={employee_id:'0791234567',geo_id:'0791234567',persID:'0791234567',orgID:'0791234567',birth_date:'1972-04-19',contacts,office_exports:[{payload:[{contacts}]}],audit:[{before:{contacts},after:{phones:['079 444 55 66','+49 (40) 1234567'],description:'Rückruf +41793334455',email:'0791234567@example.invalid'}}],raw:JSON.stringify({contacts}),geometry:{coordinates:[[9.1,47.1],[9.2,47.2]]}};
@@ -17,8 +17,21 @@ test('Render CLI previews without writes and anonymizes SQLite plus JSON backups
   const cli=(extra=[])=>spawnSync(process.execPath,['anonymize-phone-numbers.js','--data-dir',dir,...extra],{encoding:'utf8'});
   const preview=cli();assert.equal(preview.status,0,preview.stderr);assert.equal(JSON.parse(preview.stdout).database_records,2);let check=new DatabaseSync(path);assert.deepEqual(JSON.parse(check.prepare('SELECT data FROM state').get().data),state);check.close();assert.deepEqual(JSON.parse(readFileSync(backup,'utf8')),state);
   writeFileSync(dir+'/broken.json','not JSON');assert.notEqual(cli(['--apply']).status,0);check=new DatabaseSync(path);assert.deepEqual(JSON.parse(check.prepare('SELECT data FROM state').get().data),state);check.close();rmSync(dir+'/broken.json');
+  const stale=backup+'.anonymize-11111111-2222-4333-8444-555555555555.tmp';writeFileSync(stale,'partial anonymous output');writeFileSync(dir+'/keep.tmp','keep');assert.equal(JSON.parse(cli().stdout).temporary_files,1);assert.ok(existsSync(stale));
+  const lock=dir+'/.anonymize-phones.lock';writeFileSync(lock,'other process');assert.notEqual(cli(['--apply']).status,0);assert.ok(existsSync(lock));rmSync(lock);
+  const mock=dir+'/low-space.mjs';writeFileSync(mock,"import fs from 'node:fs';import {syncBuiltinESMExports} from 'node:module';fs.statfsSync=()=>({bsize:1n,bavail:0n});syncBuiltinESMExports();");
+  const low=spawnSync(process.execPath,['--import',mock,'anonymize-phone-numbers.js','--data-dir',dir,'--apply'],{encoding:'utf8'});assert.notEqual(low.status,0);assert.match(low.stderr,/Zu wenig freier Speicher/);assert.ok(!existsSync(stale));assert.ok(!existsSync(lock));assert.equal(readFileSync(dir+'/keep.tmp','utf8'),'keep');assert.deepEqual(JSON.parse(readFileSync(backup,'utf8')),state);check=new DatabaseSync(path);assert.deepEqual(JSON.parse(check.prepare('SELECT data FROM state').get().data),state);check.close();
   const applied=cli(['--apply']);assert.equal(applied.status,0,applied.stderr);for(const number of ['+41791234567','+41712223344','+49301234567','+41793334455','+41795556677']){assert.ok(!applied.stdout.includes(number));assert.ok(!readFileSync(path).includes(Buffer.from(number)));assert.ok(!readFileSync(backup,'utf8').includes(number));}
   check=new DatabaseSync(path);const saved=JSON.parse(check.prepare('SELECT data FROM state').get().data);assert.deepEqual(saved.assignments,state.assignments);assert.equal(saved.people[0].contacts[1].value,'person@example.invalid');assert.ok(saved.audit.some(e=>e.action==='anonymize-phones'));assert.equal(check.prepare('SELECT email FROM app_users').get().email,'user@example.invalid');assert.equal(JSON.parse(check.prepare('SELECT data FROM imported_map_layers').get().data).properties.GEO_ID,'J012');check.close();assert.ok(!readdirSync(dir).some(f=>f.includes('.anonymize-')));
   assert.equal(cli(['--apply']).status,0);const after=cli();assert.equal(after.status,0);assert.equal(JSON.parse(after.stdout).database_replacements,0);assert.equal(JSON.parse(after.stdout).json_files,0);
+ }finally{rmSync(dir,{recursive:true,force:true});}
+});
+
+test('A full disk during the temporary write keeps the original JSON and removes the partial file',()=>{
+ const dir=mkdtempSync('/tmp/externplan-anon-enospc-'),path=dir+'/backup.json',original=JSON.stringify({contacts:[{type:'phone_mobile',value:'+41791234567'}]});
+ try{
+  writeFileSync(path,original);const io={writeFileSync:(temp,text,options)=>{writeFileSync(temp,text.slice(0,12),options);const error=Error('disk full');error.code='ENOSPC';throw error;},renameSync,rmSync};
+  assert.throws(()=>replaceAnonymizedJson(path,'anonymized replacement',io),e=>e.code==='ENOSPC');assert.equal(readFileSync(path,'utf8'),original);assert.deepEqual(readdirSync(dir),['backup.json']);
+  replaceAnonymizedJson(path,JSON.stringify(anonymizePhones(JSON.parse(original)).value));assert.equal(JSON.parse(readFileSync(path,'utf8')).contacts[0].value,anonymizedPhone);assert.deepEqual(readdirSync(dir),['backup.json']);
  }finally{rmSync(dir,{recursive:true,force:true});}
 });
