@@ -1,0 +1,15 @@
+import {chromium} from '@playwright/test';
+import {spawn} from 'node:child_process';
+import {mkdtempSync,rmSync} from 'node:fs';
+import assert from 'node:assert/strict';
+const dir=mkdtempSync('/tmp/externplan-auth-path-ui-'),password='Local-security-test-password-2026',setup='Local-security-setup-secret-2026';
+const server=spawn(process.execPath,['server.js'],{env:{...process.env,NODE_ENV:'test',EXTERNPLAN_TEST_FIXTURES:'1',EXTERNPLAN_AUTH_TEST_BYPASS:'0',APP_PASSWORD:setup,REQUIRE_AUTH:'true',DATA_DIR:dir,PORT:'0',HOST:'127.0.0.1'},stdio:['ignore','pipe','pipe']});let browser;
+try{
+ const port=await new Promise((resolve,reject)=>{let output='';const timer=setTimeout(()=>reject(Error('Test server startup timed out')),20000);server.stdout.on('data',d=>{output+=d;const m=output.match(/Port (\d+)/);if(m){clearTimeout(timer);resolve(m[1]);}});server.once('exit',()=>{clearTimeout(timer);reject(Error('Test server exited'));});}),base='http://127.0.0.1:'+port;
+ browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH||'/usr/bin/chromium',headless:true,args:['--no-sandbox']});const page=await browser.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.goto(base);await page.waitForURL('**/login.html');await page.locator('#setup-secret').fill(setup);await page.locator('#first-name').fill('Test');await page.locator('#last-name').fill('Administrator');await page.locator('#login-email').fill('admin@example.invalid');await page.locator('#login-password').fill(password);await page.locator('#login-submit').click();await page.waitForURL(base+'/');await page.getByRole('button',{name:'Benutzerverwaltung',exact:true}).waitFor();
+ assert.equal((await page.request.get(base+'/api/users')).status(),200);assert.equal((await page.request.get(base+'/API/users')).status(),404);
+ const anonymous=await browser.newContext();try{for(const path of ['/api/users','/API/users','/Api/users','/api/Users','/API/pikett-list']){assert.equal((await anonymous.request.get(base+path)).status(),401,path);}assert.equal((await anonymous.request.post(base+'/API/users',{data:{first_name:'Blocked',last_name:'Test',email:'blocked@example.invalid',password,role:'admin'}})).status(),401);assert.equal((await (await page.request.get(base+'/api/users')).json()).users.length,1);}finally{await anonymous.close();}
+ await page.getByRole('button',{name:'Abmelden',exact:true}).click();await page.waitForURL('**/login.html');await page.locator('#login-email').fill('admin@example.invalid');await page.locator('#login-password').fill(password);await page.locator('#login-submit').click();await page.waitForURL(base+'/');await page.getByRole('button',{name:'Benutzerverwaltung',exact:true}).waitFor();assert.deepEqual(errors,[]);
+ console.log('Browser security check passed: real setup/login/logout, normal admin access, anonymous path variants and admin creation rejected.');
+}finally{await browser?.close();await new Promise(resolve=>{if(server.exitCode!==null)return resolve();server.once('exit',resolve);server.kill();});rmSync(dir,{recursive:true,force:true});}

@@ -34,6 +34,14 @@ export function installAccounts(app,db,{env=process.env,dataDir,recordAudit,getS
   if(!setupSecret){const path=resolve(dataDir,'setup-token.txt');if(!existsSync(path))writeFileSync(path,randomBytes(32).toString('hex'),{mode:0o600,flag:'wx'});setupSecret=readFileSync(path,'utf8').trim();console.log('Ersten Administrator mit dem Einrichtungsschlüssel aus '+path+' anlegen.');}
  }
  const transaction=fn=>{db.exec('BEGIN IMMEDIATE');try{const result=fn();db.exec('COMMIT');return result;}catch(error){db.exec('ROLLBACK');throw error;}};
+ // Revoke existing sessions once when closing the API path-authentication bypass.
+ db.exec('CREATE TABLE IF NOT EXISTS app_security_migrations (id TEXT PRIMARY KEY, applied_at TEXT NOT NULL)');
+ transaction(()=>{
+  const migration='api-path-authentication-v1';if(db.prepare('SELECT id FROM app_security_migrations WHERE id=?').get(migration))return;
+  const removed=db.prepare('DELETE FROM app_sessions').run().changes;
+  db.prepare('INSERT INTO app_security_migrations VALUES (?,?)').run(migration,new Date().toISOString());
+  if(removed)recordAudit('security-session-reset',null,{reason:'Sicherheitskorrektur der API-Zugriffskontrolle',sessions:removed},'System · Sicherheitsaktualisierung');
+ });
  const token=req=>{const match=(req.headers.cookie||'').match(/(?:^|;\s*)externplan_session=([a-f0-9]{64})(?:;|$)/);return match?.[1];};
  const session=req=>{const value=token(req);if(!value)return null;const record=db.prepare('SELECT u.*,s.expires_at FROM app_sessions s JOIN app_users u ON u.id=s.user_id WHERE s.token_hash=?').get(hash(value));return record?.active&&record.expires_at>Date.now()?record:null;};
  const cookieOptions=req=>({httpOnly:true,sameSite:'strict',secure:req.secure,path:'/',maxAge:12*60*60*1000});
@@ -68,11 +76,13 @@ export function installAccounts(app,db,{env=process.env,dataDir,recordAudit,getS
   attempts.delete(key);createSession(req,res,updated);res.json({user:publicUser(updated)});
  });
  app.use((req,res,next)=>{
-  if(req.path==='/api/health'||req.path==='/login.html'||req.path==='/login.js'||!req.path.startsWith('/api/')&&req.path!=='/'&&!req.path.endsWith('.html'))return next();
+  const isApi=/^\/api(?:\/|$)/i.test(req.path);
+  if(isApi)res.setHeader('Cache-Control','no-store');
+  if(req.path==='/api/health'||req.path==='/login.html'||req.path==='/login.js'||!isApi&&req.path!=='/'&&!req.path.endsWith('.html'))return next();
   const user=session(req)||(testBypass?{id:'test-admin',first_name:'Test',last_name:'Admin',email:'test@example.invalid',role:'admin',active:1,must_change_password:0,revision:1}:null);
-  if(!user||user.must_change_password){if(req.path.startsWith('/api/'))return res.status(401).json({error:user?'Bitte zuerst das Passwort ändern':'Anmeldung erforderlich'});return res.redirect('/login.html');}
+  if(!user||user.must_change_password){if(isApi)return res.status(401).json({error:user?'Bitte zuerst das Passwort ändern':'Anmeldung erforderlich'});return res.redirect('/login.html');}
   res.setHeader('Cache-Control','no-store');req.user=publicUser(user);
-  if(req.path.startsWith('/api/')&&!permitted(user.role,req.method,req.path))return res.status(403).json({error:'Für diese Aktion fehlen die Rechte'});
+  if(isApi&&!permitted(user.role,req.method,req.path))return res.status(403).json({error:'Für diese Aktion fehlen die Rechte'});
   actorContext.run(`${user.first_name} ${user.last_name} <${user.email}>`,()=>accessContext.run(req.user,next));
  });
  app.get('/api/users',(req,res)=>res.json({users:users().map(publicUser)}));

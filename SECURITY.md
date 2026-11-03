@@ -1,5 +1,19 @@
 # Sicherheitswartung
 
+## Korrektur vom 03.11.2026: API-Pfad und Anmeldung
+
+Eine lokale Prüfung hat eine kritische Umgehung der Anmeldung bestätigt: Express behandelte Routen standardmässig ohne Beachtung der Gross-/Kleinschreibung, die vorgelagerte Zugriffskontrolle erkannte dagegen nur den kleingeschriebenen API-Präfix. Dadurch konnten nicht angemeldete Anfragen geschützte Endpunkte erreichen, einschliesslich der Benutzerverwaltung. Die Prüfung erfolgte ausschliesslich in einer isolierten Testdatenbank; sie ist kein Nachweis eines Angriffs auf die Render-Bereitstellung.
+
+Die korrigierte Version aktiviert ausdrücklich gross-/kleinschreibungssensitive Routen. Zusätzlich erkennt die Authentifizierung alle Schreibweisen des API-Präfixes und erzwingt dort Anmeldung, Passwortwechselpflicht, Rollenprüfung und `Cache-Control: no-store`. Abweichende Schreibweisen erhalten keinen Zugriff. Der bestehende öffentliche Healthcheck sowie Einrichtung, Anmeldung und Passwortwechsel über ihre vorgesehenen Pfade bleiben verfügbar.
+
+Beim ersten Start dieser Version werden sämtliche vorhandenen Sitzungen einmalig in einer Transaktion widerrufen. Eine Markierung in `app_security_migrations` verhindert wiederholtes Abmelden bei späteren Neustarts. Vorhandene Benutzerkonten, Passwörter und Planungsdaten bleiben erhalten. Tatsächlich widerrufene Sitzungen werden als Sicherheitsaktualisierung mit Systemidentität protokolliert. Dies ersetzt keine Prüfung bereits vorhandener Benutzerkonten: Eine zuvor unberechtigt angelegte Benutzeridentität wird nicht automatisch erkannt oder gelöscht.
+
+Nach Bereitstellung des neuesten Commits neu anmelden und als Admin die Benutzerliste, Rollen/Berechtigungen und das Änderungsprotokoll prüfen. Unbekannte Konten sperren und auffällige Änderungen untersuchen. Der Live-Zustand und ein möglicher früherer Zugriff lassen sich aus dem Repository nicht feststellen. Bis die Korrektur produktiv läuft, den Zugriff einschränken oder den Service pausieren.
+
+Regressionstests prüfen anonyme Lese-/Schreibanfragen mit verschiedenen Pfadschreibweisen und Kodierungen, die Ablehnung einer anonymen Admin-Erstellung vor und nach der Ersteinrichtung, Rollenprüfungen für Benutzer/Planer, regulären Adminzugriff sowie einmalige Sitzungswiderrufung und unveränderte Konten/Planungsdaten.
+
+Der Browserablauf mit echter Anmeldung und ohne Test-Bypass kann zusätzlich mit `node scripts/auth-path-ui-check.js` geprüft werden.
+
 ## Prüfung vom 25.10.2026
 
 ExternPlan läuft mit **Node.js in Docker**, nicht mit PHP. Die im Render-Hinweis genannten Node.js- und Zertifikatsthemen sind relevant. Die Version des bereits bei Render laufenden Containers ist aus dem Repository nicht feststellbar.

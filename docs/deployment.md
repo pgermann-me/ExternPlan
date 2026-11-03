@@ -70,3 +70,8 @@ Anmeldungen verwenden zufällige, serverseitig gespeicherte Sitzungen mit zwölf
 Konten und Sitzungen liegen in separaten Tabellen derselben SQLite-Datei auf dem persistenten Datenträger. Backups müssen die gesamte SQLite-Datenbank erfassen. Der Zugriff ohne Anmeldung ist ausschliesslich für automatisierte Tests mit `NODE_ENV=test`, leerer Benutzerverwaltung und ohne `APP_PASSWORD` möglich; `EXTERNPLAN_AUTH_TEST_BYPASS=0` deaktiviert auch diese Testausnahme. Das Docker-Image verwendet `NODE_ENV=production`.
 
 Prüfungen: `npm test`, `npm run test:ui` und `npm run test:accounts-ui`.
+
+
+### Sicherheitskorrektur der API-Anmeldung vom 03.11.2026
+
+Den neuesten Commit manuell bereitstellen. Erst die neue laufende Version schliesst die Pfad-Umgehung; ein GitHub-Push allein genügt bei `autoDeploy: false` nicht. Beim ersten Start werden bestehende Sitzungen einmalig beendet, deshalb müssen sich alle Benutzer neu anmelden. Konten und Planungsdaten bleiben erhalten. Danach Benutzerliste, Rollen und Protokoll auf unbekannte Konten oder Änderungen prüfen. Eine Sitzungswiderrufung entfernt keine möglicherweise zuvor unberechtigt angelegten Konten. Details stehen in [SECURITY.md](../SECURITY.md).
