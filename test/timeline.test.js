@@ -1,0 +1,8 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {timelineBars} from '../timeline.js';
+const days=[{start_on:'2026-10-24T00:00:00+02:00',end_on:'2026-10-25T00:00:00+02:00'},{start_on:'2026-10-25T00:00:00+02:00',end_on:'2026-10-26T00:00:00+01:00'}];
+const a=(id,start,end)=>({assignment_id:id,function_id:'F',geodependency:'G',priority:1,start_on:start,end_on:end});
+test('Zeitgenaue durchgehende Balken, Tages-/Monatsgrenzen und DST',()=>{const result=timelineBars([a('1','2026-10-23T07:00:00+02:00','2026-10-25T07:00:00+01:00')],days);assert.equal(result.bars[0].left,0);assert.equal(result.bars[0].width,1+8/25);assert.equal(result.lanes,1);assert.equal(timelineBars([a('2','2026-10-25T07:00:00+01:00','2026-10-27T07:00:00+01:00')],days).bars[0].left,1+8/25);});
+test('Überlappende Dienste bekommen eigene Spuren; angrenzende Dienste teilen eine Spur',()=>{const result=timelineBars([a('1','2026-10-24T07:00:00+02:00','2026-10-24T12:00:00+02:00'),a('2','2026-10-24T08:00:00+02:00','2026-10-24T11:00:00+02:00'),a('3','2026-10-24T12:00:00+02:00','2026-10-24T14:00:00+02:00')],days);assert.equal(result.lanes,2);assert.equal(result.bars[0].lane,0);assert.equal(result.bars[1].lane,1);assert.equal(result.bars[2].lane,0);});
+test('Favoritenfarbe bleibt an Dienst gebunden; unbekannte Farben werden sicher ersetzt',()=>{const assignment=a('1','2026-10-24T07:00:00+02:00','2026-10-24T12:00:00+02:00');assert.equal(timelineBars([assignment],days,{'1':{color:'#a4470c'}}).bars[0].color,'#a4470c');assert.match(timelineBars([assignment],days,{'1':{color:'red;bad'}}).bars[0].color,/^#[a-f0-9]{6}$/);});

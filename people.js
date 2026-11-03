@@ -1,0 +1,68 @@
+import {businessAddress} from './business-address.js';
+import {officeAffiliationProblem} from './offices.js';
+import {normalizePersonContacts,canonicalContact} from './public/phone.js';
+import {personAffiliationProblem} from './public/person-affiliation-rules.js';
+import {withRegionGroups} from './public/region-groups.js';
+import {DateTime} from 'luxon';
+import {audit,instant,iso} from './domain.js';
+import {personGroupIds} from './public/organization.js';
+// Existing combined names are retained verbatim; they are never guessed into components.
+export function manualPerson(input, previous, employeeId, {allowNameOnly=false}={}) {
+  const first_name=String(input.first_name??previous?.first_name??'').trim();
+  const last_name=String(input.last_name??previous?.last_name??'').trim();
+  if ((!previous || first_name || last_name) && (!last_name || !first_name&&!(allowNameOnly||previous?.municipal_sources?.length))) {
+    throw Error('Vorname und Name sind erforderlich');
+  }
+  const group_ids=input.group_ids??(Object.hasOwn(input,'group_id')?(input.group_id?[input.group_id]:[]):personGroupIds(previous));
+  if(!Array.isArray(group_ids)||group_ids.some(g=>typeof g!=='string'||!g)||new Set(group_ids).size!==group_ids.length)throw Error('Gruppen müssen eindeutige Kennungen enthalten');
+  return {
+    ...previous,
+    ...personDetails(input,previous),
+    employee_id: previous?.employee_id || employeeId,
+    first_name,
+    last_name,
+    name: first_name || last_name ? [first_name,last_name].filter(Boolean).join(' ') : previous.name,
+    source:'manual',
+    external_id:input.external_id===undefined?(previous?.external_id||null):(input.external_id||null),
+    department_id:input.department_id||null,
+    group_ids,group_id:group_ids[0]||null,
+    business_address:businessAddress(Object.hasOwn(input,'business_address')?input.business_address:previous?.business_address),
+    contacts:normalizePersonContacts(input.contacts??previous?.contacts??[],previous?.contacts||[])
+  };
+}
+
+export function deletePerson(s,employeeId,now=Date.now()){
+ const person=s.people.find(p=>p.employee_id===employeeId&&!p.deleted_at);
+ if(!person)throw Error('Person nicht gefunden');
+ if(s.assignments.some(a=>a.employee_id===employeeId&&instant(a.end_on)>now))throw Error('Löschen nicht möglich: Die Person hat laufende oder zukünftige Pikettdienste');
+ const before={...person};person.deleted_at=iso(now);audit(s,'person','delete',before,{...person});
+ return {ok:true,archived:true};
+}
+
+export function personDetails(input,previous){
+ const birth_date=input.birth_date===undefined?(previous?.birth_date||null):(input.birth_date||null);
+ if(birth_date&&(typeof birth_date!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(birth_date)||!DateTime.fromISO(birth_date).isValid))throw Error('Ungültiges Geburtsdatum');
+ const officeDetails=Object.hasOwn(input,'els_office_id')?{els_office_id:input.els_office_id||null}:{};if(officeDetails.els_office_id!=null&&typeof officeDetails.els_office_id!=='string')throw Error('Ungültige ELS-Stelle');
+ const rows=input.function_regions??previous?.function_regions;
+ if(rows===undefined)return {birth_date,...officeDetails};
+ if(!Array.isArray(rows)||rows.length>1000)throw Error('Funktions-/Gebietszuordnungen müssen eine Liste sein (höchstens 1000)');
+ const keys=new Set(),function_regions=rows.map(r=>{
+  if(!r||typeof r.function_id!=='string'||!r.function_id||!(r.geo_id===null||typeof r.geo_id==='string'&&r.geo_id)||!Number.isSafeInteger(r.priority??0)||(r.priority??0)<0)throw Error('Zuordnung benötigt Funktion, Gebiet und ganzzahlige Priorität ab 0');
+  const key=JSON.stringify([r.function_id,r.geo_id]);if(keys.has(key))throw Error('Funktion und Gebiet dürfen pro Person nur einmal zugeordnet werden');keys.add(key);if(r.office_id!==undefined&&r.office_id!==null&&typeof r.office_id!=='string')throw Error('Ungültige Stellenkennung');return {function_id:r.function_id,geo_id:r.geo_id,priority:r.priority??0,...(r.office_id?{office_id:r.office_id}:{})};
+ });return {birth_date,...officeDetails,function_regions};
+}
+export function validatePersonAffiliations(s,p,previous){
+ s=withRegionGroups(s);
+ if(p.els_office_id&&(!(s.offices||[]).some(o=>o.id===p.els_office_id&&!o.deleted_at)||!p.function_regions?.some(r=>r.office_id===p.els_office_id)))throw Error('ELS-Stelle muss einer Funktionszuordnung dieser Person entsprechen');
+ for(const r of p.function_regions||[]){
+  const unchanged=(previous?.function_regions||[]).some(old=>old.function_id===r.function_id&&old.geo_id===r.geo_id&&old.priority===r.priority&&old.office_id===r.office_id);
+  const officeProblem=officeAffiliationProblem(s,p,r);if(officeProblem)throw Error(officeProblem);
+  if(unchanged)continue;
+  const problem=personAffiliationProblem(s,p,r);if(problem)throw Error(problem);
+ }
+}
+
+export function ensureContactDescriptions(s){
+ let changed=0;for(const record of [...s.people,...(s.offices||[])])for(const list of [record.contacts||[],...(record.municipal_sources||[]).map(source=>source.contacts||[])])for(const contact of list){const normalized=canonicalContact(contact);if(contact.description!==normalized.description||contact.type!==normalized.type||contact.kind!==normalized.kind){Object.assign(contact,normalized);changed++;}}
+ if(changed)audit(s,'maintenance','contact-descriptions',null,{contacts:changed});return changed;
+}

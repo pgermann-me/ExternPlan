@@ -1,0 +1,18 @@
+[
+  {
+    "persID": "EXT-BEISPIEL-001",
+    "orgID": "BEISPIEL-ABTEILUNG"
+  },
+  {
+    "persID": "EXT-BEISPIEL-001",
+    "orgID": "BEISPIEL-GRUPPE-1"
+  },
+  {
+    "persID": "EXT-BEISPIEL-001",
+    "orgID": "BEISPIEL-GRUPPE-2"
+  },
+  {
+    "persID": "EXT-BEISPIEL-002",
+    "orgID": "BEISPIEL-ABTEILUNG"
+  }
+]

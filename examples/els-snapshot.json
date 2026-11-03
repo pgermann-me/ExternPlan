@@ -1,0 +1,24 @@
+{
+  "schema_version": "1.0",
+  "export_id": "cef95640-40d2-4238-bb92-05f790ab8b97",
+  "export_mode": "snapshot",
+  "timezone": "Europe/Zurich",
+  "scope": {
+    "type": "all_assignments",
+    "replacement": false,
+    "description": "Alle Zuteilungen; Abwesenheit bewirkt keine Löschung. Löschungen nur als explizite Delta-Tombstones."
+  },
+  "changes": [
+    {
+      "action": "create",
+      "assignment_id": "a4064348-7cf9-4cd6-9156-66e2a0633beb",
+      "employee_id": "DEMO-001",
+      "function_id": "DEMO-KTD",
+      "start_on": "2026-10-07T07:00:00+02:00",
+      "end_on": "2026-10-08T07:00:00+02:00",
+      "geodependency": "NORD",
+      "priority": 2,
+      "revision": 2
+    }
+  ]
+}

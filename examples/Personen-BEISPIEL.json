@@ -1,0 +1,15 @@
+[
+  {
+    "persID": "DEMO-SAP-101",
+    "name": "Beispielperson Import",
+    "department": "Beispielabteilung",
+    "external_id": "DEMO-SAP-101",
+    "contacts": [
+      {
+        "type": "Telefon",
+        "value": "Beispiel – keine echte Nummer",
+        "priority": 1
+      }
+    ]
+  }
+]

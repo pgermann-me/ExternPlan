@@ -1,0 +1,590 @@
+[
+  {
+    "id": "J001",
+    "name": "Sitterwald"
+  },
+  {
+    "id": "J002",
+    "name": "Wattbach-Eggen"
+  },
+  {
+    "id": "J003",
+    "name": "Schaugen-Guggeien"
+  },
+  {
+    "id": "J004",
+    "name": "Wittenbach"
+  },
+  {
+    "id": "J005",
+    "name": "Häggenschwil"
+  },
+  {
+    "id": "J006",
+    "name": "Muolen inkl. Federwildschongebie"
+  },
+  {
+    "id": "J007",
+    "name": "Mörschwil-Tübach-Steinach"
+  },
+  {
+    "id": "J009",
+    "name": "Berg-Steinach"
+  },
+  {
+    "id": "J011",
+    "name": "Eggersriet"
+  },
+  {
+    "id": "J012",
+    "name": "Rorschacherberg"
+  },
+  {
+    "id": "J013",
+    "name": "Thal-Rheineck"
+  },
+  {
+    "id": "J015",
+    "name": "St. Margrethen"
+  },
+  {
+    "id": "J016",
+    "name": "Au"
+  },
+  {
+    "id": "J017",
+    "name": "Berneck"
+  },
+  {
+    "id": "J018",
+    "name": "Balgach inkl. Federwildschongebi"
+  },
+  {
+    "id": "J019",
+    "name": "Diepoldsau"
+  },
+  {
+    "id": "J021",
+    "name": "Rebstein"
+  },
+  {
+    "id": "J022",
+    "name": "Marbach"
+  },
+  {
+    "id": "J023",
+    "name": "Altstätten I"
+  },
+  {
+    "id": "J024",
+    "name": "Altstätten II"
+  },
+  {
+    "id": "J025",
+    "name": "Altstätten III"
+  },
+  {
+    "id": "J026",
+    "name": "Lienz"
+  },
+  {
+    "id": "J027",
+    "name": "Eichberg"
+  },
+  {
+    "id": "J028",
+    "name": "Kanal-Rhein"
+  },
+  {
+    "id": "J029",
+    "name": "Kienberg"
+  },
+  {
+    "id": "J030",
+    "name": "Harderwald"
+  },
+  {
+    "id": "J031",
+    "name": "Rüthi"
+  },
+  {
+    "id": "J032",
+    "name": "Sennwald-Nord"
+  },
+  {
+    "id": "J033",
+    "name": "Sennwald-Süd"
+  },
+  {
+    "id": "J034",
+    "name": "Gams"
+  },
+  {
+    "id": "J035",
+    "name": "Grabs-West"
+  },
+  {
+    "id": "J038",
+    "name": "Buchs"
+  },
+  {
+    "id": "J039",
+    "name": "Farnboden"
+  },
+  {
+    "id": "J040",
+    "name": "Sevelen-Wald"
+  },
+  {
+    "id": "J041",
+    "name": "Alvier"
+  },
+  {
+    "id": "J042",
+    "name": "Gauschla"
+  },
+  {
+    "id": "J043",
+    "name": "Gonzen"
+  },
+  {
+    "id": "J044",
+    "name": "Sargans"
+  },
+  {
+    "id": "J045",
+    "name": "Saar"
+  },
+  {
+    "id": "J046",
+    "name": "Garmil"
+  },
+  {
+    "id": "J047",
+    "name": "Valeis"
+  },
+  {
+    "id": "J048",
+    "name": "Pardiel"
+  },
+  {
+    "id": "J050",
+    "name": "Pizalun"
+  },
+  {
+    "id": "J051",
+    "name": "Vadura"
+  },
+  {
+    "id": "J052",
+    "name": "Calanda"
+  },
+  {
+    "id": "J053",
+    "name": "Simel"
+  },
+  {
+    "id": "J054",
+    "name": "Schräa"
+  },
+  {
+    "id": "J055",
+    "name": "Sardona"
+  },
+  {
+    "id": "J056",
+    "name": "Valens"
+  },
+  {
+    "id": "J057",
+    "name": "Vasön"
+  },
+  {
+    "id": "J058",
+    "name": "Monteluna"
+  },
+  {
+    "id": "J059",
+    "name": "Ladils"
+  },
+  {
+    "id": "J060",
+    "name": "Tersol"
+  },
+  {
+    "id": "J061",
+    "name": "Foo"
+  },
+  {
+    "id": "J062",
+    "name": "Siez"
+  },
+  {
+    "id": "J063",
+    "name": "Laui"
+  },
+  {
+    "id": "J064",
+    "name": "Wannachopf"
+  },
+  {
+    "id": "J065",
+    "name": "Precht"
+  },
+  {
+    "id": "J066",
+    "name": "Tamons inkl. Federwildschongebie"
+  },
+  {
+    "id": "J067",
+    "name": "Mädems"
+  },
+  {
+    "id": "J068",
+    "name": "Spina"
+  },
+  {
+    "id": "J069",
+    "name": "Hochwiesen"
+  },
+  {
+    "id": "J070",
+    "name": "Wildenberg"
+  },
+  {
+    "id": "J071",
+    "name": "Werdenböl"
+  },
+  {
+    "id": "J072",
+    "name": "Fursch"
+  },
+  {
+    "id": "J073",
+    "name": "Malanca"
+  },
+  {
+    "id": "J074",
+    "name": "Berschis"
+  },
+  {
+    "id": "J075",
+    "name": "Walenstadt"
+  },
+  {
+    "id": "J076",
+    "name": "Quinten"
+  },
+  {
+    "id": "J077",
+    "name": "Gamperdon"
+  },
+  {
+    "id": "J078",
+    "name": "Munz"
+  },
+  {
+    "id": "J079",
+    "name": "Murgsee"
+  },
+  {
+    "id": "J080",
+    "name": "Schneeliwald"
+  },
+  {
+    "id": "J081",
+    "name": "Gulmen"
+  },
+  {
+    "id": "J082",
+    "name": "Mattstock"
+  },
+  {
+    "id": "J083",
+    "name": "Kapf"
+  },
+  {
+    "id": "J084",
+    "name": "Weesen"
+  },
+  {
+    "id": "J085",
+    "name": "Ebene-Gasterholz"
+  },
+  {
+    "id": "J086",
+    "name": "Rütiberg-Speer"
+  },
+  {
+    "id": "J087",
+    "name": "Schäniserberg"
+  },
+  {
+    "id": "J088",
+    "name": "Benken"
+  },
+  {
+    "id": "J089",
+    "name": "Kaltbrunn"
+  },
+  {
+    "id": "J090",
+    "name": "Rieden"
+  },
+  {
+    "id": "J091",
+    "name": "Gommiswald"
+  },
+  {
+    "id": "J092",
+    "name": "Ernetschwil"
+  },
+  {
+    "id": "J093",
+    "name": "Uznach"
+  },
+  {
+    "id": "J094",
+    "name": "Schmerikon"
+  },
+  {
+    "id": "J095",
+    "name": "Jona"
+  },
+  {
+    "id": "J096",
+    "name": "Eschenbach"
+  },
+  {
+    "id": "J097",
+    "name": "Goldingen"
+  },
+  {
+    "id": "J098",
+    "name": "St. Gallenkappel"
+  },
+  {
+    "id": "J099",
+    "name": "Wildhaus-Süd"
+  },
+  {
+    "id": "J100",
+    "name": "Wildhaus-Nord"
+  },
+  {
+    "id": "J101",
+    "name": "Gräppelen"
+  },
+  {
+    "id": "J102",
+    "name": "Churfirsten"
+  },
+  {
+    "id": "J103",
+    "name": "Stein"
+  },
+  {
+    "id": "J104",
+    "name": "Stockberg"
+  },
+  {
+    "id": "J105",
+    "name": "Büel"
+  },
+  {
+    "id": "J106",
+    "name": "Windbläss-Speer"
+  },
+  {
+    "id": "J107",
+    "name": "Krummenau I"
+  },
+  {
+    "id": "J108",
+    "name": "Krummenau II"
+  },
+  {
+    "id": "J109",
+    "name": "Krummenau III"
+  },
+  {
+    "id": "J110",
+    "name": "Ebnat-Kappel Sonnenhalb"
+  },
+  {
+    "id": "J111",
+    "name": "Steintal"
+  },
+  {
+    "id": "J112",
+    "name": "Girlen"
+  },
+  {
+    "id": "J114",
+    "name": "Wattwil-Sonnenhalb"
+  },
+  {
+    "id": "J115",
+    "name": "Lichtensteig"
+  },
+  {
+    "id": "J116",
+    "name": "Oberhelfenschwil"
+  },
+  {
+    "id": "J117",
+    "name": "Hemberg-Ost"
+  },
+  {
+    "id": "J118",
+    "name": "Hemberg-West"
+  },
+  {
+    "id": "J119",
+    "name": "St. Peterzell"
+  },
+  {
+    "id": "J120",
+    "name": "Krinau"
+  },
+  {
+    "id": "J122",
+    "name": "Lütisburg"
+  },
+  {
+    "id": "J123",
+    "name": "Libingen"
+  },
+  {
+    "id": "J124",
+    "name": "Mosnang"
+  },
+  {
+    "id": "J125",
+    "name": "Mühlrüti"
+  },
+  {
+    "id": "J126",
+    "name": "Müselbach"
+  },
+  {
+    "id": "J127",
+    "name": "Gähwil"
+  },
+  {
+    "id": "J128",
+    "name": "Dietschwil"
+  },
+  {
+    "id": "J129",
+    "name": "Wilket-Reitenberg"
+  },
+  {
+    "id": "J130",
+    "name": "Bildberg-Mogelsberg"
+  },
+  {
+    "id": "J131",
+    "name": "Nassen-Ruer"
+  },
+  {
+    "id": "J133",
+    "name": "Jonschwil"
+  },
+  {
+    "id": "J134",
+    "name": "Oberuzwil"
+  },
+  {
+    "id": "J135",
+    "name": "Uzwil inkl. Federwildschongebiet"
+  },
+  {
+    "id": "J136",
+    "name": "Flawil inkl. Federwildschongebie"
+  },
+  {
+    "id": "J137",
+    "name": "Degersheim"
+  },
+  {
+    "id": "J138",
+    "name": "Bronschhofen"
+  },
+  {
+    "id": "J139",
+    "name": "Zuzwil-Wil"
+  },
+  {
+    "id": "J140",
+    "name": "Oberbüren"
+  },
+  {
+    "id": "J141",
+    "name": "Niederbüren"
+  },
+  {
+    "id": "J142",
+    "name": "Niederhelfenschwil"
+  },
+  {
+    "id": "J143",
+    "name": "Gossau inkl. Federwildschongebie"
+  },
+  {
+    "id": "J145",
+    "name": "Andwil"
+  },
+  {
+    "id": "J146",
+    "name": "Waldkirch"
+  },
+  {
+    "id": "J147",
+    "name": "Tannenberg-Sitter"
+  },
+  {
+    "id": "J148",
+    "name": "Bernhardzell"
+  },
+  {
+    "id": "J149",
+    "name": "Gaiserwald"
+  },
+  {
+    "id": "J150",
+    "name": "Wattwil-Schönenberg"
+  },
+  {
+    "id": "J151",
+    "name": "Wattwil-Tweralp"
+  },
+  {
+    "id": "J152",
+    "name": "Untereggen-Goldach inkl. Federwi"
+  },
+  {
+    "id": "J153",
+    "name": "Grabs-Ost"
+  },
+  {
+    "id": "J154",
+    "name": "Bütschwil-Ganterschwil"
+  },
+  {
+    "id": "J224",
+    "name": "Nichtjagdgebiet Stadt Rapperswil"
+  },
+  {
+    "id": "J228",
+    "name": "Nichtjagdgebiet Bettenauerweiher"
+  },
+  {
+    "id": "J229",
+    "name": "Nichtjagdgebiet der Stadt Wil"
+  },
+  {
+    "id": "J233",
+    "name": "Nichtjagdgebiet der Stadt Rapper"
+  }
+]

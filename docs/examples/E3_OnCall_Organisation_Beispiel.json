@@ -1,0 +1,26 @@
+[
+  {
+    "orgID": "BEISPIEL-ABTEILUNG",
+    "description": null,
+    "name": "Beispielabteilung",
+    "organisation": null,
+    "addresses": [],
+    "contacts": []
+  },
+  {
+    "orgID": "BEISPIEL-GRUPPE-1",
+    "description": null,
+    "name": "Beispielgemeinde 1",
+    "organisation": "BEISPIEL-ABTEILUNG",
+    "addresses": [],
+    "contacts": []
+  },
+  {
+    "orgID": "BEISPIEL-GRUPPE-2",
+    "description": null,
+    "name": "Beispielgemeinde 2",
+    "organisation": "BEISPIEL-ABTEILUNG",
+    "addresses": [],
+    "contacts": []
+  }
+]

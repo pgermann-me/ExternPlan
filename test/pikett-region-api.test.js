@@ -1,0 +1,51 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {spawn} from 'node:child_process';
+import {mkdtempSync,rmSync} from 'node:fs';
+import {DatabaseSync} from 'node:sqlite';
+import {regionFixture} from '../scripts/fixtures/pikett-region.js';
+test('HTTP point queries and polygon map enforce authentication, roles, scopes and Swiss time',async()=>{
+ const dir=mkdtempSync('/tmp/externplan-point-api-'),{state,mapData}=regionFixture(),db=new DatabaseSync(dir+'/externplan.sqlite');
+ db.exec('CREATE TABLE state (id INTEGER PRIMARY KEY, data TEXT NOT NULL); CREATE TABLE imported_map_layers (id TEXT PRIMARY KEY, data TEXT NOT NULL)');db.prepare('INSERT INTO state VALUES(1,?)').run(JSON.stringify(state));db.prepare('INSERT INTO imported_map_layers VALUES(?,?)').run('test-map',JSON.stringify(mapData.layers[0]));db.close();
+ const secret='Point-Setup-123456789',password='Point-Password-123456789',server=spawn(process.execPath,['server.js'],{env:{...process.env,NODE_ENV:'test',EXTERNPLAN_TEST_FIXTURES:'1',EXTERNPLAN_AUTH_TEST_BYPASS:'0',APP_PASSWORD:secret,PORT:'0',DATA_DIR:dir},stdio:['ignore','pipe','pipe']});
+ try{
+  const port=await new Promise((resolve,reject)=>{let log='';const timer=setTimeout(()=>reject(Error(log)),15000);server.stdout.on('data',data=>{log+=data;const m=log.match(/Port (\d+)/);if(m){clearTimeout(timer);resolve(m[1]);}});server.stderr.on('data',data=>log+=data);server.once('exit',()=>{clearTimeout(timer);reject(Error(log));});});
+  const call=async(path,method='GET',body,cookie='')=>{const r=await fetch(`http://127.0.0.1:${port}/api`+path,{method,headers:{'content-type':'application/json',cookie},body:body===undefined?undefined:JSON.stringify(body)});return {status:r.status,data:await r.json(),cookie:r.headers.get('set-cookie')?.split(';')[0]};};
+  const ok=async(...args)=>{const r=await call(...args);assert.equal(r.status,200,JSON.stringify(r.data));return r;};
+  const point='/pikett-by-region?lat=47.3&lng=9.4&at=2026-10-22T12:00';
+  assert.equal((await call(point)).status,401);assert.equal((await call('/pikett-region-map')).status,401);assert.equal((await call('/reverse-address?lat=47&lng=9')).status,401);assert.equal((await call('/search-address?q=St.Gallen')).status,401);
+  const admin=(await ok('/auth/setup','POST',{setup_secret:secret,first_name:'Admin',last_name:'Test',email:'admin@point.invalid',password})).cookie;
+  assert.equal((await ok('/pikett-region-map','GET',undefined,admin)).data.features.length,2);
+  assert.ok((await ok(point,'GET',undefined,admin)).data.rows.some(r=>r.employee_id==='HIDDEN'));
+  await ok('/users','POST',{first_name:'User',last_name:'Test',email:'user@point.invalid',role:'user',password,access_scope:{department_ids:['D'],group_ids:['G'],region_ids:['R1']}},admin);
+  let cookie=(await ok('/auth/login','POST',{email:'user@point.invalid',password})).cookie;
+  cookie=(await ok('/auth/password','POST',{current_password:password,password:password+'-Neu'},cookie)).cookie;
+  const map=(await ok('/pikett-region-map','GET',undefined,cookie)).data;assert.equal(map.features.length,1);assert.equal(map.features[0].properties.GEO_ID,'SHAPE-A');const local=(await ok('/search-address?q=gebiet','GET',undefined,cookie)).data;assert.deepEqual(local.results.map(r=>r.region_id),['R1']);assert.equal(local.results[0].kind,'region');assert.ok(local.results[0].point);assert.ok(!JSON.stringify(map).includes('private'));
+  assert.equal((await call('/region-map','GET',undefined,cookie)).status,403);for(const url of ['/search-address','/search-address?q=ab','/reverse-address','/reverse-address?lat=abc&lng=9','/reverse-address?lat=91&lng=9','/reverse-address?lat=47&lng=181'])assert.equal((await call(url,'GET',undefined,cookie)).status,400);
+  const result=(await ok(point,'GET',undefined,cookie)).data;assert.deepEqual(result.regions.map(r=>r.id),['R1']);assert.ok(result.rows.some(r=>r.kind==='always'));assert.ok(!JSON.stringify(result).includes('HIDDEN'));
+  assert.equal((await ok('/pikett-by-region?lat=47.65&lng=9.85','GET',undefined,cookie)).data.rows.length,0);
+  for(const url of ['/pikett-by-region','/pikett-by-region?lat=abc&lng=9','/pikett-by-region?lat=91&lng=9','/pikett-by-region?lat=47&lng=9&at=2026-03-29T02:30'])assert.equal((await call(url,'GET',undefined,cookie)).status,400);
+  assert.equal((await ok('/pikett-by-region?lat=47&lng=9&at=2026-10-25T02:30','GET',undefined,cookie)).data.at,'2026-10-25T00:30:00.000Z');
+  assert.equal((await call('/statistics','GET',undefined,cookie)).status,403);
+  await ok('/users','POST',{first_name:'Planer',last_name:'Statistik',email:'planner@point.invalid',role:'planner',password,access_scope:{department_ids:['D'],group_ids:['G'],region_ids:['R1']}},admin);
+  let plannerCookie=(await ok('/auth/login','POST',{email:'planner@point.invalid',password})).cookie;plannerCookie=(await ok('/auth/password','POST',{current_password:password,password:password+'-Neu'},plannerCookie)).cookie;
+  const stats=(await ok('/statistics?date_from=2026-10-22&date_to=2026-10-22','GET',undefined,plannerCookie)).data;assert.equal(stats.rows.length,1);assert.equal(stats.rows[0].employee_id,'P');assert.equal(stats.rows[0].hours,24);assert.ok(!JSON.stringify(stats).includes('HIDDEN'));assert.equal((await call('/statistics?function_id=hidden','GET',undefined,plannerCookie)).status,403);
+  const beforeDuties=(await ok('/state','GET',undefined,cookie)).data.assignments;
+  await ok('/planning/always','POST',{employee_id:'P',function_id:'W',geo_id:'R1',action:'update',priority:0,expected_priority:2},cookie);
+  assert.deepEqual((await ok(point,'GET',undefined,cookie)).data.rows.filter(r=>r.kind==='always').map(r=>r.priority),[1,0]);
+  assert.equal((await call('/planning/always','POST',{employee_id:'P',function_id:'W',geo_id:'R2',action:'add'},cookie)).status,403);
+  assert.equal((await call('/planning/always','POST',{employee_id:'HIDDEN',function_id:'W',geo_id:'R1',action:'add'},cookie)).status,403);
+  assert.equal((await call('/people/P','PUT',{first_name:'Fremde Änderung'},cookie)).status,403);
+  await ok('/planning/always','POST',{employee_id:'P2',function_id:'W',geo_id:'R1',action:'remove',expected_priority:1},cookie);
+  await ok('/master/functions','POST',{id:'W',name:'Jäger Immer',duty_time_model:'always',geo_ids:['R2'],covers:{}},admin);const permanent=(await ok(point,'GET',undefined,cookie)).data.rows.filter(r=>r.kind==='always');assert.deepEqual(permanent.map(r=>[r.employee_id,r.priority]),[['P',0]]);assert.ok(permanent.every(r=>r.region_ids.every(id=>id==='R1')));
+  const after=(await ok('/state','GET',undefined,cookie)).data;assert.ok(!after.people.some(p=>p.employee_id==='P2'));assert.deepEqual(after.assignments,beforeDuties);
+  const draft={function_id:'W',geo_id:'R1',priority:3,planning_department_id:'D',planning_group_id:'G',person:{first_name:'Neue',last_name:'Immerperson',department_id:'D',group_ids:['G'],contacts:[{type:'phone_mobile',value:'+41790000008',priority:0}]}};
+  // Restore the available region for new planning; existing responsibilities stayed visible above.
+  await ok('/master/functions','POST',{id:'W',name:'Jäger Immer',duty_time_model:'always',geo_ids:['R1','R2'],covers:{}},admin);
+  assert.equal((await call('/planning/always/person','POST',draft)).status,401);assert.equal((await call('/people','POST',draft.person,cookie)).status,403);
+  const beforeCreate=(await ok('/state','GET',undefined,admin)).data;assert.equal((await call('/planning/always/person','POST',{...draft,geo_id:'R2'},cookie)).status,403);assert.equal((await call('/planning/always/person','POST',{...draft,replace_employee_id:'P',expected_priority:9},cookie)).status,409);assert.deepEqual((await ok('/state','GET',undefined,admin)).data.people,beforeCreate.people);
+  const created=(await ok('/planning/always/person','POST',draft,cookie)).data;assert.match(created.employee_id,/^EXT-/);assert.deepEqual(created.function_regions,[{function_id:'W',geo_id:'R1',priority:3}]);assert.equal(created.department_id,'D');assert.deepEqual(created.group_ids,['G']);
+  assert.equal((await call('/planning/always','POST',{action:'replace',employee_id:'P',replacement_employee_id:created.employee_id,function_id:'W',geo_id:'R1',expected_priority:0},cookie)).status,409);
+  const replaced=(await ok('/planning/always/person','POST',{...draft,replace_employee_id:'P',expected_priority:0},cookie)).data;assert.notEqual(replaced.employee_id,created.employee_id);const afterCreate=(await ok('/state','GET',undefined,admin)).data;assert.equal(afterCreate.people.find(p=>p.employee_id==='P').function_regions.length,0);assert.deepEqual(afterCreate.assignments,beforeCreate.assignments);assert.deepEqual(afterCreate.outbox,beforeCreate.outbox);
+ }finally{await new Promise(resolve=>{if(server.exitCode!==null)return resolve();server.once('exit',resolve);server.kill();});rmSync(dir,{recursive:true,force:true});}
+});
