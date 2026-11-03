@@ -389,7 +389,7 @@ function personDialog(p={},copySource=null){
  const contactRow=(key,text,c,type='tel')=>`<div class="contact-row">${label(text,input(key,c?.value||'',type,false))}${label('Prio',`<input name="${key}_priority" type="number" min="0" step="1" value="${esc(c?.priority??0)}" required aria-label="Priorität ${esc(text)}">`)}${label('Beschreibung',input(key+'_description',c?.description||'','text',false))}</div>`;
  modal('<h2>Externe Person</h2>'+(copySource?`<p class="small muted">Zuordnungen übernommen von ${esc([copySource.last_name,copySource.first_name].filter(Boolean).join(' ')||copySource.name)}. Aktive Abteilungs-, Gruppen-, Funktions- und Gebietszuordnungen samt Prioritäten sind vorbelegt. Bitte die Daten der neuen Person ergänzen; bestehende Pikettdienste werden nicht kopiert.</p>`:'')+ (p.employee_id?`<p class="small muted">employee_id: ${esc(p.employee_id)}</p>`:'<p class="muted">Die employee_id wird beim Speichern automatisch erzeugt.</p>')+
  (legacy?`<p class="small muted">Bisheriger vollständiger Name: ${esc(p.name)}. Für getrennte Namen beide Felder ausfüllen; andernfalls bleibt dieser Name erhalten.</p>`:'')+
- '<div class="name-fields">'+label('Name',input('last_name',p.last_name||'','text',!legacy))+label('Vorname',input('first_name',p.first_name||'','text',!legacy))+'</div>'+
+ '<div class="name-fields">'+label('Name',input('last_name',p.last_name||'','text',!legacy))+label('Vorname',input('first_name',p.first_name||'','text',!legacy&&!p.municipal_sources?.length))+'</div>'+
  label('Abteilung',`<select name="department_id">${options(state.departments,'id','name',p.department_id||groupRecord(p.group_id)?.department_id||'')}</select>`)+
  groupFields(p)+
  label('Geburtsdatum',input('birth_date',p.birth_date||'','date',false))+

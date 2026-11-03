@@ -1,12 +1,13 @@
-import {contactDescription} from '../public/phone.js';
+import {contactDescription,canonicalContact} from '../public/phone.js';
 import {audit,id} from '../domain.js';
 import {personDepartmentIds} from '../public/organization.js';
 import {DateTime} from 'luxon';
 
 // Example mapping only: no identities, AD attributes or personal facts are invented.
 export function contactRow(c,issues){
+ c=canonicalContact(c);
  const key=String(c.type||'').trim().toLowerCase();
- const mapping={'tel pikett':['Phone','business'],'tel. pikett':['Phone','business'],'telefon pikett':['Phone','business'],phone_mobile:['Mobile',''],mobile:['Mobile',''],'telefon mobil':['Mobile',''],phone_business:['Phone','business'],business:['Phone','business'],'telefon geschäft':['Phone','business'],phone_private:['Phone','private'],private:['Phone','private'],'telefon privat':['Phone','private'],phone:['Phone',''],telefon:['Phone',''],email:['Email',''],'e-mail':['Email','']};
+ const mapping={phone_mobile:['Mobile',''],mobile:['Mobile',''],'telefon mobil':['Mobile',''],phone_business:['Phone','business'],business:['Phone','business'],'telefon geschäft':['Phone','business'],phone_private:['Phone','private'],private:['Phone','private'],'telefon privat':['Phone','private'],phone:['Phone',''],telefon:['Phone',''],email:['Email',''],'e-mail':['Email','']};
  const [type,defaultKind]=mapping[key]||['',''];
  const kind=['business','private'].includes(c.kind)?c.kind:defaultKind;
  if(!type)issues.add('Kontaktart ist noch nicht für OnCall zugeordnet.');

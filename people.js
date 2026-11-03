@@ -1,5 +1,5 @@
 import {officeAffiliationProblem} from './offices.js';
-import {normalizePersonContacts,contactDescription} from './public/phone.js';
+import {normalizePersonContacts,canonicalContact} from './public/phone.js';
 import {personAffiliationProblem} from './public/person-affiliation-rules.js';
 import {withRegionGroups} from './public/region-groups.js';
 import {DateTime} from 'luxon';
@@ -13,10 +13,10 @@ function businessAddress(value){
  return Object.entries(address).some(([key,value])=>key!=='type'&&value)?address:null;
 }
 // Existing combined names are retained verbatim; they are never guessed into components.
-export function manualPerson(input, previous, employeeId) {
+export function manualPerson(input, previous, employeeId, {allowNameOnly=false}={}) {
   const first_name=String(input.first_name??previous?.first_name??'').trim();
   const last_name=String(input.last_name??previous?.last_name??'').trim();
-  if ((!previous || first_name || last_name) && (!first_name || !last_name)) {
+  if ((!previous || first_name || last_name) && (!last_name || !first_name&&!(allowNameOnly||previous?.municipal_sources?.length))) {
     throw Error('Vorname und Name sind erforderlich');
   }
   const group_ids=input.group_ids??(Object.hasOwn(input,'group_id')?(input.group_id?[input.group_id]:[]):personGroupIds(previous));
@@ -69,6 +69,6 @@ export function validatePersonAffiliations(s,p,previous){
 }
 
 export function ensureContactDescriptions(s){
- let changed=0;for(const record of [...s.people,...(s.offices||[])])for(const contact of record.contacts||[]){const description=contactDescription(contact);if(contact.description!==description){contact.description=description;changed++;}}
+ let changed=0;for(const record of [...s.people,...(s.offices||[])])for(const list of [record.contacts||[],...(record.municipal_sources||[]).map(source=>source.contacts||[])])for(const contact of list){const normalized=canonicalContact(contact);if(contact.description!==normalized.description||contact.type!==normalized.type||contact.kind!==normalized.kind){Object.assign(contact,normalized);changed++;}}
  if(changed)audit(s,'maintenance','contact-descriptions',null,{contacts:changed});return changed;
 }
