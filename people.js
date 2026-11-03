@@ -1,3 +1,4 @@
+import {businessAddress} from './business-address.js';
 import {officeAffiliationProblem} from './offices.js';
 import {normalizePersonContacts,canonicalContact} from './public/phone.js';
 import {personAffiliationProblem} from './public/person-affiliation-rules.js';
@@ -5,13 +6,6 @@ import {withRegionGroups} from './public/region-groups.js';
 import {DateTime} from 'luxon';
 import {audit,instant,iso} from './domain.js';
 import {personGroupIds} from './public/organization.js';
-function businessAddress(value){
- if(value==null)return null;
- if(typeof value!=='object'||Array.isArray(value))throw Error('Geschäftliche Adresse muss ein Objekt sein');
- const type=value.type||'BusinessStandort';if(!['BusinessStandort','BusinessPostal'].includes(type))throw Error('Unbekannte geschäftliche Adressart');
- const address={type};for(const key of ['street','streetNumber','additionalInfo','zipCode','city','country']){if(value[key]!=null&&typeof value[key]!=='string')throw Error('Adressfelder müssen Text sein');address[key]=(value[key]||'').trim();}
- return Object.entries(address).some(([key,value])=>key!=='type'&&value)?address:null;
-}
 // Existing combined names are retained verbatim; they are never guessed into components.
 export function manualPerson(input, previous, employeeId, {allowNameOnly=false}={}) {
   const first_name=String(input.first_name??previous?.first_name??'').trim();

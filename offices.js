@@ -1,3 +1,4 @@
+import {businessAddress} from './business-address.js';
 import {scopeAllows} from './public/organization.js';
 import {withRegionGroups} from './public/region-groups.js';
 import {personAffiliationProblem} from './public/person-affiliation-rules.js';
@@ -12,7 +13,7 @@ export function officeAffiliationProblem(s,person,row){
 }
 export function saveOffice(s,input){
  const previous=(s.offices||[]).find(o=>o.id===input.id&&!o.deleted_at);if(input.id&&!previous)throw Error('Stelle nicht gefunden');
- const row={...previous,id:previous?.id||'OFF-'+id(),name:String(input.name??previous?.name??'').trim(),department_id:input.department_id??previous?.department_id,group_id:input.group_id??previous?.group_id,region_id:input.region_id??previous?.region_id,parent_office_id:Object.hasOwn(input,'parent_office_id')?input.parent_office_id:previous?.parent_office_id??null,els_org_id:String(input.els_org_id??previous?.els_org_id??'').trim(),contacts:normalizePersonContacts(input.contacts??previous?.contacts??[],previous?.contacts||[]),function_regions:input.function_regions??previous?.function_regions??[]};
+ const row={...previous,id:previous?.id||'OFF-'+id(),name:String(input.name??previous?.name??'').trim(),department_id:input.department_id??previous?.department_id,group_id:input.group_id??previous?.group_id,region_id:input.region_id??previous?.region_id,parent_office_id:Object.hasOwn(input,'parent_office_id')?input.parent_office_id:previous?.parent_office_id??null,els_org_id:String(input.els_org_id??previous?.els_org_id??'').trim(),business_address:businessAddress(Object.hasOwn(input,'business_address')?input.business_address:previous?.business_address,'BusinessPostal'),contacts:normalizePersonContacts(input.contacts??previous?.contacts??[],previous?.contacts||[]),function_regions:input.function_regions??previous?.function_regions??[]};
  if(!row.name||row.name.length>250)throw Error('Bezeichnung der Stelle erforderlich (maximal 250 Zeichen)');
  if(!s.departments.some(d=>d.id===row.department_id&&!d.deleted_at)||!s.groups.some(g=>g.id===row.group_id&&!g.deleted_at&&g.department_id===row.department_id)||!s.regions.some(r=>r.id===row.region_id&&!r.deleted_at))throw Error('Stelle benötigt gültige Abteilung, Gemeindegruppe und Gebiet');
  const region=withRegionGroups(s).regions.find(r=>r.id===row.region_id);if(!scopeAllows(region,{department_id:row.department_id,group_id:row.group_id},s.groups))throw Error('Gebiet ist für die Abteilung oder Gemeindegruppe dieser Stelle nicht freigegeben');
