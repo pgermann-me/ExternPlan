@@ -496,3 +496,24 @@ Der Stellendialog bietet wie bei Personen **Telefon Mobil, Telefon Geschäft, Te
 Unter **ELS-Schnittstelle → Exportdateien** steht **Organisation-Datei erzeugen** vor dem Personenexport. Die Organisationsdatei enthält alle aktiven Abteilungen als Stellen und alle Gruppen/Gemeinden als Unterstellen ihrer Abteilung, auch ohne Gemeindehaus oder zugewiesene Personen. Gemeindehaus-Stellen bleiben eigene Unterstellen ihrer Gemeindegruppe und liefern ihre optionalen Postadressen und Kontakte. Geschäftsadressen sind optional; fehlende und teilweise erfasste Adressen erzeugen im Personenexport keine offenen Angaben.
 
 Beim Erzeugen einer neuen Personendatei wird zusätzlich eine separate **Personen-/Stellenzuordnungs-Beispieldatei** gespeichert. Sie erhält alle direkten Abteilungs-, Gruppen- und Stellenzuordnungen als `persID`/`orgID`-Paare. Unter dem Personenexport stehen ein eigener Download und eine Vorschau. Das bestehende ELS-Personenformat bleibt erhalten, mit genau einem Personenobjekt und einer primären Referenz im Feld `department`. Bei nur einer Gruppe ohne Stellenreferenz wird diese Gruppenstelle verwendet; für Mehrfachzuordnungen gilt die vollständige Begleitdatei. Deren Schema ist ein zusätzliches Beispiel zur ELS-Abstimmung, kein bestätigter ELS-Importvertrag. Es gibt weiterhin keine automatische Übermittlung. Historische Exporte werden nicht geändert; neue Dateien erzeugen, um den aktualisierten Bestand und die neuen Hinweise zu erhalten.
+
+
+### Telefonnummern im Render-Datenbestand anonymisieren
+
+Nach Bereitstellung steht in der Render-Shell `/app/anonymize-phone-numbers.js` zur Verfügung. Vorschau ohne Datenänderung:
+
+```sh
+node /app/anonymize-phone-numbers.js --data-dir /app/data
+```
+
+Die Ausführung ersetzt Telefonnummern im bestehenden produktiven Bestand und in JSON-Dateien einschliesslich lokaler Sicherungen unter diesem Datenverzeichnis:
+
+```sh
+node /app/anonymize-phone-numbers.js --data-dir /app/data --apply
+```
+
+Ersetzt werden telefonische Kontaktwerte (einschliesslich ausländischer oder historisch frei formatierter Werte) sowie erkannte Schweizer und unformatierte internationale Telefonnummern in Texten durch `[anonymisiert]`. Die JSON-Daten in `state` und `imported_map_layers` werden rekursiv verarbeitet, damit archivierte Personen, Stellen, Importherkunft, Auditdaten und gespeicherte Exportdateien ebenfalls erfasst werden. Direkte Telefon-/Natel-/Faxfelder werden berücksichtigt. Namen, E-Mails, Kennungen, Gebiete und Planungszeiten bleiben erhalten; dies ist **keine vollständige Anonymisierung personenbezogener Daten**. Nicht strukturiert erfasste, ungewöhnlich formatierte ausländische Nummern in beliebigen Freitexten sind manuell zu prüfen.
+
+Der Befehl gibt ausschliesslich Mengen aus und erzeugt bewusst keine neue Sicherung mit den Originalnummern. Die Änderung lässt sich ohne eine separat erhaltene Originalkopie nicht zurücknehmen. Auch bestehende lokale JSON-Sicherungen werden ersetzt. Heruntergeladene Exporte, Render-/Datenträger-Snapshots, andere Dateiformate und Sicherungen ausserhalb `/app/data` werden nicht verändert und müssen separat behandelt werden. Benötigte Originalkopien sind weiterhin identifizierbar und entsprechend geschützt aufzubewahren oder gezielt zu löschen.
+
+Während der Ausführung keine neuen Daten eingeben oder Importe starten. Die SQLite-Änderungen sind transaktional; JSON-Dateien werden einzeln atomar ersetzt. Bei einem Fehler kann ein Teil der JSON-Dateien bereits anonymisiert sein; der Befehl ist wiederholbar. Unlesbare JSON-Dateien oder symbolische Links führen vor Datenänderungen zum Abbruch. Abschliessend werden SQLite-Freiseiten bereinigt und die WAL-Datei gekürzt; blockierende andere Zugriffe werden als Fehler gemeldet. Eine sichere Löschung alter Daten aus Storage-Snapshots wird damit nicht zugesichert. Die Verarbeitung wird ohne Originalnummern im Änderungsprotokoll festgehalten. Anschliessend die Webseite neu laden; bereits in Browsern geladene Daten werden nicht rückwirkend entfernt. Das Werkzeug ist ausschliesslich als Shell-Befehl verfügbar, nicht als öffentlicher Web-Endpunkt.
