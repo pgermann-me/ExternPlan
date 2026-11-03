@@ -37,7 +37,7 @@ export async function parseMunicipalFiles(files,now=Date.now()){
    const last_name=person_kind==='person'?(singleName?name:words[0]):'',first_name=person_kind==='person'&&!singleName?words.slice(1).join(' '):'';
    if(person_kind==='person'&&(singleName||words.length!==2))warnings.push('Name / Bezeichnung und Vorname prüfen.');if(/\//.test(raw_role))warnings.push('Zusammengesetzte Funktionsbezeichnung prüfen.');
    const roleNames=canonicalRole(raw_role).split(/\s+\/\s+(?=Schulpräsident\b)/);
-   const phones=[3,4,5,6].map(c=>cell(row,c)),contacts=[],pikett_type=pikettPhoneType(phones[0]),phone_descriptions=['Pikettnummer 24h','','',''],types=[pikett_type,'phone_business','phone_private','phone_mobile'];let invalid=false;
+   const phones=[3,4,5,6].map(c=>cell(row,c)),contacts=[],pikett_type=pikettPhoneType(phones[0]),phone_descriptions=[phones[0]?'Pikettnummer 24h':'','','',''],types=[pikett_type,'phone_business','phone_private','phone_mobile'];let invalid=false;
    phones.forEach((value,i)=>{if(!value)return;try{contacts.push({type:types[i],value:normalizePhone(value),priority:i===0?1:0,description:phone_descriptions[i],...(i===0||i===1||i===3?{kind:'business'}:{kind:'private'})});}catch{invalid=true;warnings.push('Ungültige Telefonnummer in '+['Tel Pikett','Tel G','Tel Priv.','Natel'][i]+': bitte korrigieren.');}});
    const email=cell(row,7);if(email)contacts.push({type:'email',value:email,priority:0,description:''});if(cell(row,8))warnings.push('Fax wird nicht übernommen.');
    if(cell(row,10)&&!deletion)warnings.push('Hinweis in Spalte löschen: '+cell(row,10));
@@ -72,6 +72,12 @@ export function prepareMunicipalImport(source,parsed,input){
    const matches=row.function_id!==undefined?s.functions.filter(f=>active(f)&&f.id===row.function_id):s.functions.filter(f=>active(f)&&norm(f.name)===norm(row.function_name));if(matches.length>1)throw Error('Funktion nicht eindeutig: '+row.function_name);
    const fn=matches[0];if(!fn)throw Error('Funktion „'+row.function_name+'“ einer vorhandenen Funktion zuordnen oder die Zeile vom Import ausschliessen. Neue Funktionen werden nicht automatisch angelegt.');if(fn.duty_time_model!=='always')throw Error('Funktion '+fn.name+' existiert mit Zeitprofil Geplant. Eine vorhandene Immer-Funktion wählen.');
    targets.set(row.key,fn);functionIds.add(fn.id);
+  }
+  // Explicitly selected functions must also be usable by this municipality.
+  for(const fn of new Set(targets.values())){
+   const before=structuredClone(fn);
+   for(const [key,value,label] of [['department_ids',department.id,'Abteilung '+department.name],['group_ids',group.id,'Gemeindegruppe '+group.name]])if(fn[key]?.length&&!fn[key].includes(value)){fn[key]=[...fn[key],value];summary.access_changes.push('Funktion '+fn.name+': '+label+' zur bestehenden Funktionsfreigabe ergänzt');}
+   if(JSON.stringify(before)!==JSON.stringify(fn))audit(s,'functions','update',before,structuredClone(fn));
   }
   // A municipality import explicitly assigns the selected area to its municipality.
   // Add this context rather than weakening existing region-group restrictions.
